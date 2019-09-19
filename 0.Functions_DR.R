@@ -32,6 +32,8 @@ library(parallel)
 #=============================================== TARGET_MAKER ===========================================================
 
 # Adds new "Target" column with targeted organisms based on specific requirements of the user. Outputs data as named file ending with "targeted".
+
+
 target_maker <- function (data, level, target){ # Data is entered data. Level is column to search in. target is vector of chosen organisms.
   for (i in 1:length(target)){
     if(i == 1){ # If Target column doesn't exist:
@@ -328,6 +330,7 @@ all_results_for_unmarked <- function(data, res, target, subsamp = FALSE){ # data
         test2 <- SubSamp_for_unmarked(test2)
       }
       temp_name <- paste(deparse(substitute(data)), ".", res[r], ".", target[t], sep = "")
+      dir.create(paste0("Results"), showWarnings = FALSE) #stops warnings if folder already exists
       write.csv(test2, file.path(paste("Results/", temp_name, ".csv", sep="")))
     }
     proc.time() - ptm
