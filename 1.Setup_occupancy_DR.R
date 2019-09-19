@@ -1,17 +1,19 @@
 #===============================================================================================================================================
-#============================================== OCCUPANCY OF ARAGONITIC MOLLUSCS IN THE WIS ====================================================
+#============================================== OCCUPANCY OF LATE CRETACEOUS NORTH AMERICAN DINOSAURS ==========================================
 #===============================================================================================================================================
 
 # Christopher D. Dean 
 # 2019
 
+# Broad PBDB download: https://paleobiodb.org/data1.2/occs/list.csv?base_name=tetrapoda&taxon_reso=genus&pres=regular&interval=Campanian,Maastrichtian&cc=NOA&envtype=terr&show=full,strat,lith,env
+
 #=========================================================== DATA SETUP ======================================================================
 
 # Set working directory
-setwd("C:/Users/deancd/Documents/RESEARCH/PROJECTS/ARA_OCC") # Set your working directory
+setwd("C:/Users/deancd/Documents/RESEARCH/PROJECTS/DINO_RANGE/NA-Dino-Occ/") # Set your working directory
 
 # Load in Functions
-source("R_Code/0.Functions_ARAG.R") # Import functions from other R file (must be in same working directory)
+source("0.Functions_DR.R") # Import functions from other R file (must be in same working directory)
 
 # Make vector of package names
 packages <- c("beepr", "raster", "dplyr", "lattice", "rasterVis", "sp", "maps", "maptools", "parallel") #list your packages here
@@ -30,7 +32,7 @@ library(maps)
 library(maptools)
 library(parallel)
 
-#=============================================== CENOMANIAN - TURONIAN ===============================================
+#=============================================== DATA SETUP ===============================================
 
 # Read in files
 ct.occs <- read.csv("Data/Occurrences/Non-Rotated/cen_tur.csv", stringsAsFactors = FALSE) # Load in occurrences
