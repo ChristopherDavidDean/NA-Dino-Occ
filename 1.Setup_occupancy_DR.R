@@ -35,81 +35,49 @@ library(parallel)
 #=============================================== DATA SETUP ===============================================
 
 # Read in files
-ct.occs <- read.csv("Data/Occurrences/Non-Rotated/cen_tur.csv", stringsAsFactors = FALSE) # Load in occurrences
-ct.colls <- read.csv("Data/Occurrences/Non-Rotated/cen_tur_broad.csv", stringsAsFactors = FALSE) # load in all collections
-ct.outcrop <- readShapePoly("Data/Geology/CenTurComplete.shp") #Get outcrop areas as polygons
-
-# Combine datasets
-combine_data(ct.occs, ct.colls)
+camp.occs <- read.csv("Data/Occurrences/Broad_Colls_Data_Campanian.csv", stringsAsFactors = FALSE) # Load in occurrences
+maas.occs <- read.csv("Data/Occurrences/Broad_Colls_Data_Maastrichtian.csv", stringsAsFactors = FALSE) # load in all collections
 
 # Visualise grid cells
-get_grid_im(ct.occs.comb, 0.5, "Occurrences")
-get_grid_im(ct.colls.comb, 0.5, "Collections")
+get_grid_im(camp.occs, 1, "Occurrences")
+get_grid_im(maas.occs, 1, "Occurrences")
 
-just_arag_bivs <- ct.occs.comb %>%
-  filter(Target == "Aragonitic Bivalves")
-just_amms <- ct.occs.comb %>%
-  filter(Target == "Ammonites")
-just_calc_bivs <- ct.occs.comb %>%
-  filter(Target == "Calcitic Bivalves")
+# Make Targets
+target_maker(camp.occs, "family", "Ceratopsidae")
+Ceratops <- camp.occs.targeted %>%
+  filter(Target == "Ceratopsidae")
 
-get_grid_im(just_amms, 0.5, "Ammonite Occurrences")
-get_grid_im(just_arag_bivs, 0.5, "Aragonitic Bivalve Occurrences")
-get_grid_im(just_calc_bivs, 0.5, "Calcitic Bivalve Occurrences")
+get_grid_im(Ceratops, 1, "Ceratopsidae Occurrences")
 
 # Setup results
-target = c("Ammonites", "Aragonitic Bivalves", "Calcitic Bivalves")
+target = c("Ceratopsidae", "Tyrannosauridae", "Hadrosauridae")
 res <- c(0.5, 1)
 
 # Run results
-all_results_for_unmarked(ct.occs.comb, res, target, subsamp = TRUE)
+target_maker(camp.occs, "family", target)
+all_results_for_unmarked(camp.occs.targeted, res, target, subsamp = FALSE)
+target_maker(maas.occs, "family", target)
+all_results_for_unmarked(maas.occs.targeted, res, target, subsamp = FALSE)
 
 # Get cell covariates
-all_covs_info(ct.occs.comb, res, ct.outcrop)
-
-#=============================================== LOWER CAMPANIAN ===============================================
-
-# Read in files
-lc.occs <- read.csv("Data/Occurrences/Non-Rotated/lower_camp_2.csv", stringsAsFactors = FALSE) # Load in occurrences
-lc.colls <- read.csv("Data/Occurrences/Non-Rotated/lower_camp_Broad.csv", stringsAsFactors = FALSE) # load in all collections
-lc.outcrop <- readShapePoly("Data/Geology/CampComplete.shp") #Get outcrop areas as polygons
-
-# Combine datasets
-combine_data(lc.occs, lc.colls)
-
-# Visualise grid cells
-get_grid_im(lc.occs.comb, 0.5, "Occurrences")
-get_grid_im(lc.colls.comb, 0.5, "Collections")
-
-just_arag_bivs <- lc.occs.comb %>%
-  filter(Target == "Aragonitic Bivalves")
-just_amms <- lc.occs.comb %>%
-  filter(Target == "Ammonites")
-just_calc_bivs <- lc.occs.comb %>%
-  filter(Target == "Calcitic Bivalves")
-
-get_grid_im(just_amms, 0.5, "Ammonite Occurrences")
-get_grid_im(just_arag_bivs, 0.5, "Aragonitic Bivalve Occurrences")
-get_grid_im(just_calc_bivs, 0.5, "Calcitic Bivalve Occurrences")
-
-# Setup results
-target = c("Ammonites", "Aragonitic Bivalves", "Calcitic Bivalves")
-res <- c(0.1, 0.5, 1)
-
-# Run results
-all_results_for_unmarked(lc.occs.comb, res, target)
-
-res <- 1
-
-# Get cell covariates
-all_covs_info(lc.occs.comb, res, lc.outcrop)
-all_covs_info(ct.occs.comb, res, ct.outcrop)
+# NA at present
 
 #=========================================================== OCCUPANCY =================================================================
 
 library("unmarked")
 
-data <- read.csv("Results/ct.occs.comb.1.Ammonites.csv") # import data from previous step. Result here is just a test case to show.
+data <- read.csv("Results/Subsampled/maas.occs.targeted.1.Hadrosauridae.csv") # import data from previous step. Result here is just a test case to show.
+# Turn into matrix
+y <- as.matrix(data[,2:6])
+
+umf <- unmarkedFrameOccu(y = y)
+summary(umf)
+summary(fm1 <- occu(~1 ~1, data=umf))
+
+print(occ.null <- backTransform(fm1, "state")) 
+print(det.null <- backTransform(fm1, "det")) 
+
+
 lith.orig <- read.csv("Results/sitecovs.1.csv")
 site.covs <- read.csv("Results/cellcovs.1.csv")
 site.covs <- site.covs %>%
