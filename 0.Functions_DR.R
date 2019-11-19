@@ -299,7 +299,6 @@ SubSamp_for_unmarked <- function(data, target, sampval = 10, trials = 100){ # Da
   new_dframe_for_unmarked <- new_dframe_for_unmarked[,1:sampval]
   temp_name <- paste("SS_unmarked_", target, sep = "")
   assign(temp_name, new_dframe_for_unmarked, envir = .GlobalEnv)
-  
 }
 
 #===== ALL_RESULTS_FOR_UNMARKED =====
