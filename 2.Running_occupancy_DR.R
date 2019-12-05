@@ -12,81 +12,143 @@
 
 library("unmarked")
 
-data <- read.csv("Results/Subsampled/maas.occs.targeted.1.Hadrosauridae.csv") # import data from previous step. Result here is just a test case to show.
+data <- read.csv("Results/1/camp.occs.targeted.1.CeratopsidaeSS.csv") # import data from previous step. Result here is just a test case to show.
+data <- data[-73,]
 
 # Turn into matrix
-y <- as.matrix(data[,2:6])
+y <- as.matrix(data[,2:11])
 
 #============================================== OCCUPANCY MODELLING =========================================
 
+# Simple quick test
 umf <- unmarkedFrameOccu(y = y)
 summary(umf)
 summary(fm1 <- occu(~1 ~1, data=umf))
 
+data$X
+site.covs$cells.1
+
 print(occ.null <- backTransform(fm1, "state")) 
 print(det.null <- backTransform(fm1, "det")) 
 
-
-lith.orig <- read.csv("Results/sitecovs.1.csv")
-site.covs <- read.csv("Results/cellcovs.1.csv")
+# Covariates
+site.covs <- read.csv("Results/1/CampanianCovariates.csv")
 site.covs <- site.covs %>%
-  dplyr::arrange(cells)
+  dplyr::arrange(cells.1)
 
-
-OA.orig <- site.covs[,"Perc_outcrop_area"]      # Unstandardised, original values of covariates
-Carb.orig <- site.covs[,"perc_carb"]
-CPC.orig <- site.covs[,"colls_per_cell"]
-lith <- as.matrix(lith.orig)
+DEMs.orig <- site.covs[,"DEM_1"]      # Unstandardised, original values of covariates
+LaCo.orig <- site.covs[,"LANDCVI_selected_1"]
+OUTc.orig <- site.covs[,"Camp_out_1"]
+RAIN.orig <- site.covs[,"WC_Prec_1"]
+TEMP.orig <- site.covs[,"WC_Temp_1"]
+MGVF.orig <- site.covs[,"MGVF_1"]
+CaRa.orig <- site.covs[,"CampPrecip_1"]
+CaTe.orig <- site.covs[,"CampTemp"]
 
 # Overview of Covariates
-covs <- cbind(OA.orig, Carb.orig, CPC.orig)
-par(mfrow = c(3,1))
-for(i in 1:3){
+covs <- cbind(DEMs.orig, LaCo.orig, OUTc.orig, RAIN.orig, MGVF.orig, CaRa.orig, CaTe.orig)
+par(mfrow = c(3,3))
+for(i in 1:7){
   hist(covs[,i], breaks = 50, col = "grey", main = colnames(covs)[i])
 }
-pairs(cbind(OA.orig, Carb.orig, CPC.orig))
+pairs(cbind(DEMs.orig, LaCo.orig, OUTc.orig, RAIN.orig, MGVF.orig, CaRa.orig, CaTe.orig))
 
 # Standardize covariates and mean-impute OA and Carbation
 # Compute means and standard deviations
-(means <- c(apply(cbind(OA.orig, Carb.orig, CPC.orig), 2, mean)))
-(sds <- c(apply(cbind(OA.orig, Carb.orig, CPC.orig), 2, sd)))
+(means <- c(apply(cbind(DEMs.orig, LaCo.orig, OUTc.orig, RAIN.orig, MGVF.orig, CaRa.orig, CaTe.orig), 2, mean, na.rm = TRUE)))
+(sds <- c(apply(cbind(DEMs.orig, LaCo.orig, OUTc.orig, RAIN.orig, MGVF.orig, CaRa.orig, CaTe.orig), 2, sd, na.rm = TRUE)))
 
 # Scale covariates
-OA <- (OA.orig - means[1]) / sds[1]
-Carb <- (Carb.orig - means[2]) / sds[2]
-CPC <- (CPC.orig - means[3]) / sds[3]
+DEMs<- (DEMs.orig - means[1]) / sds[1] #
+LaCo<- (LaCo.orig - means[2]) / sds[2] 
+OUTc<- (OUTc.orig - means[3]) / sds[3] # 
+RAIN<- (RAIN.orig - means[4]) / sds[4] #
+MGVF<- (MGVF.orig - means[5]) / sds[5] #
+CaRa<- (CaRa.orig - means[6]) / sds[6]
+CaTe<- (CaTe.orig - means[7]) / sds[7]
+
 
 # Turn into matrix
-y <- as.matrix(data[,2:231]) # set second number as number of sites (i.e. number of columns)
-
-library(unmarked)
-umf <- unmarkedFrameOccu(y = y, siteCovs = data.frame(OA = OA, Carb = Carb, CPC = CPC))
+umf <- unmarkedFrameOccu(y = y, siteCovs = data.frame(DEMs = DEMs, LaCo = LaCo, OUTc = OUTc,
+                                                      RAIN = RAIN, MGVF = MGVF, CaRa = CaRa, 
+                                                      CaTe = CaTe))
 summary(umf)
 
 # Fit null model
 # Fit a series of models for detection first and do model selection
 summary(fm1 <- occu(~1 ~1, data=umf))
-summary(fm2 <- occu(~CPC ~1, data=umf))
-summary(fm3 <- occu(~CPC+I(CPC^2) ~1, data=umf))
-summary(fm4 <- occu(~Carb ~1, data=umf))
-summary(fm5 <- occu(~OA+CPC ~1, data=umf))
-summary(fm6 <- occu(~OA+I(OA^2)+Carb ~1, data=umf))
-summary(fm7 <- occu(~Carb+I(Carb^2) ~1, data=umf))
-summary(fm8 <- occu(~OA+Carb+I(Carb^2) ~1, data=umf))
-summary(fm9 <- occu(~OA+I(OA^2)+Carb+I(Carb^2) ~1, data=umf))
+summary(fm2 <- occu(~1 ~CaRa, data=umf))
+summary(fm3 <- occu(~1 ~CaTe, data=umf))
+summary(fm4 <- occu(~1 ~CaRa + CaTe, data=umf))
+fms <- fitList("p(.)psi(.)"                   = fm1,
+               "p(CaRa)psi(.)"                = fm2,
+               "p(CaTe)psi(.)"                = fm3,
+               "p(CaRa + CaTe)psi(.)"         = fm4
+)
+(ms <- modSel(fms))
 
+
+# WITH DEMS
+summary(fm1 <- occu(~1 ~1, data=umf))
+summary(fm2 <- occu(~DEMs ~1, data=umf))
+summary(fm3 <- occu(~OUTc ~1, data=umf))
+summary(fm4 <- occu(~RAIN ~1, data=umf))
+summary(fm5 <- occu(~MGVF ~1, data=umf))
+summary(fm6 <- occu(~DEMs + OUTc ~1, data=umf))
+summary(fm7 <- occu(~DEMs + RAIN ~1, data=umf))
+summary(fm8 <- occu(~DEMs + MGVF ~1, data=umf))
+summary(fm9 <- occu(~OUTc + RAIN ~1, data=umf))
+summary(fm10 <- occu(~OUTc + MGVF ~1, data=umf))
+summary(fm11 <- occu(~RAIN + MGVF~1, data=umf))
+summary(fm12 <- occu(~DEMs + OUTc + RAIN ~1, data=umf))
+summary(fm13 <- occu(~DEMs + OUTc + MGVF ~1, data=umf))
+summary(fm14 <- occu(~OUTc + RAIN + MGVF ~1, data=umf))
+summary(fm15 <- occu(~DEMs + RAIN + MGVF ~1, data=umf))
+summary(fm16 <- occu(~DEMs + + OUTc + RAIN + MGVF ~1, data=umf))
 
 # Put the fitted models in a "fitList" and rank them by AIC
-fms <- fitList("p(.)psi(.)"                     = fm1,
-               "p(OA)psi(.)"                      = fm2,
-               "p(OA+OA2)psi(.)"                = fm3,
-               "p(Carb)psi(.)"                       = fm4,
-               "p(OA+Carb)psi(.)"                  = fm5,
-               "p(OA+OA2+Carb)psi(.)"            = fm6,
-               "p(Carb+Carb2)psi(.)"                  = fm7,
-               "p(OA+Carb+Carb2)psi(.)"             = fm8,
-               "p(OA+OA2+Carb+carb2)psi(.)"           = fm9)
+fms <- fitList("p(.)psi(.)"                   = fm1,
+               "p(DEMs)psi(.)"                = fm2,
+               "p(OUTc)psi(.)"                = fm3,
+               "p(RAIN)psi(.)"                = fm4,
+               "p(MGVF)psi(.)"                = fm5,
+               "p(DEMs+OUTc)psi(.)"           = fm6,
+               "p(DEMs+RAIN)psi(.)"           = fm7,
+               "p(DEMS+MGVF)psi(.)"           = fm8,
+               "p(OUTc+RAIN)psi(.)"           = fm9, 
+               "p(OUTc+MGVF)psi(.)"           = fm10,
+               "p(RAIN+MGVF)psi(.)"           = fm11,
+               "p(DEMs+OUTc+RAIN)psi(.)"      = fm12,
+               "p(DEMs+OUTc+MGVF)psi(.)"      = fm13,
+               "p(OUTc+RAIN+MGVF)psi(.)"      = fm14,
+               "p(DEMs+RAIN+MGVF)psi(.)"      = fm15,
+               "p(DEMs+OUTc+RAIN+MGVF)psi(.)" = fm16
+               )
 (ms <- modSel(fms))
+
+# WITHOUT DEMS
+summary(fm1 <- occu(~1 ~1, data=umf))
+summary(fm2 <- occu(~OUTc ~1, data=umf))
+summary(fm3 <- occu(~RAIN ~1, data=umf))
+summary(fm4 <- occu(~MGVF ~1, data=umf))
+summary(fm5 <- occu(~OUTc + RAIN ~1, data=umf))
+summary(fm6 <- occu(~OUTc + MGVF ~1, data=umf))
+summary(fm7 <- occu(~RAIN + MGVF ~1, data=umf))
+summary(fm8 <- occu(~OUTc + RAIN + MGVF ~1, data=umf))
+
+# Put the fitted models in a "fitList" and rank them by AIC
+fms <- fitList("p(.)psi(.)"                   = fm1,
+               "p(OUTc)psi(.)"                = fm2,
+               "p(RAIN)psi(.)"                = fm3,
+               "p(MGVF)psi(.)"                = fm4,
+               "p(OUTc+RAIN)psi(.)"           = fm5, 
+               "p(OUTc+MGVF)psi(.)"           = fm6,
+               "p(RAIN+MGVF)psi(.)"           = fm7,
+               "p(OUTc+RAIN+MGVF)psi(.)"      = fm8
+)
+(ms <- modSel(fms))
+
+
 
 library(AICcmodavg)
 system.time(gof.boot <- mb.gof.test(fm10, nsim = 1000))
