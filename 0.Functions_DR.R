@@ -130,23 +130,18 @@ get_cov <- function(data, raster){ # data is first output from combine_data (fos
 
 # Creates a raster stack of chosen resolution from previously stored raster files, and attaches associated grid cell IDs to occurrences/collections. 
 get_cov_from_stack <- function(data, res){ # data is first output from combine_data (fossil.colls) and chosen resolution. 
-  grids <- list.files(paste("Lewis_Occupancy_data/Data/Formatted/All_data/", res, "deg/", sep = ""), pattern = "asc") # Find rasters of appropriate resolution
-  raster <- raster::stack(paste0("Lewis_Occupancy_data/Data/Formatted/All_data/", res, "deg/", grids)) # stack those rasters
+  grids <- list.files(paste("Data/Covariate_Data/Formatted/All_data/", res, "deg/", sep = ""), pattern = "asc") # Find rasters of appropriate resolution
+  raster <- raster::stack(paste0("Data/Covariate_Data/Formatted/All_data/", res, "deg/", grids)) # stack those rasters
   get_cov(data, raster)
+  CovStack <<- raster
 }
 
 #=============================================== GET_GRID_IM ===========================================================
 
 # Sets raster to dimensions of inputted data ready for visualisation. Is used in vis_grid. 
-get_grid_im <- function(data, res, name){ # Data is first output from combine_data (fossil.colls). Res is chosen resolution in degrees. name is user inputted string related to data inputted, for display on graphs. 
-  min_lat <- floor(min(data$lat, na.rm = TRUE)/10)*10 
-  max_lat <- ceiling(max(data$lat, na.rm = TRUE)/10)*10
-  min_lon <- floor(min(data$lng, na.rm = TRUE)/10)*10
-  max_lon <- ceiling(max(data$lng, na.rm = TRUE)/10)*10
-  Lat_dim <- (max_lat - min_lat)/res
-  Lon_dim <- (max_lon - min_lon)/res
+get_grid_im <- function(data, res, name, ext){ # Data is first output from combine_data (fossil.colls). Res is chosen resolution in degrees. name is user inputted string related to data inputted, for display on graphs. 
   xy <- cbind(as.double(data$lng), as.double(data$lat))
-  r <- raster::raster(ncol=Lon_dim, nrow=Lat_dim, xmn=min_lon, xmx=max_lon, ymn=min_lat, ymx=max_lat)
+  r <- raster::raster(ext = ext, res = res)
   r <- raster::rasterize(xy, r, fun = 'count')
   #r[r > 0] <- 1 # Remove if you want values instead of pure presence/absence.
   countries <- maps::map("world", plot=FALSE, fill = TRUE) # find map to use as backdrop
@@ -168,7 +163,7 @@ get_grid_im <- function(data, res, name){ # Data is first output from combine_da
 
 #===== PREPARE_FOR_RES_DATA =====
 # Produces summary of key stats for data at a specified resolution of grid cell. Used in res_data.
-prepare_for_res_data <- function(data, target){ # Data is first output from combine_data (fossil.colls). Target is chosen taxon group of interest
+prepare_for_res_data <- function(data, target, single = TRUE){ # Data is first output from combine_data (fossil.colls). Target is chosen taxon group of interest
   rel_data <- data %>% 
     dplyr::select(collection_name, cells, Target) # Select appropriate cells
   rel_data$Target[rel_data$Target != target] <- 0 # Make anything that's not the target group a 0
@@ -182,9 +177,12 @@ prepare_for_res_data <- function(data, target){ # Data is first output from comb
   joined_data <- dplyr::left_join(coll_data, rel_data) %>% #Join with cell IDs
     dplyr::select(-Target, Pres.Abs = `mean(Target)`, collection_name) #Remove old target, clean column name
   joined_data <- joined_data %>% dplyr::distinct() # Remove duplicates of remaining collections
-  id.table <- table(joined_data$cells) # Create table for removing singleton cells (cells with only one collection)
-  cells.removed <- sum(id.table == 1) # Record how many cells removed
-  joined_data <- subset(joined_data, cells %in% names(id.table[id.table > 1])) # Remove cells with only one collection
+  cells.removed <- NA
+  if(single == TRUE){
+    id.table <- table(joined_data$cells) # Create table for removing singleton cells (cells with only one collection)
+    cells.removed <- sum(id.table == 1) # Record how many cells removed
+    joined_data <- subset(joined_data, cells %in% names(id.table[id.table > 1])) # Remove cells with only one collection
+  }
   prestest<- joined_data %>%  # Get data for calculating naive occupancy
     dplyr::group_by(cells) %>%
     dplyr::summarize(ceiling(mean(Pres.Abs)))
@@ -201,7 +199,7 @@ prepare_for_res_data <- function(data, target){ # Data is first output from comb
 
 #===== RES_DATA =====
 # Carries out prepare_for_res_data over a sequence of resolutions, and outputs as a data.frame.
-res_data <- function(data, target, start, fin, int){ # Data is first output from combine_data (fossil.colls). Target is chosen group to test. start is first resolution, fin is last resolution,int is the interval to count between start and fin.
+res_data <- function(data, target, single = TRUE, start, fin, int){ # Data is first output from combine_data (fossil.colls). Target is chosen group to test. start is first resolution, fin is last resolution,int is the interval to count between start and fin.
   s1 <- seq(start, fin, int)
   Res_results_list <- list()
    for(t in 1:length(target)){
@@ -212,7 +210,12 @@ res_data <- function(data, target, start, fin, int){ # Data is first output from
     row.names(Res_results) <- s1
     for (i in (1:length(s1))){
       test <- get_grid(data, s1[i])
-      prepare_for_res_data(test, target[t])
+      if (single == FALSE){
+        prepare_for_res_data(test, target[t], single = FALSE)
+      }
+      else {
+        prepare_for_res_data(test, target[t])
+      }
       Res_results[i,]<- results
     }
   Res_results_list[[t]] <- Res_results
@@ -228,7 +231,7 @@ Res_results_list <<- Res_results_list
 #===== PREPARE_FOR_UNMARKED =====
 # Converts data generated by Get_grid into the correct format for unmarked. 
 
-prepare_for_unmarked <- function(data, target){ # data is output from Get_Grid. target is specified group to examine. 
+prepare_for_unmarked <- function(data, target, single = TRUE){ # data is output from Get_Grid. target is specified group to examine. 
   rel_data <- data %>% 
     dplyr::select(collection_name, cells, Target)
   rel_data$Target[rel_data$Target == target] <- 1 # Make target's a 1
@@ -242,8 +245,10 @@ prepare_for_unmarked <- function(data, target){ # data is output from Get_Grid. 
   joined_data <- dplyr::left_join(coll_data, rel_data) %>% #Join with cell IDs
     dplyr::select(-Target, Pres.Abs = `mean(Target)`, collection_name) #Remove old target, clean column name
   joined_data <- joined_data %>% dplyr::distinct() # Remove duplicates of remaining collections
-  id.table <- table(joined_data$cells) # Create table for removing singleton cells (cells with only one collection)
-  joined_data <- subset(joined_data, cells %in% names(id.table[id.table > 1])) # Remove cells with only one collection
+  if (single == TRUE){
+    id.table <- table(joined_data$cells) # Create table for removing singleton cells (cells with only one collection)
+    joined_data <- subset(joined_data, cells %in% names(id.table[id.table > 1])) # Remove cells with only one collection
+  }
   prestest<- joined_data %>%  # Get data for calculating naive occupancy
     dplyr::group_by(cells) %>%
     dplyr::summarize(ceiling(mean(Pres.Abs)))
@@ -303,18 +308,28 @@ SubSamp_for_unmarked <- function(data, target, sampval = 10, trials = 100){ # Da
 
 #===== ALL_RESULTS_FOR_UNMARKED =====
 # loop that take basic combined data and writes multiple .csv files into Results folder in current directory for chosen grid cells resolutions and targets in correct format for unmarked. Sound rings when function has finished running.
-all_results_for_unmarked <- function(data, res, target, ext, subsamp = TRUE){ # data is first output from combined_data (fossil.colls). res is vectors of chosen resolutions. target is vector of chosen targets. 
+all_results_for_unmarked <- function(data, res, target, ext, subsamp = TRUE, single = TRUE){ # data is first output from combined_data (fossil.colls). res is vectors of chosen resolutions. target is vector of chosen targets. 
   for (r in 1:length(res)){
     ptm <- proc.time()
     test1 <- get_grid(data, res[r], ext)
     for (t in 1:length(target)){
-      test2 <- prepare_for_unmarked(test1, target[t])
+      if(single == FALSE){
+        test2 <- prepare_for_unmarked(test1, target[t], single = FALSE)
+      }
+      else {
+        test2 <- prepare_for_unmarked(test1, target[t])
+      }
       if (subsamp==TRUE){
         test2 <- SubSamp_for_unmarked(test2, target[t])
       }
       temp_name <- paste(deparse(substitute(data)), ".", res[r], ".", target[t], sep = "")
-      dir.create(paste0("Results"), showWarnings = FALSE) #stops warnings if folder already exists
-      write.csv(test2, file.path(paste("Results/", temp_name, ".csv", sep="")))
+      dir.create(paste0("Results/", res, sep =""), showWarnings = FALSE) #stops warnings if folder already exists
+      if (subsamp == TRUE){
+        write.csv(test2, file.path(paste("Results/", res, "/", temp_name, "SS.csv", sep="")))
+      }
+      else{
+        write.csv(test2, file.path(paste("Results/", res, "/", temp_name, ".csv", sep="")))
+      }
     }
     proc.time() - ptm
   }
