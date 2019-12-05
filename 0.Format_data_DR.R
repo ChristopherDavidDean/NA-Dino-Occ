@@ -27,6 +27,9 @@ dir.create(paste0("Data/Covariate_Data/Formatted/All_data", sep =""), showWarnin
 dir.create(paste0("Data/Covariate_Data/Formatted/All_data/0.1deg", sep =""), showWarnings = FALSE)
 dir.create(paste0("Data/Covariate_Data/Formatted/All_data/0.5deg", sep =""), showWarnings = FALSE)
 dir.create(paste0("Data/Covariate_Data/Formatted/All_data/1deg", sep =""), showWarnings = FALSE)
+dir.create(paste0("Data/Covariate_Data/Formatted/All_data/0.1deg/PalaeoClimate", sep =""), showWarnings = FALSE)
+dir.create(paste0("Data/Covariate_Data/Formatted/All_data/0.5deg/PalaeoClimate", sep =""), showWarnings = FALSE)
+dir.create(paste0("Data/Covariate_Data/Formatted/All_data/1deg/PalaeoClimate", sep =""), showWarnings = FALSE)
 dir.create(paste0("Data/Covariate_Data/Formatted/Elevation_GRID", sep =""), showWarnings = FALSE)
 dir.create(paste0("Data/Covariate_Data/Formatted/landcvi0201", sep =""), showWarnings = FALSE)
 dir.create(paste0("Data/Covariate_Data/Formatted/MGVF", sep =""), showWarnings = FALSE)
@@ -95,19 +98,6 @@ writeRaster(newData, paste("Data/Covariate_Data/Formatted/All_data/", res, "deg/
 
 #===================================== FORMAT WORLDCLIM =================================================================
 
-#wind
-setwd("Data/Covariate_Data/Worldclim/wc2.0_30s_wind/")
-wc <- list.files("./")
-wc <- stack(wc)
-wc <- crop(wc, e) #crop data to extent object
-wc <- resample(wc, r)
-wc <- crop(wc, e)
-newData <- mean(wc)
-plot(newData)
-setwd("C:/Users/deancd/Documents/RESEARCH/PROJECTS/DINO_RANGE/NA-Dino-Occ/")
-writeRaster(newData, paste("Data/Covariate_Data/Formatted/Worldclim/", "WC_Wind_", res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE) #write ascii
-writeRaster(newData, paste("Data/Covariate_Data/Formatted/All_data/", res, "deg/WC_Wind_", res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE) #write ascii
-
 #precipitation
 setwd("Data/Covariate_Data/Worldclim/wc2.0_30s_prec/")
 wc <- list.files("./")
@@ -142,7 +132,9 @@ CampOut <- readOGR(dsn = "Data/Covariate_Data/Outcrop/Campanian/Campanian.shp")
 CampOut <- spTransform(CampOut,  CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"))
 CampOut <- CampOut[grepl(c("Sedimentary"), CampOut$ROCKTYPE), ]
 #plot(CampOut)
-e <- floor(e)
+if (res == 1){
+  e <- floor(e)
+}
 r <- raster(ext = e, res = res)
 CampOut <- rasterize(CampOut, r, getCover = TRUE)
 plot(CampOut)
@@ -154,7 +146,9 @@ MaasOut <- readOGR(dsn = "Data/Covariate_Data/Outcrop/Maastrichtian/Maastrichtia
 MaasOut <- spTransform(MaasOut,  CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"))
 MaasOut <- MaasOut[grepl(c("Sedimentary"), MaasOut$ROCKTYPE), ]
 #plot(MaasOut)
-e <- floor(e)
+if (res == 1){
+  e <- floor(e)
+}
 r <- raster(ext = e, res = res)
 MaasOut <- rasterize(MaasOut, r, getCover = TRUE)
 plot(MaasOut)
@@ -170,7 +164,7 @@ r <- raster(res = res) #create raster for projecting raster
 CampPrecip <- projectRaster(CampPrecip, r) #project raster
 plot(CampPrecip)
 writeRaster(CampPrecip, paste("Data/Covariate_Data/Formatted/PalaeoClimate/CampPrecip_", res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE) #write ascii
-writeRaster(CampPrecip, paste("Data/Covariate_Data/Formatted/All_data/", res, "deg/CampPrecip_", res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
+writeRaster(CampPrecip, paste("Data/Covariate_Data/Formatted/All_data/", res, "deg/PalaeoClimate/CampPrecip_", res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
 
 MaasPrecip <- raster("Data/Covariate_Data/Climate_Data/Maas_Precip.asc")
 projection(MaasPrecip) <- CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0")
@@ -178,7 +172,7 @@ r <- raster(res = res) #create raster for projecting raster
 MaasPrecip <- projectRaster(MaasPrecip, r) #project raster
 plot(MaasPrecip)
 writeRaster(MaasPrecip, paste("Data/Covariate_Data/Formatted/PalaeoClimate/MaasPrecip_", res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE) #write ascii
-writeRaster(MaasPrecip, paste("Data/Covariate_Data/Formatted/All_data/", res, "deg/MaasPrecip_", res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
+writeRaster(MaasPrecip, paste("Data/Covariate_Data/Formatted/All_data/", res, "deg/PalaeoClimate/MaasPrecip_", res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
 
 # Temp
 CampTemp <- raster("Data/Covariate_Data/Climate_Data/Camp_Temp.asc")
@@ -187,7 +181,7 @@ r <- raster(res = res) #create raster for projecting raster
 CampTemp <- projectRaster(CampTemp, r) #project raster
 plot(CampTemp)
 writeRaster(CampTemp, paste("Data/Covariate_Data/Formatted/PalaeoClimate/CampTemp_", res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE) #write ascii
-writeRaster(CampTemp, paste("Data/Covariate_Data/Formatted/All_data/", res, "deg/CampTemp_", res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
+writeRaster(CampTemp, paste("Data/Covariate_Data/Formatted/All_data/", res, "deg/PalaeoClimate/CampTemp_", res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
 
 MaasTemp <- raster("Data/Covariate_Data/Climate_Data/Maas_Temp.asc")
 projection(MaasTemp) <- CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0")
@@ -195,5 +189,5 @@ r <- raster(res = res) #create raster for projecting raster
 MaasTemp <- projectRaster(MaasTemp, r) #project raster
 plot(MaasTemp)
 writeRaster(MaasTemp, paste("Data/Covariate_Data/Formatted/PalaeoClimate/MaasTemp_", res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE) #write ascii
-writeRaster(MaasTemp, paste("Data/Covariate_Data/Formatted/All_data/", res, "deg/MaasTemp_", res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
+writeRaster(MaasTemp, paste("Data/Covariate_Data/Formatted/All_data/", res, "deg/PalaeoClimate/MaasTemp_", res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
 beepr::beep(sound = 3)
