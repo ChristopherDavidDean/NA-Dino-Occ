@@ -15,6 +15,9 @@
 # Set working directory
 setwd("C:/Users/deancd/Documents/RESEARCH/PROJECTS/DINO_RANGE/NA-Dino-Occ/") # Set your working directory
 
+# Load master spreadsheet
+master.occs <- read.csv("Data/Occurrences/Master_spreadsheet_v1_051219.csv")
+
 #==== If first time using: ====
 # Make vector of package names
 packages <- c("beepr", "raster", "dplyr", "lattice", "rasterVis", "sp", "maps", "maptools", "parallel") #list your packages here
@@ -37,28 +40,27 @@ library(parallel)
 # Load in Functions
 source("0.Functions_DR.R") # Import functions from other R file (must be in same working directory)
 
-#=============================================== DATA SETUP ===============================================
+#==== Set working resolution and extent ====
+res <- 1
+get_extent(master.occs)
+
+# Convert rasters to desired resolution
+source("0.Format_data_DR.R") # Import extent and run cleaning/import of raster datasets. Running this will take a while, 
+# but will automatically update rasters so that they are of the desired resolution and place them in the appropriate folder
+# for running the next steps. 
+
+#=============================================== CAMPANIAN DATA SETUP ===============================================
 
 # Read in files
-camp.occs <- read.csv("Data/Occurrences/Broad_Colls_Data_Campanian.csv", stringsAsFactors = FALSE) # Load in occurrences
-
-# Set working resolution and extent. Note: these values should be the same ones used for the file 1.Setup_occupancy_DR.
-res <- 0.5
-get_extent(camp.occs)
+camp.occs <- read.csv("Data/Occurrences/Camp_data_V1_Species_removed.csv", stringsAsFactors = FALSE) # Load in occurrences
 
 #==== Visualise grid cells for collections and occurrences ====
-
 camp.colls <- camp.occs %>% # Make unique collections for visualisation
   dplyr::select(collection_no, lat, lng) %>%
   dplyr::distinct()
-maas.colls <- maas.occs %>% # Make unique collections for visualisation
-  dplyr::select(collection_no, lat, lng) %>%
-  dplyr::distinct()
 
-get_grid_im(camp.occs, res, "Collections")
-get_grid_im(maas.occs, res, "Collections")
+get_grid_im(camp.occs, res, "Occurrences")
 get_grid_im(camp.colls, res, "Collections")
-get_grid_im(maas.colls, res, "Collections")
 
 #==== Testing Targets ====
 # target_maker(camp.occs, "family", "Ceratopsidae")
@@ -74,34 +76,27 @@ target = c("Ceratopsidae", "Tyrannosauridae", "Hadrosauridae") # set Targets
 target_maker(camp.occs, "family", target) # run target_maker
 
 # Check resolution data
-res_data(camp.occs.targeted, target, 0.1, 1, 0.1) # Makes list of dataframes, each containing information about various cell resolutions. Can also see Naive occupancy estimates.
+res_data(camp.occs.targeted, target, 0.5, 1, 0.5, single = TRUE) # Makes list of dataframes, each containing information about various cell resolutions. Can also see Naive occupancy estimates.
 Res_results_list$Ceratopsidae
 Res_results_list$Tyrannosauridae
 Res_results_list$Hadrosauridae
 
 # Prepare data for unmarked - Campanian
-all_results_for_unmarked(data = camp.occs.targeted, res = res, ext = e, target = target, subsamp = TRUE)
+all_results_for_unmarked(data = camp.occs.targeted, res = res, ext = e, target = target, subsamp = FALSE, single = FALSE)
+all_results_for_unmarked(data = camp.occs.targeted, res = res, ext = e, target = target, subsamp = TRUE, single = FALSE)
 
 #=============================================== COVARIATE SETUP ===============================================
 
-# Convert rasters to desired resolution
-source("0.Format_data_DR.R") # Import extent and run cleaning/import of raster datasets. Running this will take a while, 
-# but will automatically update rasters so that they are of the desired resolution and place them in the appropriate folder
-# for running the next steps. 
-
 # Add covariates to Occurrence spreadsheet
 get_cov_from_stack(Final, res = res)
-
+plot(CovStack)
 # Clean/split data to just relevant covariates
 Camp_Covs <- cov_dat[, -grep("Maas_out_", colnames(cov_dat))]
-#Maas_Covs <- cov_dat[, -grep("Camp_out_", colnames(cov_dat))]
 
 #===== PALAEO-DATA =====
 # Data
-CampPrecip <- raster("Lewis_Occupancy_data/Data/Formatted/PalaeoClimate/CampPrecip.asc")
-CampTemp <- raster("Lewis_Occupancy_data/Data/Formatted/PalaeoClimate/CampTemp.asc")
-#MaasPrecip <- raster("Lewis_Occupancy_data/Data/Formatted/PalaeoClimate/MaasPrecip.asc")
-#MaasTemp <- raster("Lewis_Occupancy_data/Data/Formatted/PalaeoClimate/MaasTemp.asc")
+CampPrecip <- raster(paste("Data/Covariate_Data/Formatted/PalaeoClimate/CampPrecip_", res, ".asc", sep = ""))
+CampTemp <- raster(paste("Data/Covariate_Data/Formatted/PalaeoClimate/CampTemp_", res, ".asc", sep = ""))
 
 # Camp Stack Extract
 CampStack <- stack(CampPrecip, CampTemp)
@@ -116,21 +111,96 @@ Camp_Covs <- as.data.frame(Camp_Covs) # Conver to dataframe
 
 # Make Master Camp Spreadsheet
 Camp_Cov_Master <- Camp_Covs
+Camp_Cov_Master <- Camp_Cov_Master %>%
+  select(collection_no, collection_name, accepted_name, identified_rank, family, genus, formation, member, 
+         cells.1, Camp_out_1, DEM_1, LANDCVI_selected_1, MGVF_1, 
+         SLOPE_1, WC_Prec_1, WC_Temp_1, cells.2, CampPrecip_1, CampTemp_1)
+
+write.csv(Camp_Cov_Master, file.path(paste("Results/", res, "/CampanianMasterSheet.csv", sep="")))
+
 # Clean data to just gridcells and associated covariates
-Camp_Covs <- Camp_Covs[,c(129:147, 150:152)]
+Camp_Covs <- Camp_Covs %>%
+  select(cells.1, Camp_out_1, DEM_1, LANDCVI_selected_1, MGVF_1, 
+  SLOPE_1, WC_Prec_1, WC_Temp_1, cells.2, CampPrecip_1, CampTemp_1)
 Camp_Covs <- Camp_Covs %>%
   distinct()
-Camp_Covs <- aggregate(x = Camp_Covs, by = list(Camp_Covs$cells.1), FUN = "mean")
-Camp_Covs <- Camp_Covs[, 2:23]
-Camp_Covs[,22] <- Camp_Covs[,22] - 273.15 # Convert from Kelvin to degrees Celsius
+Camp_Covs <- aggregate(x = Camp_Covs, by = list(Camp_Covs$cells.1), FUN = "mean", na.rm = TRUE)
+Camp_Covs$CampTemp <- Camp_Covs$CampTemp - 273.15 # Convert from Kelvin to degrees Celsius
+write.csv(Camp_Covs, file.path(paste("Results/", res, "/CampanianCovariates.csv", sep="")))
+
+#=============================================== MAASTRICHTIAN DATA SETUP ===============================================
+
+# Read in files
+maas.occs <- read.csv("Data/Occurrences/Maas_data_V1_Species_removed.csv", stringsAsFactors = FALSE) # Load in occurrences
+
+#==== Visualise grid cells for collections and occurrences ====
+maas.colls <- maas.occs %>% # Make unique collections for visualisation
+  dplyr::select(collection_no, lat, lng) %>%
+  dplyr::distinct()
+
+get_grid_im(maas.occs, res, "Collections")
+get_grid_im(maas.colls, res, "Collections")
+
+#==== Testing Targets ====
+# target_maker(maas.occs, "family", "Ceratopsidae")
+# Ceratops <- maas.occs.targeted %>%
+#   filter(Target == "Ceratopsidae")
+# get_grid_im(Ceratops, 1, "Ceratopsidae Occurrences")
+
+#=============================================== OCCUPANCY SETUP ===============================================
+
+# Set Target taxa
+target = c("Ceratopsidae", "Tyrannosauridae", "Hadrosauridae") # set Targets
+target_maker(maas.occs, "family", target) # run target_maker
+
+# Check resolution data
+res_data(maas.occs.targeted, target, 0.5, 1, 0.5, single = TRUE) # Makes list of dataframes, each containing information about various cell resolutions. Can also see Naive occupancy estimates.
+Res_results_list$Ceratopsidae
+Res_results_list$Tyrannosauridae
+Res_results_list$Hadrosauridae
+
+# Prepare data for unmarked 
+all_results_for_unmarked(data = maas.occs.targeted, res = res, ext = e, target = target, subsamp = FALSE, single = FALSE)
+all_results_for_unmarked(data = maas.occs.targeted, res = res, ext = e, target = target, subsamp = TRUE, single = FALSE)
+#=============================================== COVARIATE SETUP ===============================================
+
+# Add covariates to Occurrence spreadsheet
+get_cov_from_stack(Final, res = res)
+plot(CovStack)
+# Clean/split data to just relevant covariates
+Maas_Covs <- cov_dat[, -grep("Camp_out_", colnames(cov_dat))]
+
+#===== PALAEO-DATA =====
+# Data
+MaasPrecip <- raster(paste("Data/Covariate_Data/Formatted/PalaeoClimate/MaasPrecip_", res, ".asc", sep = ""))
+MaasTemp <- raster(paste("Data/Covariate_Data/Formatted/PalaeoClimate/MaasTemp_", res, ".asc", sep = ""))
 
 # Maas Stack Extract
-#MaasStack <- stack(MaasPrecip, MaasTemp)
-#NAcells <- cov_dat %>% # Clean for NA values in paleolat/lng - Record cells with NAs
-#  filter(is.na(paleolat)) %>%
-#  distinct(cells.1)
-#cov_dat_complete<- cov_dat %>%
-#  filter(!is.na(paleolat))
-#xy <- SpatialPointsDataFrame(cbind.data.frame(cov_dat_complete$paleolng, cov_dat_complete$paleolat), cov_dat_complete)
-#Maas_Dat <- extract(MaasStack, xy, sp = TRUE, cellnumbers = TRUE)
-#Maas_Dat <- as.data.frame(Maas_Dat)
+MaasStack <- stack(MaasPrecip, MaasTemp)
+NAcells <- Maas_Covs %>% # Clean for NA values in paleolat/lng - Record cells with NAs
+  filter(is.na(paleolat)) %>%
+  distinct(cells.1) # Remove cells with NAs
+Maas_Covs <- Maas_Covs %>%
+  filter(!is.na(paleolat))
+xy <- SpatialPointsDataFrame(cbind.data.frame(Maas_Covs$paleolng, Maas_Covs$paleolat), Maas_Covs) # Use palaeo lat/long to extract from palaeo GCMs
+Maas_Covs <- extract(MaasStack, xy, sp = TRUE, cellnumbers = TRUE) # Extract Palaeo Temp and Rainfall
+Maas_Covs <- as.data.frame(Maas_Covs) # Conver to dataframe
+
+# Make Master Maas Spreadsheet
+Maas_Cov_Master <- Maas_Covs
+Maas_Cov_Master <- Maas_Cov_Master %>%
+  select(collection_no, collection_name, accepted_name, identified_rank, family, genus, formation, member, 
+         cells.1, Maas_out_1, DEM_1, LANDCVI_selected_1, MGVF_1, 
+         SLOPE_1, WC_Prec_1, WC_Temp_1, cells.2, MaasPrecip_1, MaasTemp_1)
+
+write.csv(Maas_Cov_Master, file.path(paste("Results/", res, "/MaastrichtianMasterSheet.csv", sep="")))
+
+# Clean data to just gridcells and associated covariates
+Maas_Covs <- Maas_Covs %>%
+  select(cells.1, Maas_out_1, DEM_1, LANDCVI_selected_1, MGVF_1, 
+         SLOPE_1, WC_Prec_1, WC_Temp_1, cells.2, MaasPrecip_1, MaasTemp_1)
+Maas_Covs <- Maas_Covs %>%
+  distinct()
+Maas_Covs <- aggregate(x = Maas_Covs, by = list(Maas_Covs$cells.1), FUN = "mean")
+Maas_Covs$MaasTemp <- Maas_Covs$MaasTemp - 273.15 # Convert from Kelvin to degrees Celsius
+write.csv(Maas_Covs, file.path(paste("Results/", res, "/MaastrichtianCovariates.csv", sep="")))
