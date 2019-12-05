@@ -6,15 +6,18 @@
 # 2019
 # Script written by Christopher D. Dean and Lewis A. Jones
 
-#============================================== FILE 1: RUNNING OCCUPANCY MODELLING WITH UNMARKED ==============================================
+#============================================== FILE 2: RUNNING OCCUPANCY MODELLING WITH UNMARKED ==============================================
+
+#============================================== INITIAL SETUP ===============================================
 
 library("unmarked")
 
-#=========================================================== OCCUPANCY =================================================================
-
 data <- read.csv("Results/Subsampled/maas.occs.targeted.1.Hadrosauridae.csv") # import data from previous step. Result here is just a test case to show.
+
 # Turn into matrix
 y <- as.matrix(data[,2:6])
+
+#============================================== OCCUPANCY MODELLING =========================================
 
 umf <- unmarkedFrameOccu(y = y)
 summary(umf)
