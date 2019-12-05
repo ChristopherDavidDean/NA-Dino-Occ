@@ -59,8 +59,8 @@ camp.colls <- camp.occs %>% # Make unique collections for visualisation
   dplyr::select(collection_no, lat, lng) %>%
   dplyr::distinct()
 
-get_grid_im(camp.occs, res, "Occurrences")
-get_grid_im(camp.colls, res, "Collections")
+get_grid_im(camp.occs, res, "Occurrences", ext = e)
+get_grid_im(camp.colls, res, "Collections", ext = e)
 
 #==== Testing Targets ====
 # target_maker(camp.occs, "family", "Ceratopsidae")
