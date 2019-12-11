@@ -25,6 +25,7 @@ ipak <- function(pkg){ # Function to install packages. Read in character vector 
 
 # must load in this order before reading data in, otherwise select within dplyr is overwritten.
 library(beepr)
+library(tidyr)
 library(raster)
 library(plyr)
 library(dplyr)
@@ -35,6 +36,8 @@ library(maps)
 library(maptools)
 library(parallel)
 library(plyr)
+library(reshape2)
+
 
 #=============================================== GET_EXTENT =============================================================
 
@@ -109,7 +112,7 @@ get_grid <- function(data, res, e){ # data is first output from combine_data (fo
   val <- 64800/res
   r <- raster(res = res, val = val, ext = e)
   xy <- SpatialPointsDataFrame(cbind.data.frame(data$lng, data$lat), data)
-  Final <- extract(r, xy, sp = TRUE, cellnumbers = TRUE)
+  Final <- raster::extract(r, xy, sp = TRUE, cellnumbers = TRUE)
   Final <<- as.data.frame(Final)
 }
 
@@ -334,4 +337,50 @@ all_results_for_unmarked <- function(data, res, target, ext, subsamp = TRUE, sin
     proc.time() - ptm
   }
   beepr::beep(sound = 3)
+}
+
+#=============================================== PREPARE_FOR_MULTISPECIES ===========================================================
+
+prepare_for_multispecies <- function(data, res, ext, level = "genus", target){
+  TYPE <- c("species", "genus") # set up potential inputs
+  if (is.na(pmatch(level, TYPE))){ # if entered level doesn't match potential inputs
+    stop("Invalid level. Choose either species or genus") # stop script, generate error. 
+  }
+  gridded <- get_grid(data, res, ext) # Run get_grid so that occurrences have cell reference IDs
+  targets <- data.frame(target, 1:length(target)) # Make dataframe lookup table out of chosen targets. Assigned numbers for targets in order of entered targets. 
+  colnames(targets) <- c("Target", "Code") # rename columns
+  if (level == "species"){ # If input equals "species" level
+    targetted <- gridded %>% # take output from Get Grid
+      dplyr::filter(accepted_rank == "species") %>% # Filter to only include taxa at species rank
+      dplyr::select(accepted_name, Target) %>% # Select only name and Targetted info
+      distinct() # Keep distinct rows
+    colnames(targetted)[1] <- "Name" # Change column name
+  }
+  else{ # If input equals "genus" level
+    targetted <- gridded %>% # take output from Get Grid
+      dplyr::select(genus, Target) %>% # Select only name and Targetted info
+      distinct() # Keep distinct rows
+    colnames(targetted)[1] <- "Name" # Change column name
+  }
+  targetted <- targetted %>% dplyr::na_if("") %>% #take targetted info and turn any blank entries into NAs
+    drop_na(Name) # Removes any NAs in "Name" column. Should now be left with just useful names
+  targetted <- merge(targetted, targets, by = "Target", all.x = TRUE)[,2:3] # attached Target IDs to genera names. 
+  targetted <- targetted[order(targetted$Name),] # Sort into alphabetical order
+  target_keep <- na.omit(targetted) # Remove any NAs from targetted column (i.e. any organisms/records we don't want - all targetted taxa should have a number associated with them)
+  if(level == "species"){ # If input equals "species" level
+    species.site <- reshape2::dcast(gridded, cells ~ accepted_name, length) # Use reshape to arrange into taxa x site matrix
+    species.site.final <- species.site[, target_keep$Name] # Keep only records that were Targetted (i.e. taxa of interest)
+  }
+  else{ # If input equals "genera" level
+    species.site <- dcast(gridded, cells ~ genus, length) # Use reshape to arrange into taxa x site matrix
+    species.site.final <- species.site[, target_keep$Name] # Keep only records that were Targetted (i.e. taxa of interest)
+  }
+  species.site.final <- cbind(species.site$cells, species.site.final) # Bind cells back to taxa x site matrix
+  colnames(species.site.final)[1] <- "Cell" # Rename just added column 
+  
+  temp_name <- paste(deparse(substitute(data)), ".", res, ".", level, ".multispecies", sep = "")
+  dir.create(paste0("Results/", res, sep =""), showWarnings = FALSE) #stops warnings if folder already exists
+  write.csv(species.site.final, file.path(paste("Results/", res, "/", temp_name, ".csv", sep="")))
+  species.site.final <<- species.site.final
+  target.cov <<- target_keep$Code
 }
