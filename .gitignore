@@ -413,3 +413,68 @@ Data/Covariate_Data/Worldclim/wc2.0_30s_tavg/wc2.0_30s_tavg_09.tif
 Data/Covariate_Data/Worldclim/wc2.0_30s_tavg/wc2.0_30s_tavg_10.tif
 Data/Covariate_Data/Worldclim/wc2.0_30s_tavg/wc2.0_30s_tavg_11.tif
 Data/Covariate_Data/Worldclim/wc2.0_30s_tavg/wc2.0_30s_tavg_12.tif
+Results/camp.occs.targeted.0.5.Ceratopsidae.csv
+Results/camp.occs.targeted.0.5.Hadrosauridae.csv
+Results/camp.occs.targeted.0.5.Tyrannosauridae.csv
+Results/camp.occs.targeted.1.Ceratopsidae.csv
+Results/camp.occs.targeted.1.Hadrosauridae.csv
+Results/camp.occs.targeted.1.Tyrannosauridae.csv
+Results/maas.occs.targeted.0.5.Ceratopsidae.csv
+Results/maas.occs.targeted.0.5.Hadrosauridae.csv
+Results/maas.occs.targeted.0.5.Tyrannosauridae.csv
+Results/maas.occs.targeted.1.Ceratopsidae.csv
+Results/maas.occs.targeted.1.Hadrosauridae.csv
+Results/maas.occs.targeted.1.Tyrannosauridae.csv
+Results/Subsampled/camp.occs.targeted.0.5.Ceratopsidae.csv
+Results/Subsampled/camp.occs.targeted.0.5.Hadrosauridae.csv
+Results/Subsampled/camp.occs.targeted.1.Ceratopsidae.csv
+Results/Subsampled/camp.occs.targeted.1.Hadrosauridae.csv
+Results/Subsampled/camp.occs.targeted.1.Tyrannosauridae.csv
+Results/Subsampled/maas.occs.targeted.0.5.Ceratopsidae.csv
+Results/Subsampled/maas.occs.targeted.0.5.Hadrosauridae.csv
+Results/Subsampled/maas.occs.targeted.0.5.Tyrannosauridae.csv
+Results/Subsampled/maas.occs.targeted.1.Ceratopsidae.csv
+Results/Subsampled/maas.occs.targeted.1.Hadrosauridae.csv
+Results/Subsampled/maas.occs.targeted.1.Tyrannosauridae.csv
+Maas_data_for_revision_V2_AC.xlsx
+Maas_data_for_revision_V2.xlsx
+Data/Occurrences/Old Data/Broader_Colls_Data_Maastrichtian.csv
+Data/Occurrences/Old Data/Broader_Colls_Data_Campanian.csv
+Data/Occurrences/Old Data/Broad_Colls_Data_Maastrichtian_edited.csv
+Data/Occurrences/Old Data/Broad_Colls_Data_Maastrichtian.csv
+Data/Occurrences/Old Data/Broad_Colls_Data_Campanian_edited.csv
+Data/Occurrences/Old Data/Broad_Colls_Data_Campanian.csv
+Data/Occurrences/Old Data/Broad_Colls_Data.csv
+Data/Occurrences/Data_From_Chiarenza_et_al_2019/Tyrannosauridae_Maastrichtian.csv
+Data/Occurrences/Data_From_Chiarenza_et_al_2019/Tyrannosauridae_Campanian.csv
+Data/Occurrences/Data_From_Chiarenza_et_al_2019/Supplementary Data. Paleobiology Database occurrences data.xls
+Data/Occurrences/Data_From_Chiarenza_et_al_2019/PBDB data/PBDB data/Tyrannosauridae_Maastrichtian.xls
+Data/Occurrences/Data_From_Chiarenza_et_al_2019/PBDB data/PBDB data/Tyrannosauridae_Campanian.xls
+Data/Occurrences/Data_From_Chiarenza_et_al_2019/PBDB data/PBDB data/Hadrosauridae_Maastrichtian.xls
+Data/Occurrences/Data_From_Chiarenza_et_al_2019/PBDB data/PBDB data/Hadrosauridae_Campanian.xls
+Data/Occurrences/Data_From_Chiarenza_et_al_2019/PBDB data/PBDB data/Ceratopsidae_Maastrichtian.xls
+Data/Occurrences/Data_From_Chiarenza_et_al_2019/PBDB data/PBDB data/Ceratopsidae_Campanian.xls
+Data/Occurrences/Data_From_Chiarenza_et_al_2019/PBDB data/PBDB data/Ceratopsidae_Campanian.csv
+Data/Occurrences/Data_From_Chiarenza_et_al_2019/Output/Middle_Cam_rotated.csv
+Data/Occurrences/Data_From_Chiarenza_et_al_2019/Output/Maastrichtian_Dinos_Occurrences_rotated.csv
+Data/Occurrences/Data_From_Chiarenza_et_al_2019/Output/Late_Maas_rotated.csv
+Data/Occurrences/Data_From_Chiarenza_et_al_2019/Output/Late_Cam_rotated.csv
+Data/Occurrences/Data_From_Chiarenza_et_al_2019/Output/Early_Maas_rotated.csv
+Data/Occurrences/Data_From_Chiarenza_et_al_2019/Output/Early_Cam_rotated.csv
+Data/Occurrences/Data_From_Chiarenza_et_al_2019/Output/Campanian_Dinos_Occurrences_rotated.csv
+Data/Occurrences/Data_From_Chiarenza_et_al_2019/Input/Middle_Cam_PD.csv
+Data/Occurrences/Data_From_Chiarenza_et_al_2019/Input/Maastrichtian_Dinos_Occurrences_PD.csv
+Data/Occurrences/Data_From_Chiarenza_et_al_2019/Input/Late_Maas_PD.csv
+Data/Occurrences/Data_From_Chiarenza_et_al_2019/Input/Late_Cam_PD.csv
+Data/Occurrences/Data_From_Chiarenza_et_al_2019/Input/Early_Maas_PD.csv
+Data/Occurrences/Data_From_Chiarenza_et_al_2019/Input/Early_Cam_PD.csv
+Data/Occurrences/Data_From_Chiarenza_et_al_2019/Input/Campanian_Dinos_Occurrences_PD.csv
+Data/Occurrences/Data_From_Chiarenza_et_al_2019/Hadrosauridae_Maastrichtian.csv
+Data/Occurrences/Data_From_Chiarenza_et_al_2019/Hadrosauridae_Campanian.csv
+Data/Occurrences/Data_From_Chiarenza_et_al_2019/Ceratopsidae_Maastrichtian.csv
+Data/Occurrences/Data_From_Chiarenza_et_al_2019/Ceratopsidae_Campanian.csv
+Data/Occurrences/Ceratopsidae_Maastrichtian.csv
+Data/Occurrences/Ceratopsidae_Campanian.csv
+Camp_data_for_revision_V2_AC.xlsx
+Camp_data_for_revision_V2.xlsx
+~$Camp_data_for_revision_V2.xlsx
