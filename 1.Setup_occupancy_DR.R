@@ -41,7 +41,7 @@ library(parallel)
 source("0.Functions_DR.R") # Import functions from other R file (must be in same working directory)
 
 #==== Set working resolution and extent ====
-res <- 1
+res <- 0.5
 get_extent(master.occs)
 
 # Convert rasters to desired resolution
@@ -58,8 +58,14 @@ camp.occs <- read.csv("Data/Occurrences/Camp_data_V1_Species_removed.csv", strin
 camp.colls <- camp.occs %>% # Make unique collections for visualisation
   dplyr::select(collection_no, lat, lng) %>%
   dplyr::distinct()
+camp.dinos <- camp.occs %>%
+  filter(class == "Ornithischia" | class == "Saurischia")
+maas.dino <- maas.occs %>%
+  filter(class == "Ornithischia" | class == "Saurischia")
 
-get_grid_im(camp.occs, res, "Occurrences", ext = e)
+get_grid_im(camp.dinos, res, "Campanian Occurrences", ext = e)
+get_grid_im(maas.dino, res, "Maastrichtian Occurrences", ext = e)
+
 get_grid_im(camp.colls, res, "Collections", ext = e)
 
 #==== Testing Targets ====
@@ -85,11 +91,15 @@ Res_results_list$Hadrosauridae
 all_results_for_unmarked(data = camp.occs.targeted, res = res, ext = e, target = target, subsamp = FALSE, single = FALSE)
 all_results_for_unmarked(data = camp.occs.targeted, res = res, ext = e, target = target, subsamp = TRUE, single = FALSE)
 
+# Prepare data for multispecies
+prepare_for_multispecies(camp.occs.targeted, res, e, level = "species", target)
+prepare_for_multispecies(camp.occs.targeted, res, e, level = "genus", target)
+
 #=============================================== COVARIATE SETUP ===============================================
 
 # Add covariates to Occurrence spreadsheet
 get_cov_from_stack(Final, res = res)
-plot(CovStack)
+plot(CovStack[[7]])
 # Clean/split data to just relevant covariates
 Camp_Covs <- cov_dat[, -grep("Maas_out_", colnames(cov_dat))]
 
@@ -162,6 +172,11 @@ Res_results_list$Hadrosauridae
 # Prepare data for unmarked 
 all_results_for_unmarked(data = maas.occs.targeted, res = res, ext = e, target = target, subsamp = FALSE, single = FALSE)
 all_results_for_unmarked(data = maas.occs.targeted, res = res, ext = e, target = target, subsamp = TRUE, single = FALSE)
+
+# Prepare data for multispecies
+prepare_for_multispecies(maas.occs.targeted, res, e, level = "species", target)
+prepare_for_multispecies(maas.occs.targeted, res, e, level = "genus", target)
+
 #=============================================== COVARIATE SETUP ===============================================
 
 # Add covariates to Occurrence spreadsheet
