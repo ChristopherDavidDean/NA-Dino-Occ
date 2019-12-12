@@ -75,23 +75,6 @@ target_maker <- function (data, level, target){ # Data is entered data. Level is
   temp_name <- paste(deparse(substitute(data)),".", "targeted", sep = "") #Name files based on data entered to function
   assign(temp_name, filtered, envir = .GlobalEnv)
 }
-#=============================================== COMBINE_DATA ===========================================================
-
-# Adds together target occurrence dataset with a broader collections dataset (allowing maximum possible sampling opportunities) if datasets were not downloaded together
-combine_data <- function(fossils, Add_fossils){ # fossils is occurrence dataset, Add_fossils is collections dataset
-  d1 <- fossils %>%
-    dplyr::select(collection_name, lat, lng, Target, Carb_Clast, Lith) # Target specifies what group you want to look at. Can also add other data in here (lithology etc)
-  d2 <- Add_fossils %>%
-    dplyr::select(collection_name, lat, lng, Target, Carb_Clast, Lith)
-  all_colls <- dplyr::bind_rows(d1, d2) 
-  just_colls <- all_colls %>%
-    dplyr::select(collection_name, lat, lng) %>%
-    dplyr::distinct()
-  temp_name <- paste(deparse(substitute(fossils)),".", "comb", sep = "") #Name files based on data entered to function
-  assign(temp_name, all_colls, envir = .GlobalEnv)
-  temp_name <- paste(deparse(substitute(Add_fossils)),".", "comb", sep = "") #Name files based on data entered to function
-  assign(temp_name, just_colls, envir = .GlobalEnv)
-}
 
 #=============================================== BIN_SPLITTER =======================================================
 
@@ -120,13 +103,30 @@ get_grid <- function(data, res, e){ # data is first output from combine_data (fo
 
 # Functions to organise covariate data
 
+#===== GET_COLLECTIONS =====
+
+find_collections <- function(data, single = FALSE){ # Data is output from Get_grid. Res is resolution (only neccessary for later functions)
+  Collections_per_cell <- data %>% # Counting collections per cell
+    dplyr::select(collection_name, cells) %>%
+    dplyr::distinct() %>%
+    dplyr::group_by(cells) %>%
+    dplyr::summarize(colls_per_cell = n())
+  if(single == TRUE){
+    Collections_per_cell <- Collections_per_cell[!Collections_per_cell$colls_per_cell == 1,] # Removing any cells with < 1 collection
+  }
+  Collections_per_cell <<- Collections_per_cell
+}
+
 #===== GET_COV =====
 
 # Attaches grid cell IDs from an inputted raster to occurrences/collections.
-get_cov <- function(data, raster){ # data is first output from combine_data (fossil.colls). Raster is a chosen raster file, which can be a raster stack. 
+get_cov <- function(data, raster){ # data is first output from get_grid. Raster is a chosen raster file, which can be a raster stack. 
   xy <- SpatialPointsDataFrame(cbind.data.frame(data$lng, data$lat), data)
-  cov_dat <- extract(raster, xy, sp = TRUE, cellnumbers = TRUE)
-  cov_dat <<- as.data.frame(cov_dat)
+  cov_dat <- raster::extract(raster, xy, sp = TRUE, cellnumbers = TRUE)
+  cov_dat <- as.data.frame(cov_dat)
+  colls <- find_collections(data)
+  colnames(colls)[1] <- "cells.1"
+  cov_dat <<- merge(cov_dat, colls, by = "cells.1")
 }
 
 #===== GET_COV_FROM_STACK =====
