@@ -15,209 +15,256 @@ library(MuMIn)
 library(dplyr)
 
 # Load data
-data <- read.csv("Results/0.5/camp.occs.targeted.0.5.CeratopsidaeSS.csv") # import data from previous step. Result here is just a test case to show.
+data <- read.csv("Results/0.5/Standard_Occ/Subsampled_20/Singleton/camp.occs.targeted.0.5.HadrosauridaeSS.csv") # import data from previous step. Result here is just a test case to show.
+
 
 # Covariates
-site.covs <- read.csv("Results/0.5/CampanianCovariates.csv")
-site.covs <- site.covs %>%
-  dplyr::arrange(cells.1)
+site.covs <- read.csv("Results/0.5/CampanianHiResCovariates.csv") # Remember to change resolution!!!
+#site.covs <- site.covs %>%
+#  dplyr::arrange(cells)
 
 # Ensure data is the same between Observations and Covariates
-data$X
-site.covs$cells.1
+as.numeric(rownames(data))
+site.covs$cells
 
-data <- data[-121,] # Remove based on comparison between cells in data and sitecovs
 
 # Check covariates for missing data and remove cells from both datasets
-site.covs # DEMs - cell 7697
-data <- data[-32,]
-site.covs <- site.covs[-32,]
+site.covs <- site.covs[-c(2, 170, 281, 284, 285, 287),] # 0.1
+data <- data[-c(2, 170, 281, 284, 285, 287),] # 0.1
+
+site.covs <- site.covs[-c(2, 79, 121),] # 0.5
+data <- data[-c(2, 79, 121),] # 0.5
 
 # Turn into matrix
 y <- as.matrix(data[,2:ncol(data)])
 
-DEMs.orig <- site.covs[,"DEM_0.5"]      # Unstandardised, original values of covariates
-#LaCo.orig <- site.covs[,"LANDCVI_selected_1"]
-OUTc.orig <- site.covs[,"Camp_out_0.5"]
-RAIN.orig <- site.covs[,"WC_Prec_0.5"]
-#TEMP.orig <- site.covs[,"WC_Temp_1"]
-MGVF.orig <- site.covs[,"MGVF_0.5"]
-COLL.orig <- site.covs[,"colls_per_cell"]
-CaRa.orig <- site.covs[,"CampPrecip_0.5"]
-CaTe.orig <- site.covs[,"CampTemp"]
+DEMs.orig <- site.covs[,"mean_DEM"]      # Unstandardised, original values of covariates
+RAIN.orig <- site.covs[,"mean_prec"]
+TEMP.orig <- site.covs[,"mean_temp"]
+MGVF.orig <- site.covs[,"mean_MGVF"]
+Cpre.orig <- site.covs[,"mean_Cpre"]
+Ctem.orig <- site.covs[,"mean_Ctem"]
 
 # Overview of Covariates
-covs <- cbind(DEMs.orig, OUTc.orig, RAIN.orig, MGVF.orig, COLL.orig, CaRa.orig, CaTe.orig)
-par(mfrow = c(3,3))
+covs <- cbind(DEMs.orig, RAIN.orig, MGVF.orig, TEMP.orig, Cpre.orig, Ctem.orig)
+par(mfrow = c(1,1))
 for(i in 1:length(covs)){
   hist(covs[,i], breaks = 50, col = "grey", main = colnames(covs)[i])
 }
-pairs(cbind(DEMs.orig, OUTc.orig, RAIN.orig, MGVF.orig, COLL.orig, CaRa.orig, CaTe.orig))
+pairs(cbind(DEMs.orig, RAIN.orig, MGVF.orig, TEMP.orig, Cpre.orig, Ctem.orig))
 
-# Standardize covariates and mean-impute OA and Carbation
+
 # Compute means and standard deviations
-(means <- c(apply(cbind(DEMs.orig, OUTc.orig, RAIN.orig, MGVF.orig, COLL.orig, CaRa.orig, CaTe.orig), 2, mean, na.rm = TRUE)))
-(sds <- c(apply(cbind(DEMs.orig, OUTc.orig, RAIN.orig, MGVF.orig, COLL.orig, CaRa.orig, CaTe.orig), 2, sd, na.rm = TRUE)))
+(means <- c(apply(cbind(DEMs.orig, RAIN.orig, MGVF.orig, TEMP.orig, Cpre.orig, Ctem.orig), 2, mean, na.rm = TRUE)))
+(sds <- c(apply(cbind(DEMs.orig, RAIN.orig, MGVF.orig, TEMP.orig, Cpre.orig, Ctem.orig), 2, sd, na.rm = TRUE)))
 
 # Scale covariates
 DEMs <- (DEMs.orig - means[1]) / sds[1] #
-#LaCo<- (LaCo.orig - means[2]) / sds[2] 
-OUTc <- (OUTc.orig - means[2]) / sds[2] # 
-RAIN <- (RAIN.orig - means[3]) / sds[3] #
-MGVF <- (MGVF.orig - means[4]) / sds[4] #
-COLL <- (COLL.orig - means[5]) / sds[5]
-CaRa <- (CaRa.orig - means[6]) / sds[6]
-CaTe <- (CaTe.orig - means[7]) / sds[7]
+RAIN <- (RAIN.orig - means[2]) / sds[2] #
+MGVF <- (MGVF.orig - means[3]) / sds[3] #
+TEMP <- (TEMP.orig - means[4]) / sds[4]
+Cpre <- (Cpre.orig - means[5]) / sds[5]
+Ctem <- (Ctem.orig - means[6]) / sds[6]
 
 #============================================== OCCUPANCY MODELLING =========================================
 
-# Simple quick test
+#===== Simple quick test =====
 umf <- unmarkedFrameOccu(y = y)
 summary(umf)
 summary(fm1 <- occu(~1 ~1, data=umf))
 
-data$X
-site.covs$cells.1
-
 print(occ.null <- backTransform(fm1, "state")) 
 print(det.null <- backTransform(fm1, "det")) 
 
+#==================================================================================================
 
 # Turn into matrix
-umf <- unmarkedFrameOccu(y = y, siteCovs = data.frame(DEMs = DEMs, OUTc = OUTc,
-                                                      RAIN = RAIN, MGVF = MGVF, 
-                                                      COLL = COLL, CaRa = CaRa, 
-                                                      CaTe = CaTe))
+umf <- unmarkedFrameOccu(y = y, siteCovs = data.frame(DEMs = DEMs, 
+                                                      RAIN = RAIN, 
+                                                      MGVF = MGVF, 
+                                                      TEMP = TEMP,
+                                                      Cpre = Cpre,
+                                                      Ctem = Ctem))
 
 # Alternate scaling measure
-siteCovs <- data.frame(DEMs = DEMs.orig, OUTc = OUTc.orig,
-                       RAIN = RAIN.orig, MGVF = MGVF.orig, COLL = COLL.orig, 
-                       CaRa = CaRa.orig, CaTe = CaTe.orig)
-umf@siteCovs$DEMs <- scale(umf@siteCovs$DEMs)
-umf@siteCovs$OUTc <- scale(umf@siteCovs$OUTc)
-umf@siteCovs$RAIN <- scale(umf@siteCovs$RAIN)
-umf@siteCovs$MGVF <- scale(umf@siteCovs$MGVF)
-umf@siteCovs$CaRa <- scale(umf@siteCovs$CaRa)
-umf@siteCovs$CaTe <- scale(umf@siteCovs$CaTe)
+#siteCovs <- data.frame(DEMs = DEMs.orig, OUTc = OUTc.orig,
+#                      RAIN = RAIN.orig, MGVF = MGVF.orig, TEMP = TEMP.orig, 
+#                       Cpre = Cpre.orig, Ctem = Ctem.orig)
+#umf <- unmarkedFrameOccu(y = y, siteCovs = siteCovs)
+#umf@siteCovs$DEMs <- scale(umf@siteCovs$DEMs)
+#umf@siteCovs$OUTc <- scale(umf@siteCovs$OUTc)
+#umf@siteCovs$RAIN <- scale(umf@siteCovs$RAIN)
+#umf@siteCovs$MGVF <- scale(umf@siteCovs$MGVF)
+#umf@siteCovs$Cpre <- scale(umf@siteCovs$Cpre)
+#umf@siteCovs$Ctem <- scale(umf@siteCovs$Ctem)
 
-# umf <- unmarkedFrameOccu(y = y, siteCovs = siteCovs)
 summary(umf)
 
 # Fit null model
 # Fit a series of models for detection first and do model selection
 
-### OCCUPANCY ###
-summary(fm1 <- occu(~1 ~1, data=umf))
-summary(fm2 <- occu(~1 ~CaRa, data=umf))
-summary(fm3 <- occu(~1 ~CaTe, data=umf))
-summary(fm4 <- occu(~1 ~CaRa + CaTe, data=umf))
-fms <- fitList("p(.)psi(.)"                   = fm1,
-               "p(.)psi(CaRa)"                = fm2,
-               "p(.)psi(CaTe)"                = fm3,
-               "p(.)psi(CaRa + CaTe)"         = fm4
-)
-(ms <- modSel(fms))
-
-summary(fm1 <- occu(~1 ~CaRa + I(CaRa^2), data=umf))
-summary(fm2 <- occu(~1 ~CaRa + I(CaRa^2) + I(CaRa^3), data=umf))
-summary(fm3 <- occu(~1 ~CaTe + I(CaTe^2), data=umf))
-summary(fm4 <- occu(~1 ~CaTe + I(CaTe^2) + I(CaTe^3), data=umf))
-summary(fm5 <- occu(~1 ~CaRa + CaTe + I(CaTe^2), data=umf))
-summary(fm6 <- occu(~1 ~CaRa + CaTe + I(CaRa^2), data=umf))
-summary(fm7 <- occu(~1 ~CaRa + CaTe + I(CaRa^2) + I(CaTe^2), data=umf))
-fms <- fitList("p(.)psi(CaRa+2CaRa)"            = fm1,
-               "p(.)psi(CaRa+2CaRa+3CaRa)"      = fm2,
-               "p(.)psi(CaTe+2CaTe)"            = fm3, # BEST
-               "p(.)psi(CaTe+2CaTe+3CaTe)"      = fm4,
-               "p(.)psi(CaRa+CaTe+2CaTw)"       = fm5,
-               "p(.)psi(CaRa+CaTe+2CaRa)"       = fm6,
-               "p(.)psi(CaRa+CaTe+2CaRa+2CaTe)" = fm7
-)
-(ms <- modSel(fms))
-
-
 ### DETECTION ###
-summary(fm1 <- occu(~1 ~CaTe + I(CaTe^2), data=umf))
+summary(fm1 <- occu(~1 ~1, data=umf))
 
-summary(fm2 <- occu(~DEMs ~CaTe + I(CaTe^2), data=umf))
-summary(fm3 <- occu(~OUTc ~CaTe + I(CaTe^2), data=umf))
-summary(fm4 <- occu(~RAIN ~CaTe + I(CaTe^2), data=umf))
-summary(fm5 <- occu(~MGVF ~CaTe + I(CaTe^2), data=umf))
-summary(fm6 <- occu(~COLL ~CaTe + I(CaTe^2), data=umf))
+summary(fm2 <- occu(~DEMs ~1, data=umf))
+summary(fm3 <- occu(~RAIN ~1, data=umf))
+summary(fm4 <- occu(~MGVF ~1, data=umf))
+summary(fm5 <- occu(~TEMP ~1, data=umf))
 
-summary(fm7 <- occu(~DEMs + OUTc ~CaTe + I(CaTe^2), data=umf))
-summary(fm8 <- occu(~DEMs + RAIN ~CaTe + I(CaTe^2), data=umf))
-summary(fm9 <- occu(~DEMs + MGVF ~CaTe + I(CaTe^2), data=umf))
-summary(fm10 <- occu(~DEMs + COLL ~CaTe + I(CaTe^2), data=umf))
-summary(fm11 <- occu(~OUTc + RAIN ~CaTe + I(CaTe^2), data=umf))
-summary(fm12 <- occu(~OUTc + MGVF ~CaTe + I(CaTe^2), data=umf))
-summary(fm13 <- occu(~OUTc + COLL ~CaTe + I(CaTe^2), data=umf))
-summary(fm14 <- occu(~RAIN + MGVF ~CaTe + I(CaTe^2), data=umf))
-summary(fm15 <- occu(~RAIN + COLL ~CaTe + I(CaTe^2), data=umf))
-summary(fm16 <- occu(~MGVF + COLL ~CaTe + I(CaTe^2), data=umf))
+summary(fm6 <- occu(~DEMs + RAIN ~1, data=umf))
+summary(fm7 <- occu(~DEMs + MGVF ~1, data=umf))
+summary(fm8 <- occu(~DEMs + TEMP ~1, data=umf))
+summary(fm9 <- occu(~RAIN + MGVF ~1, data=umf))
+summary(fm10 <- occu(~RAIN + TEMP ~1, data=umf)) #
+summary(fm11 <- occu(~MGVF + TEMP ~1, data=umf))
 
-summary(fm17 <- occu(~DEMs + OUTc + RAIN ~CaTe + I(CaTe^2), data=umf))
-summary(fm18 <- occu(~DEMs + OUTc + MGVF ~CaTe + I(CaTe^2), data=umf))
-summary(fm19 <- occu(~DEMs + OUTc + COLL ~CaTe + I(CaTe^2), data=umf))
-summary(fm20 <- occu(~DEMs + RAIN + MGVF ~CaTe + I(CaTe^2), data=umf))
-summary(fm21 <- occu(~DEMs + RAIN + COLL ~CaTe + I(CaTe^2), data=umf))
-summary(fm22 <- occu(~DEMs + MGVF + COLL ~CaTe + I(CaTe^2), data=umf))
-summary(fm23 <- occu(~OUTc + RAIN + MGVF ~CaTe + I(CaTe^2), data=umf))
-summary(fm24 <- occu(~OUTc + RAIN + COLL ~CaTe + I(CaTe^2), data=umf))
-summary(fm25 <- occu(~OUTc + MGVF + COLL ~CaTe + I(CaTe^2), data=umf))
-summary(fm26 <- occu(~RAIN + MGVF + COLL ~CaTe + I(CaTe^2), data=umf))
+summary(fm12 <- occu(~DEMs + RAIN + MGVF ~1, data=umf))
+summary(fm13 <- occu(~DEMs + RAIN + TEMP ~1, data=umf)) #
+summary(fm14 <- occu(~DEMs + MGVF + TEMP ~1, data=umf))
+summary(fm15 <- occu(~RAIN + MGVF + TEMP ~1, data=umf)) #
 
-summary(fm27 <- occu(~DEMs + OUTc + RAIN + MGVF ~CaTe + I(CaTe^2), data=umf))
-summary(fm28 <- occu(~DEMs + OUTc + RAIN + COLL ~CaTe + I(CaTe^2), data=umf))
-summary(fm29 <- occu(~DEMs + OUTc + MGVF + COLL ~CaTe + I(CaTe^2), data=umf))
-summary(fm30 <- occu(~DEMs + RAIN + MGVF + COLL ~CaTe + I(CaTe^2), data=umf))
-summary(fm31 <- occu(~RAIN + MGVF + COLL + OUTc ~CaTe + I(CaTe^2), data=umf))
-
-summary(fm32 <- occu(~DEMs + OUTc + RAIN + MGVF + COLL ~CaTe + I(CaTe^2), data=umf))
+summary(fm16 <- occu(~DEMs + RAIN + MGVF + TEMP ~1, data=umf)) #
 
 # Put the fitted models in a "fitList" and rank them by AIC
-fms <- fitList("p(.)psi(CaTe+CaTe2)"                        = fm1,
-               "p(DEMs)psi(CaTe+CaTe2)"                     = fm2,
-               "p(OUTc)psi(CaTe+CaTe2)"                     = fm3, # BEST
-               "p(RAIN)psi(CaTe+CaTe2)"                     = fm4,
-               "p(MGVF)psi(CaTe+CaTe2)"                     = fm5,
-               "p(COLL)psi(CaTe+CaTe2)"                     = fm6,
-               "p(DEMs+OUTc)psi(CaTe+CaTe2)"                = fm7, # BEST
-               "p(DEMS+RAIN)psi(CaTe+CaTe2)"                = fm8,
-               "p(DEMS+MGVF)psi(CaTe+CaTe2)"                = fm9, 
-               "p(DEMS+COLL)psi(CaTe+CaTe2)"                = fm10,
-               "p(OUTc+RAIN)psi(CaTe+CaTe2)"                = fm11,
-               "p(OUTc+MGVF)psi(CaTe+CaTe2)"                = fm12, # BEST
-               "p(OUTc+COLL)psi(CaTe+CaTe2)"                = fm13,
-               "p(RAIN+MGVF)psi(CaTe+CaTe2)"                = fm14,
-               "p(RAIN+COLL)psi(CaTe+CaTe2)"                = fm15,
-               "p(MGVF+COLL)psi(CaTe+CaTe2)"                = fm16,
-               "p(DEMS+OUTc+RAIN)psi(CaTe+CaTe2)"                = fm17,
-               "p(DEMS+OUTc+MGVF)psi(CaTe+CaTe2)"                = fm18, # BEST
-               "p(DEMS+OUTc+COLL)psi(CaTe+CaTe2)"                = fm19,
-               "p(DEMS+RAIN+MGVF)psi(CaTe+CaTe2)"                = fm20,
-               "p(DEMS+RAIN+COLL)psi(CaTe+CaTe2)"                = fm21,
-               "p(DEMS+MGVF+COLL)psi(CaTe+CaTe2)"                = fm22,
-               "p(OUTc+RAIN+MGVF)psi(CaTe+CaTe2)"                = fm23, # BEST
-               "p(OUTc+RAIN+COLL)psi(CaTe+CaTe2)"                = fm24,
-               "p(OUTc+MGVF+COLL)psi(CaTe+CaTe2)"                = fm25,
-               "p(RAIN+MGVF+COLL)psi(CaTe+CaTe2)"                = fm26,
-               "p(DEMS+OUTc+RAIN+MGVF)psi(CaTe+CaTe2)"                = fm27,
-               "p(DEMS+OUTc+RAIN+COLL)psi(CaTe+CaTe2)"                = fm28,
-               "p(DEMS+OUTc+MGVF+COLL)psi(CaTe+CaTe2)"                = fm29,
-               "p(DEMS+RAIN+MGVF+COLL)psi(CaTe+CaTe2)"                = fm30,
-               "p(RAIN+MGVF+COLL+OUTc)psi(CaTe+CaTe2)"                = fm31,
-               "p(DEMS+OUTc+RAIN+MGVF+COLL)psi(CaTe+CaTe2)"                = fm32
+fms <- fitList("1"                        = fm1,
+               "2"                     = fm2,
+               "3"                     = fm3, # BEST
+               "4"                     = fm4,
+               "5"                     = fm5,
+               "6"                     = fm6,
+               "7"                = fm7, # BEST
+               "8"                = fm8,
+               "9"                = fm9, 
+               "10"                = fm10,
+               "11"                = fm11,
+               "12"                = fm12, # BEST
+               "13"                = fm13,
+               "14"                = fm14,
+               "15"                = fm15,
+               "16"                = fm16
                )
 (ms <- modSel(fms))
+
+# Further tests
+summary(fm1 <- occu(~RAIN + TEMP ~1, data=umf))
+summary(fm2 <- occu(~RAIN + I(RAIN^2) + TEMP ~1, data=umf))
+summary(fm3 <- occu(~RAIN + I(RAIN^2) + I(RAIN^3) + TEMP ~1, data=umf))
+summary(fm4 <- occu(~RAIN + TEMP + I(TEMP^2) ~1, data=umf))
+summary(fm5 <- occu(~RAIN + TEMP + I(TEMP^2) +I(TEMP^3) ~1, data=umf))
+summary(fm6 <- occu(~RAIN + I(RAIN^2) + TEMP + I(TEMP^2) ~1, data=umf))
+summary(fm7 <- occu(~RAIN + I(RAIN^2) + I(RAIN^3) + TEMP + I(TEMP^2) ~1, data=umf))
+summary(fm8 <- occu(~RAIN + I(RAIN^2) + TEMP + I(TEMP^2) + I(TEMP^3) ~1, data=umf))
+summary(fm9 <- occu(~RAIN + I(RAIN^2) + I(RAIN^3) + TEMP + I(TEMP^2) + I(TEMP^3) ~1, data=umf))
+
+fms <- fitList("p(RAIN+TEMP)psi(.)"                                  = fm1, # BEST
+               "p(RAIN+RAIN2+TEMP)psi(.)"                            = fm2,
+               "p(RAIN+RAIN2+RAIN3+TEMP)psi(.)"                      = fm3, 
+               "p(RAIN+TEMP+TEMP2)psi(.)"                            = fm4,
+               "p(RAIN+TEMP+TEMP2+TEMP3)psi(.)"                      = fm5,
+               "p(RAIN+RAIN2+TEMP+TEMP2)psi(.)"                      = fm6,
+               "p(RAIN+RAIN2+RAIN3+TEMP+TEMP2)psi(.)"                = fm7, 
+               "p(RAIN+RAIN2+TEMP+TEMP2+TEMP3)psi(.)"                = fm8,
+               "p(RAIN+RAIN2+RAIN3+TEMP+TEMP2+TEMP3)psi(.)"          = fm9
+)
+(ms <- modSel(fms))
+
+best.model <- fm3
+confint(best.model, type = "det")
+
+
+### OCCUPANCY ###
+summary(fm1 <- occu(~RAIN + I(RAIN^2) + I(RAIN^3) + TEMP + I(TEMP^2) + I(TEMP^3) ~1, data=umf))
+summary(fm2 <- occu(~RAIN + I(RAIN^2) + I(RAIN^3) + TEMP + I(TEMP^2) + I(TEMP^3) ~Ctem, data=umf))
+summary(fm3 <- occu(~RAIN + I(RAIN^2) + I(RAIN^3) + TEMP + I(TEMP^2) + I(TEMP^3) ~Cpre, data=umf))
+summary(fm4 <- occu(~RAIN + I(RAIN^2) + I(RAIN^3) + TEMP + I(TEMP^2) + I(TEMP^3) ~Cpre + Ctem, data=umf))
+fms <- fitList("p(RAIN+RAIN2+RAIN3+TEMP+TEMP2+TEMP3)psi(.)"                   = fm1,
+               "p(RAIN+RAIN2+RAIN3+TEMP+TEMP2+TEMP3)psi(Cpre)"                = fm2,
+               "p(RAIN+RAIN2+RAIN3+TEMP+TEMP2+TEMP3)psi(Ctem)"                = fm3,
+               "p(RAIN+RAIN2+RAIN3+TEMP+TEMP2+TEMP3)psi(Cpre + Ctem)"         = fm4
+)
+
+summary(fm1 <- occu(~DEMs + I(DEMs^2) + I(DEMs^3) + TEMP ~1, data=umf))
+summary(fm2 <- occu(~DEMs + I(DEMs^2) + I(DEMs^3) + TEMP ~Ctem, data=umf))
+summary(fm3 <- occu(~DEMs + I(DEMs^2) + I(DEMs^3) + TEMP ~Cpre, data=umf))
+summary(fm4 <- occu(~DEMs + I(DEMs^2) + I(DEMs^3) + TEMP ~Cpre + Ctem, data=umf))
+fms <- fitList("p(RAIN+RAIN2+RAIN3+TEMP+TEMP2+TEMP3)psi(.)"                   = fm1,
+               "p(RAIN+RAIN2+RAIN3+TEMP+TEMP2+TEMP3)psi(Cpre)"                = fm2,
+               "p(RAIN+RAIN2+RAIN3+TEMP+TEMP2+TEMP3)psi(Ctem)"                = fm3,
+               "p(RAIN+RAIN2+RAIN3+TEMP+TEMP2+TEMP3)psi(Cpre + Ctem)"         = fm4
+)
+
+summary(fm1 <- occu(~RAIN + MGVF + TEMP ~1, data=umf))
+summary(fm2 <- occu(~RAIN + MGVF + TEMP ~Ctem, data=umf))
+summary(fm3 <- occu(~RAIN + MGVF + TEMP ~Cpre, data=umf))
+summary(fm4 <- occu(~RAIN + MGVF + TEMP ~Cpre + Ctem, data=umf))
+fms <- fitList("p(RAIN+RAIN2+RAIN3+TEMP+TEMP2+TEMP3)psi(.)"                   = fm1,
+               "p(RAIN+RAIN2+RAIN3+TEMP+TEMP2+TEMP3)psi(Cpre)"                = fm2,
+               "p(RAIN+RAIN2+RAIN3+TEMP+TEMP2+TEMP3)psi(Ctem)"                = fm3,
+               "p(RAIN+RAIN2+RAIN3+TEMP+TEMP2+TEMP3)psi(Cpre + Ctem)"         = fm4
+)
+
+(ms <- modSel(fms))
+
+summary(fm1 <- occu(~RAIN + I(RAIN^2) + I(RAIN^3) + TEMP + I(TEMP^2) + I(TEMP^3) ~Cpre + I(Cpre^2), data=umf)) # Null best
+summary(fm2 <- occu(~RAIN + I(RAIN^2) + I(RAIN^3) + TEMP + I(TEMP^2) + I(TEMP^3) ~Cpre + I(Cpre^2) + I(Cpre^3), data=umf))
+summary(fm3 <- occu(~RAIN + I(RAIN^2) + I(RAIN^3) + TEMP + I(TEMP^2) + I(TEMP^3) ~Ctem + I(Ctem^2), data=umf))
+summary(fm4 <- occu(~RAIN + I(RAIN^2) + I(RAIN^3) + TEMP + I(TEMP^2) + I(TEMP^3) ~Ctem + I(Ctem^2) + I(Ctem^3), data=umf))
+summary(fm5 <- occu(~RAIN + I(RAIN^2) + I(RAIN^3) + TEMP + I(TEMP^2) + I(TEMP^3) ~Cpre + Ctem + I(Ctem^2), data=umf))
+summary(fm6 <- occu(~RAIN + I(RAIN^2) + I(RAIN^3) + TEMP + I(TEMP^2) + I(TEMP^3) ~Cpre + Ctem + I(Cpre^2), data=umf))
+summary(fm7 <- occu(~RAIN + I(RAIN^2) + I(RAIN^3) + TEMP + I(TEMP^2) + I(TEMP^3) ~Cpre + Ctem + I(Cpre^2) + I(Ctem^2), data=umf))
+summary(fm8 <- occu(~RAIN + I(RAIN^2) + I(RAIN^3) + TEMP + I(TEMP^2) + I(TEMP^3) ~1, data=umf))
+
+fms <- fitList("p(RAIN+RAIN2+RAIN3+TEMP+TEMP2+TEMP3)psi(Cpre+2Cpre)"            = fm1,
+               "p(RAIN+RAIN2+RAIN3+TEMP+TEMP2+TEMP3)psi(Cpre+2Cpre+3Cpre)"      = fm2,
+               "p(RAIN+RAIN2+RAIN3+TEMP+TEMP2+TEMP3)psi(Ctem+2Ctem)"            = fm3, # BEST
+               "p(RAIN+RAIN2+RAIN3+TEMP+TEMP2+TEMP3)psi(Ctem+2Ctem+3Ctem)"      = fm4,
+               "p(RAIN+RAIN2+RAIN3+TEMP+TEMP2+TEMP3)psi(Cpre+Ctem+2CaTw)"       = fm5,
+               "p(RAIN+RAIN2+RAIN3+TEMP+TEMP2+TEMP3)psi(Cpre+Ctem+2Cpre)"       = fm6,
+               "p(RAIN+RAIN2+RAIN3+TEMP+TEMP2+TEMP3)psi(Cpre+Ctem+2Cpre+2Ctem)" = fm7, 
+               "Null"                           = fm8
+)
+(ms <- modSel(fms))
+
+
+summary(fm1 <- occu(~DEMs + I(DEMs^2) + I(DEMs^3) + TEMP ~Cpre + I(Cpre^2), data=umf)) # Null best
+summary(fm2 <- occu(~DEMs + I(DEMs^2) + I(DEMs^3) + TEMP ~Cpre + I(Cpre^2) + I(Cpre^3), data=umf))
+summary(fm3 <- occu(~DEMs + I(DEMs^2) + I(DEMs^3) + TEMP ~Ctem + I(Ctem^2), data=umf))
+summary(fm4 <- occu(~DEMs + I(DEMs^2) + I(DEMs^3) + TEMP ~Ctem + I(Ctem^2) + I(Ctem^3), data=umf))
+summary(fm5 <- occu(~DEMs + I(DEMs^2) + I(DEMs^3) + TEMP ~Cpre + Ctem + I(Ctem^2), data=umf))
+summary(fm6 <- occu(~DEMs + I(DEMs^2) + I(DEMs^3) + TEMP ~Cpre + Ctem + I(Cpre^2), data=umf))
+summary(fm7 <- occu(~DEMs + I(DEMs^2) + I(DEMs^3) + TEMP ~Cpre + Ctem + I(Cpre^2) + I(Ctem^2), data=umf))
+summary(fm8 <- occu(~DEMs + I(DEMs^2) + I(DEMs^3) + TEMP ~1, data=umf))
+
+summary(fm1 <- occu(~RAIN + MGVF + TEMP ~Cpre + I(Cpre^2), data=umf)) # Null best
+summary(fm2 <- occu(~RAIN + MGVF + TEMP ~Cpre + I(Cpre^2) + I(Cpre^3), data=umf))
+summary(fm3 <- occu(~RAIN + MGVF + TEMP ~Ctem + I(Ctem^2), data=umf))
+summary(fm4 <- occu(~RAIN + MGVF + TEMP ~Ctem + I(Ctem^2) + I(Ctem^3), data=umf))
+summary(fm5 <- occu(~RAIN + MGVF + TEMP ~Cpre + Ctem + I(Ctem^2), data=umf))
+summary(fm6 <- occu(~RAIN + MGVF + TEMP ~Cpre + Ctem + I(Cpre^2), data=umf))
+summary(fm7 <- occu(~RAIN + MGVF + TEMP ~Cpre + Ctem + I(Cpre^2) + I(Ctem^2), data=umf))
+summary(fm8 <- occu(~RAIN + MGVF + TEMP ~1, data=umf))
+
+fms <- fitList("p(RAIN+RAIN2+RAIN3+TEMP+TEMP2+TEMP3)psi(Cpre+2Cpre)"            = fm1,
+               "p(RAIN+RAIN2+RAIN3+TEMP+TEMP2+TEMP3)psi(Cpre+2Cpre+3Cpre)"      = fm2,
+               "p(RAIN+RAIN2+RAIN3+TEMP+TEMP2+TEMP3)psi(Ctem+2Ctem)"            = fm3, # BEST
+               "p(RAIN+RAIN2+RAIN3+TEMP+TEMP2+TEMP3)psi(Ctem+2Ctem+3Ctem)"      = fm4,
+               "p(RAIN+RAIN2+RAIN3+TEMP+TEMP2+TEMP3)psi(Cpre+Ctem+2CaTw)"       = fm5,
+               "p(RAIN+RAIN2+RAIN3+TEMP+TEMP2+TEMP3)psi(Cpre+Ctem+2Cpre)"       = fm6,
+               "p(RAIN+RAIN2+RAIN3+TEMP+TEMP2+TEMP3)psi(Cpre+Ctem+2Cpre+2Ctem)" = fm7, 
+               "Null"                           = fm8
+)
+(ms <- modSel(fms))
+
+
+
+best.model <- fm2
+
+confint(best.model, type = "state")
 
 
 
 ### Proportion of Area Occupied ###
-AICbest <- occu(formula = ~ OUTc+MGVF # Best result here
-                          ~ CaTe+I(CaTe^2),
-                data = umf)
-re <- ranef(AICbest)
+re <- ranef(best.model)
 EBUP <- bup(re, stat="mean")
 CI <- confint(re, level=0.9)
 rbind(PAO = c(Estimate = sum(EBUP), colSums(CI)) / nrow(y))
@@ -225,8 +272,8 @@ rbind(PAO = c(Estimate = sum(EBUP), colSums(CI)) / nrow(y))
 
 ### Auto Select - Not using for Now ###
 # Using MuMIn
-full <- occu(formula =  ~ OUTc +  MGVF + DEMs + COLL
-             ~ CaRa + CaTe,
+full <- occu(formula =  ~ OUTc +  MGVF + DEMs + TEMP
+             ~ Cpre + Ctem,
              data = umf)
 (modelList <- dredge(full, rank = "AIC"))
 
@@ -234,30 +281,273 @@ occu_dredge_95 <- get.models(modelList, subset = cumsum(weight) <= 0.95)
 oc_avg <- model.avg(occu_dredge_95, fit = TRUE)
 t(oc_avg$coefficients)
 
+library(AICcmodavg)
+system.time(gof.boot <- mb.gof.test(best.model, nsim = 1000))
+gof.boot
+
 
 #### PREDICTION ####
 
+
+
 # Create new covariates for prediction ('prediction covs')
-pred.OA <- seq(0, 100,,131)    # New covs for prediction
-pred.Carb <- seq(0, 100,,131)
-p.OA <- (pred.OA - means[1]) / sds[1] # Standardise them like actual covs
-p.Carb <- (pred.Carb - means[2]) / sds[2]
+pred.TEMP <- seq(min(TEMP.orig), max(TEMP.orig),,100) # New covs for prediction
+pred.RAIN <- seq(min(RAIN.orig), max(RAIN.orig),,100)
+pred.DEMs <- seq(min(DEMs.orig), max(DEMs.orig),,100)
+pred.MGVF <- seq(min(MGVF.orig), max(MGVF.orig),,100)
+p.TEMP <- (pred.TEMP - means[4]) / sds[4] # Standardise them like actual covs
+p.RAIN <- (pred.RAIN - means[2]) / sds[2]
+p.DEMs <- (pred.DEMs - means[1]) / sds[1]
+p.MGVF <- (pred.MGVF - means[3]) / sds[3]
+
+pred.Cpre <- seq(min(Cpre.orig), max(Cpre.orig),,100) # New covs for prediction
+p.Cpre <- (pred.Cpre - means[5]) / sds[5]
+pred.Ctem <- seq(min(Ctem.orig), max(Ctem.orig),,100) # New covs for prediction
+p.Ctem <- (pred.Ctem - means[6]) / sds[6]
+
 
 # Obtain predictions
-newData <- data.frame(Outcrop=p.OA, Carb=0)
-pred.occ.OA <- predict(fm9, type="det", newdata=newData, appendData=TRUE)
-newData <- data.frame(Outcrop=0, Carb=p.Carb)
-pred.occ.Carb <- predict(fm9, type="det", newdata=newData, appendData=TRUE)
+newData <- data.frame(TEMP=p.TEMP, RAIN = 0)
+pred.det.TEMP <- predict(best.model, type="det", newdata=newData, appendData=TRUE)
+newData <- data.frame(TEMP=0, RAIN = p.RAIN)
+pred.det.RAIN <- predict(best.model, type="det", newdata=newData, appendData=TRUE)
+newData <- data.frame(TEMP=0, RAIN = 0, MGVF = p.MGVF)
+pred.det.MGVF <- predict(best.model, type="det", newdata=newData, appendData=TRUE)
+
+newData <- data.frame(Cpre = p.Cpre)
+pred.occ.Cpre <- predict(best.model, type="state", newdata=newData, appendData=TRUE)
+newData <- data.frame(Ctem = p.Ctem)
+pred.occ.Ctem <- predict(best.model, type="state", newdata=newData, appendData=TRUE)
 
 # Plot predictions against unstandardized 'prediction covs'
-par(mfrow = c(2,1), mar = c(5,5,2,3), cex.lab = 1.2)
-plot(pred.occ.OA[[1]] ~ pred.OA, type = "l", lwd = 3, col = "blue", ylim = c(0,1), las = 1, ylab = "Pred. detection prob.", xlab = "Outcrop Area (%)", frame = F)
-matlines(pred.OA, pred.occ.OA[,3:4], lty = 1, lwd = 1, col = "grey")
-plot(pred.occ.Carb[[1]] ~ pred.Carb, type = "l", lwd = 3, col = "blue", ylim = c(0,1), las = 1, ylab = "Pred. detection prob.", xlab = "Carbonate Collections (%)", frame = F)
-matlines(pred.Carb, pred.occ.Carb[,3:4], lty = 1, lwd = 1, col = "grey")
+par(mfrow = c(3,1), mar = c(5,5,2,3), cex.lab = 1.2)
+plot(pred.det.TEMP[[1]] ~ pred.TEMP, type = "l", lwd = 3, col = "blue", ylim = c(0,1), las = 1, ylab = "Pred. detection prob.", xlab = "Temperature", frame = F)
+matlines(pred.TEMP, pred.det.TEMP[,3:4], lty = 1, lwd = 1, col = "grey")
+plot(pred.det.RAIN[[1]] ~ pred.RAIN, type = "l", lwd = 3, col = "blue", ylim = c(0,1), las = 1, ylab = "Pred. detection prob.", xlab = "Precipitation", frame = F)
+matlines(pred.RAIN, pred.det.RAIN[,3:4], lty = 1, lwd = 1, col = "grey")
+plot(pred.det.MGVF[[1]] ~ pred.MGVF, type = "l", lwd = 3, col = "blue", ylim = c(0,1), las = 1, ylab = "Pred. detection prob.", xlab = "MGVF", frame = F)
+matlines(pred.MGVF, pred.det.MGVF[,3:4], lty = 1, lwd = 1, col = "grey")
 
+plot(pred.occ.Cpre[[1]] ~ pred.Cpre, type = "l", lwd = 3, col = "blue", ylim = c(0,1), las = 1, ylab = "Pred. occupancy prob.", xlab = "Palaeo Precip.", frame = F)
+matlines(pred.Cpre, pred.occ.Cpre[,3:4], lty = 1, lwd = 1, col = "grey")
+plot(pred.occ.Ctem[[1]] ~ pred.Ctem, type = "l", lwd = 3, col = "blue", ylim = c(0,1), las = 1, ylab = "Pred. occupancy prob.", xlab = "Palaeo Temp.", frame = F)
+matlines(pred.Ctem, pred.occ.Ctem[,3:4], lty = 1, lwd = 1, col = "grey")
 
 #Look at the occupancy and detection estimates on probability scale
 #Note that 'backTransform' will only work without intermediate steps if inquiring about the null model.
-print(occ.null <- backTransform(fm1, type="state")) # Occupancy estimate - 0.387
-print(det.null <- backTransform(fm1, type="det")) # detection estimate - 0.108
+print(occ.null <- backTransform(best.model, type="state")) # Occupancy estimate - 0.387
+print(det.null <- backTransform(best.model, type="det")) # detection estimate - 0.108
+
+
+
+
+gen_raster <- function(cell_data, value_data, res, ext, zero = FALSE){
+  init_raster <- raster(res = res, ext = ext, val = 1)
+  total_cells <- ncell(init_raster)
+  dframe_of_values <- data.frame(cell_data, value_data) 
+  colnames(dframe_of_values) <- c("Cells", "Vals")
+  
+  # Make blank dataframe to copy values into
+  dframe_of_cells <- data.frame(1:total_cells)
+  colnames(dframe_of_cells) <- "Cells"
+  
+  # Join dataframes
+  full_dframe <- left_join(dframe_of_cells, dframe_of_values, by = "Cells")
+  
+  if (zero == TRUE){
+    full_dframe[is.na(full_dframe)] <- 0
+  }
+  mapPalette <- colorRampPalette(c("grey", "yellow", "orange", "red"))
+  raster_for_values <- raster(res = res, val = full_dframe$Vals, ext = ext)
+  plot(raster_for_values, col = mapPalette(100), axes = F, box = F, main = "Detection Probability")
+}
+
+library(tidyr)
+par(mfrow = c(1,1), mar = c(5,5,2,3), cex.lab = 1.2)
+chosen_raster <- rain_ras
+
+
+
+selected_covs <- site.covs %>%
+  dplyr::select(mean_prec, mean_temp)
+colnames(selected_covs) <- c("RAIN", "TEMP")
+
+
+
+
+
+
+# Need to take: raster, covariates
+
+
+# First
+rain_ras <- raster("Data/Covariate_Data/Formatted/All_data/0.5deg/WC_Prec_0.5.asc")
+temp_ras <- raster("Data/Covariate_Data/Formatted/All_data/0.5deg/WC_Temp_0.5.asc")
+chosen_raster <- stack(rain_ras, temp_ras)
+names(chosen_raster) <- c("RAIN", "TEMP")
+
+
+
+# Scale covariates
+means <- colMeans(selected_covs)
+sds <- selected_covs %>% summarise_each(~(sd(., na.rm=TRUE)))
+
+means[1]
+
+
+scaled_covs <- apply(ras, 2, scale)
+
+# Useful Info
+total_cells <- ncell(chosen_raster) # Number of cells
+raster_extent <- chosen_raster@extent # Extent
+ras_res <- res(chosen_raster) # Resolution
+
+# Make Dataframe
+ras.d.frame <- as.data.frame(chosen_raster) # Get dataframe from raster
+ras.d.frame <- data.frame(1:total_cells, ras.d.frame)
+colnames(ras.d.frame)[1] <- c("Cells")
+
+ras.occ.cells <- ras.d.frame %>%
+  drop_na() 
+
+test2$
+
+  scale(ras.occ.cells[2])
+  
+  
+test <- (ras.occ.cells$RAIN - means[1])
+
+test / as.numeric(sds[1])
+
+
+# vector of names 
+newData <- data.frame(Cells = ras.occ.cells$Cells, RAIN = (ras.occ.cells$RAIN - means[1]) / as.numeric(sds[1]), TEMP = (ras.occ.cells$TEMP - means[2])/as.numeric(sds[2]))
+predCH <- predict(best.model, type="det", newdata=newData)
+
+predCH$Cells <- ras.occ.cells$Cells
+
+dframe_of_cells <- data.frame(1:total_cells)
+colnames(dframe_of_cells) <- "Cells"
+
+# Join dataframes
+full_dframe <- left_join(dframe_of_cells, predCH, by = "Cells")
+
+raster_for_values <- raster(res = res, val = full_dframe$Predicted, ext = raster_extent)
+plot(raster_for_values)
+
+
+
+
+
+ras_vals <- getValues(chosen_raster)
+
+
+
+
+
+# Make dataframe of values
+extracted_values <- raster::extract(chosen_raster, vector_of_cells)
+dframe_of_values <- data.frame(vector_of_cells, extracted_values)
+colnames(dframe_of_values) <- c("Cells", "Vals")
+
+# Make blank dataframe to copy values into
+dframe_of_cells <- data.frame(1:total_cells)
+colnames(dframe_of_cells) <- "Cells"
+
+# Join dataframes
+full_dframe <- left_join(dframe_of_cells, dframe_of_values, by = "Cells")
+
+if (zero == TRUE){
+  full_dframe[is.na(full_dframe)] <- 0
+}
+
+# Make and plot raster
+raster_for_values <- raster(res = res, val = full_dframe$Vals, ext = raster_extent)
+plot(raster_for_values)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+test2 <- as.data.frame(test2, xy = TRUE)
+
+# Load the Swiss landscape data from unmarked
+data(Switzerland)             # Load Swiss landscape data in unmarked
+CH <- Switzerland
+
+# Get predictions of occupancy prob for each 1km2 quadrat of Switzerland
+newData <- data.frame(TEMP = (test2$WC_Temp_0.5 - means[4])/sds[4], RAIN = (test2$WC_Prec_0.5 - means[2])/sds[2])
+predCH <- predict(best.model, type="det", newdata=newData)
+
+# Prepare Swiss coordinates and produce map
+library(raster)
+library(rgdal)
+
+# Define new data frame with coordinates and outcome to be plotted
+PARAM <- data.frame(x = test2$x, y = test2$y, z = predCH$Predicted)
+r1 <- rasterFromXYZ(PARAM)     # convert into raster object
+
+# Mask quadrats with elevation greater than 2250
+elev <- rasterFromXYZ(cbind(CH$x, CH$y, CH$elevation))
+elev[elev > 2250] <- NA
+r1 <- mask(r1, elev)
+
+# Plot species distribution map (Fig. 10-14 left)
+par(mfrow = c(1,2), mar = c(1,2,2,5))
+mapPalette <- colorRampPalette(c("grey", "yellow", "orange", "red"))
+plot(r1, col = mapPalette(100), axes = F, box = F, main = "Detection Probability")
+
+mask_oc <- raster("Data/Covariate_Data/Formatted_For_Precise/COut_0.5.asc")
+projection(mask_oc) <- "+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0 " 
+mask_oc <- crop(mask_oc, e)
+plot(mask_oc)
+
+raster_for_values
+
+mask_oc[(mask_oc[]) == 0] <- NA
+
+
+r1 <- mask(raster_for_values, mask_oc)
+mapTheme <- rasterVis::rasterTheme(region=brewer.pal(9,"YlOrRd"))
+print(rasterVis::levelplot(r1, margin=F, par.settings=mapTheme,  main = "Detection Probabiliy of Campanian Hadrosaurs") + #create levelplot for raster
+        latticeExtra::layer(sp.polygons(states, col = "white", fill = NA), under = T)  + # Plots state lines
+        latticeExtra::layer(sp.polygons(countries, col = 0, fill = "light grey"), under = T)) # Plots background colour
+
+
+
+pred.matrix2 <- array(NA, dim = c(100, 100)) # Define arrays
+for(i in 1:100){
+  for(j in 1:100){
+    newData2 <- data.frame(TEMP=p.TEMP[i], RAIN=p.RAIN[j])        # For detection
+    pred <- predict(best.model, type="det", newdata=newData2)
+    pred.matrix2[i, j] <- pred$Predicted
+  }
+}
+
+image(x=pred.TEMP, y=p.RAIN, z=pred.matrix2, col = mapPalette(100), axes = FALSE, xlab = "Temperature", ylab = "Rainfall")
+contour(x=pred.TEMP, y=p.RAIN, z=pred.matrix2, add = TRUE, lwd = 1.5, col = "blue", labcex = 1.3)
+axis(1, at = seq(min(pred.TEMP), max(pred.TEMP), by = 5))
+axis(2, at = seq(min(pred.RAIN), max(pred.RAIN), by = 20))
+box()
+title(main = "Hadrosaur detection prob.", font.main = 1)
+matpoints(as.matrix(data[, 2:21]), pch="+", cex=1)
+
+

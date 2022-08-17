@@ -326,3 +326,9 @@ Data_for_revision <- test2 %>%
 
 write.csv(test2, file = "Maas_data_for_revision.csv")
 
+# Additional testing
+camp.occs <- read.csv("Data/Occurrences/Camp_data_060720_WIB_only.csv")
+
+Dinosaurs <- camp.occs %>%
+  filter(class == "Ornithischia" | class == "Saurischia") %>%
+  distinct(genus)

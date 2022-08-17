@@ -35,18 +35,18 @@ library(sp)
 library(maps)
 library(maptools)
 library(parallel)
-library(plyr)
 library(reshape2)
-
+library(tibble)
 
 #=============================================== GET_EXTENT =============================================================
 
 # Setup raster for resolution and extent. Note: these values should be the same ones used for the file 1.Setup_occupancy_DR.
+
 get_extent <- function(data){
-  maxLat <- round_any((max(data$lat) + 3), 0.5)  #get value for defining extent, and increase by x for visualisation purposes
-  minLat <- round_any((min(data$lat) - 3), 0.5)  #get value for defining extent, and increase by x for visualisation purposes
-  maxLng <- round_any((max(data$lng) + 3), 0.5)  #get value for defining extent, and increase by x for visualisation purposes
-  minLng <- round_any((min(data$lng) - 3), 0.5) #get value for defining extent, and increase by x for visualisation purposes
+  maxLat <- round_any((max(data$lat) + 1), 0.5)  #get value for defining extent, and increase by x for visualisation purposes
+  minLat <- round_any((min(data$lat) - 1), 0.5)  #get value for defining extent, and increase by x for visualisation purposes
+  maxLng <- round_any((max(data$lng) + 1), 0.5)  #get value for defining extent, and increase by x for visualisation purposes
+  minLng <- round_any((min(data$lng) - 1), 0.5) #get value for defining extent, and increase by x for visualisation purposes
   e <<- extent(minLng, maxLng, minLat, maxLat) # build extent object
 }
 
@@ -76,9 +76,70 @@ target_maker <- function (data, level, target){ # Data is entered data. Level is
   assign(temp_name, filtered, envir = .GlobalEnv)
 }
 
+#=============================================== VIEW_CELLS & GEN_RASTER ================================================
+
+# Functions to view specific cells of a raster. 
+
+#==== view_cells ====
+
+# Function that extracts data from a raster, and makes a new raster with only a chosen vector of cells.
+
+view_cells <- function(chosen_raster, vector_of_cells, res, zero = FALSE){ # Chosen_raster is the raster with cells that you want to view. vector_of_cells is the vector of cells to view. res is chosen resolution. zero chooses whether other cells are listed as NAs or 0 values (for levelplot)
+  # Get relevant info
+  total_cells <- ncell(chosen_raster)
+  total_layers <- nlayers(chosen_raster)
+  raster_extent <- chosen_raster@extent
+  
+  # Make dataframe of values
+  extracted_values <- raster::extract(chosen_raster, vector_of_cells)
+  dframe_of_values <- data.frame(vector_of_cells, extracted_values)
+  dframe_of_values <- unique(dframe_of_values)
+  colnames(dframe_of_values) <- c("Cells", "Vals")
+  
+  # Make blank dataframe to copy values into
+  dframe_of_cells <- data.frame(1:total_cells)
+  colnames(dframe_of_cells) <- "Cells"
+  
+  # Join dataframes
+  full_dframe <- left_join(dframe_of_cells, dframe_of_values, by = "Cells")
+  
+  if (zero == TRUE){
+    full_dframe[is.na(full_dframe)] <- 0
+  }
+  
+  # Make and plot raster
+  raster_for_values <- raster(res = res, val = full_dframe$Vals, ext = raster_extent)
+  plot(raster_for_values)
+}
+
+#==== gen_raster ====
+
+# Function that extracts data from a raster from scratch, using a vector of cells and associated values. Used for quickly visualising covariate data.
+
+gen_raster <- function(cell_data, value_data, res, ext, zero = FALSE){
+  init_raster <- raster(res = res, ext = ext, val = 1)
+  total_cells <- ncell(init_raster)
+  dframe_of_values <- data.frame(cell_data, value_data) 
+  colnames(dframe_of_values) <- c("Cells", "Vals")
+ 
+  # Make blank dataframe to copy values into
+  dframe_of_cells <- data.frame(1:total_cells)
+  colnames(dframe_of_cells) <- "Cells"
+ 
+  # Join dataframes
+  full_dframe <- left_join(dframe_of_cells, dframe_of_values, by = "Cells")
+ 
+  if (zero == TRUE){
+     full_dframe[is.na(full_dframe)] <- 0
+  }
+  raster_for_values <- raster(res = res, val = full_dframe$Vals, ext = ext)
+  plot(raster_for_values)
+}
+
 #=============================================== BIN_SPLITTER =======================================================
 
 # Takes combined data and splits it into user defined bins based off a vector. 
+
 bin_splitter <- function(bins, fossils){ # takes first output from combined_data and a vector of time bins. 
   for (s in 1:(length(bins)-1)){
     temp_data <- fossils %>%
@@ -91,10 +152,14 @@ bin_splitter <- function(bins, fossils){ # takes first output from combined_data
 #=============================================== GET_GRID ===========================================================
 
 # Creates a raster of chosen resolution, and attaches associated grid cell IDs to occurrences/collections
-get_grid <- function(data, res, e){ # data is first output from combine_data (fossil.colls). Res is chosen resolution in degrees
-  val <- 64800/res
-  r <- raster(res = res, val = val, ext = e)
-  xy <- SpatialPointsDataFrame(cbind.data.frame(data$lng, data$lat), data)
+
+get_grid <- function(data, res, e, r = "N"){ # data is first output from combine_data (fossil.colls). Res is chosen resolution in degrees
+  if (class(r) == "character"){
+    r <- raster(res = res, val = 1, ext = e) # Value must be added because extract uses values
+    r <<- r
+  }
+  crs <- r@crs
+  xy <- SpatialPointsDataFrame(cbind.data.frame(data$lng, data$lat), data, proj4string = crs)
   Final <- raster::extract(r, xy, sp = TRUE, cellnumbers = TRUE)
   Final <<- as.data.frame(Final)
 }
@@ -104,6 +169,8 @@ get_grid <- function(data, res, e){ # data is first output from combine_data (fo
 # Functions to organise covariate data
 
 #===== GET_COLLECTIONS =====
+
+# Extracts information about number of collections per cell of chosen data. 
 
 find_collections <- function(data, single = FALSE){ # Data is output from Get_grid. Res is resolution (only neccessary for later functions)
   Collections_per_cell <- data %>% # Counting collections per cell
@@ -120,6 +187,7 @@ find_collections <- function(data, single = FALSE){ # Data is output from Get_gr
 #===== GET_COV =====
 
 # Attaches grid cell IDs from an inputted raster to occurrences/collections.
+
 get_cov <- function(data, raster){ # data is first output from get_grid. Raster is a chosen raster file, which can be a raster stack. 
   xy <- SpatialPointsDataFrame(cbind.data.frame(data$lng, data$lat), data)
   cov_dat <- raster::extract(raster, xy, sp = TRUE, cellnumbers = TRUE)
@@ -132,6 +200,7 @@ get_cov <- function(data, raster){ # data is first output from get_grid. Raster 
 #===== GET_COV_FROM_STACK =====
 
 # Creates a raster stack of chosen resolution from previously stored raster files, and attaches associated grid cell IDs to occurrences/collections. 
+
 get_cov_from_stack <- function(data, res){ # data is first output from combine_data (fossil.colls) and chosen resolution. 
   grids <- list.files(paste("Data/Covariate_Data/Formatted/All_data/", res, "deg/", sep = ""), pattern = "asc") # Find rasters of appropriate resolution
   raster <- raster::stack(paste0("Data/Covariate_Data/Formatted/All_data/", res, "deg/", grids)) # stack those rasters
@@ -139,9 +208,37 @@ get_cov_from_stack <- function(data, res){ # data is first output from combine_d
   CovStack <<- raster
 }
 
+#===== HIRES_COV_DAT =====
+
+# Creates dataframe of covariate data associated with relevant grid cells, taken from original hi-resolution rasters. Covariate values are created from the mean value of collections within larger grid cells of chosen resolution. 
+
+alt_cov_grab <- function(data){
+  wc <- list.files("Data/Covariate_Data/Formatted_For_Precise/")
+  wc <- wc[-1]
+  wc <- stack(paste0("Data/Covariate_Data/Formatted_For_Precise/", wc, sep = ""))
+  projection(wc) <- "+proj=laea +lat_0=45 +lon_0=-100 +x_0=0 +y_0=0 +a=6370997 +b=6370997 +units=m +no_defs" 
+  xy <- SpatialPointsDataFrame(cbind.data.frame(data$lng, data$lat), data, proj4string = CRS("+proj=laea +lat_0=45 +lon_0=-100 +x_0=0 +y_0=0 +a=6370997 +b=6370997 +units=m +no_defs"))
+  hires_cov_dat <- raster::extract(wc, xy, sp = TRUE, cellnumbers = TRUE)
+  hires_cov_dat <- as.data.frame(hires_cov_dat)
+  hires_cov_dat <- hires_cov_dat %>%
+    dplyr::group_by(cells) %>%
+    dplyr::summarize(mean_DEM = mean(DEM, na.rm = TRUE), 
+              mean_MGVF = mean(MGVF, na.rm = TRUE),
+              mean_prec = mean(prec, na.rm = TRUE),
+              mean_temp = mean(temp, na.rm = TRUE))
+  hires_cov_dat <<- hires_cov_dat
+}
+
 #=============================================== GET_GRID_IM ===========================================================
 
+# Set up background info
+countries <- maps::map("world", plot=FALSE, fill = TRUE) # find map to use as backdrop
+states <- maps::map("state", plot = FALSE, fill = TRUE)
+countries <<- maptools::map2SpatialPolygons(countries, IDs = countries$names, proj4string = CRS("+proj=longlat")) # Turn map into spatialpolygons
+states <<- maptools::map2SpatialPolygons(states, IDs = states$names, proj4string = CRS("+proj=longlat")) # Turn map into spatialpolygons
+
 # Sets raster to dimensions of inputted data ready for visualisation. Is used in vis_grid. 
+
 get_grid_im <- function(data, res, name, ext){ # Data is first output from combine_data (fossil.colls). Res is chosen resolution in degrees. name is user inputted string related to data inputted, for display on graphs. 
   xy <- cbind(as.double(data$lng), as.double(data$lat))
   r <- raster::raster(ext = ext, res = res)
@@ -150,9 +247,9 @@ get_grid_im <- function(data, res, name, ext){ # Data is first output from combi
   countries <- maps::map("world", plot=FALSE, fill = TRUE) # find map to use as backdrop
   countries <<- maptools::map2SpatialPolygons(countries, IDs = countries$names, proj4string = CRS("+proj=longlat")) # Turn map into spatialpolygons
   mapTheme <- rasterVis::rasterTheme(region=brewer.pal(8,"Greens"))
-  print(rasterVis::levelplot(r, margin=FALSE, par.settings=mapTheme,  main = paste("Total ", (substitute(name)), " per Grid Cell", sep = "")) + #create levelplot for raster
-          latticeExtra::layer(sp.polygons(countries, col = 0, fill = "grey")) + #add countries
-          rasterVis::levelplot(r, margin=FALSE, par.settings=mapTheme)) #add levelplot again over the top (messy, but unsure how else to set this up!)
+  print(rasterVis::levelplot(r, margin=F, par.settings=mapTheme,  main = paste("Total ", (substitute(name)), " per Grid Cell", sep = "")) + #create levelplot for raster
+    latticeExtra::layer(sp.polygons(states, col = "white", fill = NA), under = T)  + # Plots state lines
+    latticeExtra::layer(sp.polygons(countries, col = 0, fill = "light grey"), under = T)) # Plots background colour
   hist(r, breaks = 20,
        main = paste((substitute(name)), " per Grid Cell", sep = ""),
        xlab = "Number of Collections", ylab = "Number of Grid Cells",
@@ -165,7 +262,9 @@ get_grid_im <- function(data, res, name, ext){ # Data is first output from combi
 # Functions to test quality of data at different resolutions of grid cells.
 
 #===== PREPARE_FOR_RES_DATA =====
+
 # Produces summary of key stats for data at a specified resolution of grid cell. Used in res_data.
+
 prepare_for_res_data <- function(data, target, single = TRUE){ # Data is first output from combine_data (fossil.colls). Target is chosen taxon group of interest
   rel_data <- data %>% 
     dplyr::select(collection_name, cells, Target) # Select appropriate cells
@@ -201,7 +300,9 @@ prepare_for_res_data <- function(data, target, single = TRUE){ # Data is first o
 }
 
 #===== RES_DATA =====
+
 # Carries out prepare_for_res_data over a sequence of resolutions, and outputs as a data.frame.
+
 res_data <- function(data, target, single = TRUE, start, fin, int){ # Data is first output from combine_data (fossil.colls). Target is chosen group to test. start is first resolution, fin is last resolution,int is the interval to count between start and fin.
   s1 <- seq(start, fin, int)
   Res_results_list <- list()
@@ -232,6 +333,7 @@ Res_results_list <<- Res_results_list
 # Functions for converting data into the correct format for unmarked (occupancy modelling package). Can be run individually or for multiple Targets and Resolutions. 
 
 #===== PREPARE_FOR_UNMARKED =====
+
 # Converts data generated by Get_grid into the correct format for unmarked. 
 
 prepare_for_unmarked <- function(data, target, single = TRUE){ # data is output from Get_Grid. target is specified group to examine. 
@@ -283,7 +385,9 @@ prepare_for_unmarked <- function(data, target, single = TRUE){ # data is output 
 }
 
 #===== SUBSAMP_FOR_UNMARKED =====
+
 # Takes data prepared for unmarked, and standardizes it down to a total of five site visits (collections) for each gridsquare through subsampling.  
+
 SubSamp_for_unmarked <- function(data, target, sampval = 10, trials = 100){ # Data is output from prepare_for_unmarked. Outputs same data, but subsampled to sampval site visits. sampval by default set to 10
   new_dframe_for_unmarked <- data.frame()
   for (n in 1:nrow(data)){ # for each row in unmarked ready data
@@ -310,8 +414,10 @@ SubSamp_for_unmarked <- function(data, target, sampval = 10, trials = 100){ # Da
 }
 
 #===== ALL_RESULTS_FOR_UNMARKED =====
+
 # loop that take basic combined data and writes multiple .csv files into Results folder in current directory for chosen grid cells resolutions and targets in correct format for unmarked. Sound rings when function has finished running.
-all_results_for_unmarked <- function(data, res, target, ext, subsamp = TRUE, single = TRUE){ # data is first output from combined_data (fossil.colls). res is vectors of chosen resolutions. target is vector of chosen targets. 
+
+all_results_for_unmarked <- function(data, res, target, ext, subsamp = TRUE, sampval = 10, single = TRUE){ # data is first output from combined_data (fossil.colls). res is vectors of chosen resolutions. target is vector of chosen targets. 
   for (r in 1:length(res)){
     ptm <- proc.time()
     test1 <- get_grid(data, res[r], ext)
@@ -323,7 +429,7 @@ all_results_for_unmarked <- function(data, res, target, ext, subsamp = TRUE, sin
         test2 <- prepare_for_unmarked(test1, target[t])
       }
       if (subsamp==TRUE){
-        test2 <- SubSamp_for_unmarked(test2, target[t])
+        test2 <- SubSamp_for_unmarked(test2, target[t], sampval = sampval)
       }
       temp_name <- paste(deparse(substitute(data)), ".", res[r], ".", target[t], sep = "")
       dir.create(paste0("Results/", res, sep =""), showWarnings = FALSE) #stops warnings if folder already exists
@@ -340,6 +446,8 @@ all_results_for_unmarked <- function(data, res, target, ext, subsamp = TRUE, sin
 }
 
 #=============================================== PREPARE_FOR_MULTISPECIES ===========================================================
+
+# Function to prepare PBDB data for use in multispecies occupancy modelling. Generates data at a chosen taxonomic level.
 
 prepare_for_multispecies <- function(data, res, ext, level = "genus", target){
   TYPE <- c("species", "genus") # set up potential inputs
