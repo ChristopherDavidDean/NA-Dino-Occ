@@ -38,329 +38,6 @@ library(parallel)
 library(reshape2)
 library(tibble)
 
-#=============================================== BIN_TIME =============================================================
-
-# Bins occurrences into time bins according to one of 5 methods. Taken from the Palaeoverse package.
-
-bin_time <- function(occdf, bins, method = "mid", reps = 100,
-                     scale = "GTS2020", return_error = FALSE) {
-  #=== Handling errors ===
-  if (is.data.frame(occdf) == FALSE) {
-    stop("`occdf` should be a dataframe.")
-  }
-  if (is.data.frame(bins) == FALSE) {
-    stop("`bins` should be a dataframe.")
-  }
-  
-  possible_methods <- c("all", "majority", "random", "point", "mid")
-  method_match <- charmatch(method, possible_methods)
-  
-  if (is.na(method_match) == TRUE) {
-    # If the user has entered a non-valid term for the "method" argument,
-    # generate an error and warn the user.
-    stop("Invalid `method`. Choose either:
-  'all', 'majority', 'random', 'point', or 'mid'.")
-  } else {
-    method <- possible_methods[method_match]
-  }
-  
-  if (scale %in% c("GTS2020", "GTS2012") == FALSE) {
-    stop("Invalid `scale`. Choose either 'GTS2020' or 'GTS2012'")
-  }
-  if (is.numeric(reps) == FALSE) {
-    stop("Invalid `reps`. Choose an numeric value.")
-  }
-  if (is.logical(return_error) == FALSE) {
-    stop("Invalid `return_error`.
-           Choose a logical value (i.e. TRUE or FALSE).")
-  }
-  if (class(occdf$max_ma) != class(occdf$min_ma)) {
-    stop("Invalid occdf$max_ma or occdf$min_ma.
-           Columns should be of the same class.")
-  }
-  
-  if (is.numeric(occdf$max_ma) &&
-      max(occdf$max_ma) > max(bins$max_ma)) {
-    stop("Maximum age of occurrence data surpasses maximum age of bins")
-  }
-  
-  #=== Sorting non-numeric age designations ===
-  if (is.character(occdf$max_ma)) {
-    # If entered value for max_ma is character rather than numeric:
-    
-    # which geological timescale to use?
-    if (scale == "GTS2020") {
-      df <- palaeoverse::GTS2020
-    }
-    if (scale == "GTS2012") {
-      df <- palaeoverse::GTS2012
-    }
-    
-    # Re-name columns to work with rest of function.
-    occdf$tmp_bin <- seq_len(nrow(occdf))
-    names(occdf)[names(occdf) == "max_ma"] <- "max_interval"
-    names(occdf)[names(occdf) == "min_ma"] <- "min_interval"
-    
-    # Merge dataframes (max ma)
-    occdf <- merge(
-      x = occdf,
-      y = df[, c("interval_name", "max_ma")],
-      by.x = "max_interval",
-      by.y = "interval_name",
-      all.x = TRUE
-    )
-    
-    # Merge dataframes (min ma)
-    occdf <- merge(
-      x = occdf,
-      y = df[, c("interval_name", "min_ma")],
-      by.x = "min_interval",
-      by.y = "interval_name",
-      all.x = TRUE
-    )
-    
-    # Ensure order of dataframe is maintained after merge
-    occdf <- occdf[order(occdf$tmp_bin), ]
-    
-    occdf <- occdf[, -which(colnames(occdf) == "tmp_bin")]
-    
-    # If not all intervals can be matched, produce error report
-    # and message to fix spellings.
-    if (any(is.na(occdf$min_ma)) == TRUE ||
-        any(is.na(occdf$max_ma)) == TRUE) {
-      # Generate error vector
-      error_vec <- which(is.na(occdf$min_ma) | is.na(occdf$max_ma))
-      # Should an error vector be returned to the user?
-      if (return_error == TRUE) {
-        return(error_vec)
-      } else {
-        # return error message
-        stop(paste(c(
-          "Unable to match interval to numeric value for all occurrences. Available
-  intervals names are accessible via GTS2020 and GTS2012. Please check interval
-  spelling for the following rows in `occdf` (note: an error vector can be
-  returned with the `return_error` argument):",
-          capture.output(print(error_vec))
-        ),
-        collapse = "\n"
-        ))
-      }
-    }
-  }
-  
-  #=== Reporting Info ===
-  
-  # Make an empty list that's the length of the occurrence dataframe.
-  bin_list <- list()
-  bin_list <- sapply(seq_len(nrow(occdf)), function(x) NULL)
-  
-  # For each occurrence, find all the bins that it is present within, and
-  # add as elements to that part of the list.
-  for (i in seq_len(nrow(bins))) {
-    v <-
-      which(occdf$max_ma > bins$min_ma[i] &
-              occdf$min_ma < bins$max_ma[i])
-    for (j in v) {
-      bin_list[[j]] <- append(bin_list[[j]], bins$bin[i])
-    }
-  }
-  
-  # Generate id column for data (this is for tracking duplicate rows).
-  id <- seq_len(nrow(occdf))
-  occdf$id <- id
-  
-  # Generate empty column for recording the number of bins an occurrence
-  # appears in, and empty columns for the new bin allocation and midpoint.
-  occdf$n_bins <- NA
-  occdf$bin_assignment <- NA
-  occdf$bin_midpoint <- NA
-  
-  # Assign number of bins per occurrence.
-  occdf$n_bins <- lengths(bin_list)
-  
-  # Generate midpoint ages of bins
-  bins$mid_ma <- (bins$max_ma + bins$min_ma) / 2
-  
-  #=== Methods ===
-  
-  #--- Method 1: Midpoint ---
-  if (method == "mid") {
-    # If no mid point is present for occurrence age range, add one in a
-    # new column.
-    rmcol <- FALSE
-    if (("mid_ma" %in% colnames(occdf)) == FALSE) {
-      occdf$mid_ma <- (occdf$max_ma + occdf$min_ma) / 2
-      rmcol <- TRUE
-    }
-    
-    # Assign bin based on midpoint age of the age range
-    for (i in seq_len(nrow(bins))) {
-      v <-
-        which(occdf$mid_ma > bins$min_ma[i] &
-                occdf$mid_ma < bins$max_ma[i])
-      occdf$bin_assignment[v] <- bins$bin[i]
-      occdf$bin_midpoint[v] <- bins$mid_ma[i]
-    }
-    
-    # Remove mid_ma for fossil occurrences (if not already present as input)
-    if (rmcol == TRUE) {
-      occdf <- occdf[, -which(colnames(occdf) == "mid_ma")]
-    }
-    
-    # Return the dataframe and end the function.
-    return(occdf)
-  }
-  
-  #--- Method 2: Point estimates ---
-  if (method == "point") {
-    # make occurrence list for filling with reps
-    occ_list <- list()
-    occ_list <- sapply(seq_len(nrow(occdf)), function(x) NULL)
-    
-    # For each occurrence max/min age, make probability distribution and
-    # sample from it. Record that with each occurrence.
-    for (i in seq_len(nrow(occdf))) {
-      #generate occurrence sequence for sampling
-      occ_seq <- seq(from = occdf[i, "min_ma"],
-                     to = occdf[i, "max_ma"],
-                     by = 0.01)
-      #if max/min ages are the same replicate age
-      if (length(occ_seq) == 1) {
-        occ_list[[i]] <- rep(occ_seq, times = reps)
-        next
-      }else {
-        prob <- dunif(occ_seq,
-                      max = max(occ_seq),
-                      min = min(occ_seq))
-        estimates <-
-          sample(
-            x = occ_seq,
-            size = reps,
-            replace = TRUE,
-            prob = prob
-          )
-        occ_list[[i]] <- estimates
-      }
-    }
-    
-    occdf$point_estimates <- NA
-    #drop cols that are not needed
-    occdf <- occdf[, -which(colnames(occdf) == "bin_midpoint")]
-    
-    occ_df_list <- list()
-    occ_df_list <- sapply(1:reps, function(x) NULL)
-    
-    #add point estimates to each dataframe
-    for (i in 1:reps) {
-      occdf$point_estimates <- do.call(rbind, occ_list)[, i]
-      for (j in seq_len(nrow(bins))){
-        vec <- which(occdf$point_estimates <= bins$max_ma[j] &
-                       occdf$point_estimates >= bins$min_ma[j])
-        occdf$bin_assignment[vec] <- bins$bin[j]
-      }
-      occ_df_list[[i]] <- occdf
-    }
-    
-    #return list of data
-    return(occ_df_list)
-  }
-  
-  
-  #--- Method 3: All ---
-  if (method == "all") {
-    # Duplicate rows by number of bins.
-    occdf <- occdf[rep(seq_len(dim(occdf)[1]), occdf$n_bins), ]
-    
-    # Use id to track unique rows and update bin numbers.
-    for (i in id) {
-      id_vec <- which(occdf$id == i)
-      occdf$bin_assignment[id_vec] <- bin_list[[i]]
-    }
-    # Add bin midpoints to dataframe
-    for (i in seq_len(nrow(occdf))) {
-      vec <- which(occdf$bin_assignment == bins$bin[i])
-      occdf$bin_midpoint[vec] <- bins$mid_ma[i]
-    }
-    
-    rownames(occdf) <- seq_len(nrow(occdf))
-    
-    # Return the dataframe and end the function.
-    return(occdf)
-  }
-  
-  #--- Method 4: Majority ---
-  if (method == "majority") {
-    # Setup column for calculating overlap of age range with bin
-    occdf$overlap_percentage <- NA
-    
-    # Run across bin list
-    for (i in seq_along(bin_list)) {
-      # Dataframe of bins occurrence known to occur in
-      tmpbin <- bins[bins$bin %in% bin_list[[i]], ]
-      
-      # Generate sequence of length 10000 for percentage calculations
-      occ_seq <-
-        seq(occdf[i, "min_ma"], occdf[i, "max_ma"], length.out = 10000)
-      
-      # Calculate overlap across known bins
-      percentage <- vector()
-      for (j in seq_len(nrow(tmpbin))) {
-        percentage[j] <-
-          (length(
-            which(occ_seq >= tmpbin$min_ma[j] &
-                    occ_seq <= tmpbin$max_ma[j])
-          ) / 10000) * 100
-      }
-      
-      # Assign bins, bin midpoints and overlap percentage
-      occdf[i, "bin_assignment"] <-
-        tmpbin$bin[which.max(percentage)]
-      occdf[i, "bin_midpoint"] <-
-        tmpbin$mid_ma[which.max(percentage)]
-      occdf[i, "overlap_percentage"] <-
-        percentage[which.max(percentage)]
-    }
-    return(occdf)
-  }
-  
-  #--- Method 5: Random ---
-  if (method == "random") {
-    # Generate empty lists for populating
-    occ_list <- list()
-    occ_list <- sapply(seq_len(nrow(occdf)), function(x) NULL)
-    occ_df_list <- list()
-    occ_df_list <- sapply(seq_len(reps), function(x) NULL)
-    
-    # Randomly sample from the list of bins that occurrence appears in, and
-    # add to the bin column for the occurrence.
-    for (i in seq_along(bin_list)) {
-      # Dataframe of bins occurrence known to occur in
-      tmpbin <- bins[bins$bin %in% bin_list[[i]], ]
-      
-      # If occurrence only appears in one bin, assign bin
-      if (length(bin_list[[i]]) == 1) {
-        occ_list[[i]] <- rep(x = bin_list[[i]], times = reps)
-        next
-      } else {
-        # Randomly sample from possible bins
-        occ_list[[i]] <- sample(x = tmpbin$bin,
-                                size = reps,
-                                replace = TRUE)
-      }
-    }
-    
-    #add point estimates to each dataframe
-    for (i in 1:reps) {
-      occdf$bin_assignment <- do.call(rbind, occ_list)[, i]
-      occdf$bin_midpoint <- bins$mid_ma[
-        sapply(occdf$bin_assignment, function(x) {
-          which(bins$bin == x)}, simplify = TRUE)]
-      occ_df_list[[i]] <- occdf
-    }
-    return(occ_df_list)
-  }
-}
-
 #=============================================== GET_EXTENT =============================================================
 
 # Setup raster for resolution and extent. Note: these values should be the same ones used for the file 1.Setup_occupancy_DR.
@@ -814,4 +491,634 @@ prepare_for_multispecies <- function(data, res, ext, level = "genus", target){
   write.csv(species.site.final, file.path(paste("Results/", res, "/", temp_name, ".csv", sep="")))
   species.site.final <<- species.site.final
   target.cov <<- target_keep$Code
+}
+
+
+#=============================================== BIN_TIME =============================================================
+
+# Bins occurrences into time bins according to one of 5 methods. Taken from the Palaeoverse package.
+
+bin_time <- function(occdf, bins, method = "mid", reps = 100,
+                     scale = "GTS2020", return_error = FALSE) {
+  #=== Handling errors ===
+  if (is.data.frame(occdf) == FALSE) {
+    stop("`occdf` should be a dataframe.")
+  }
+  if (is.data.frame(bins) == FALSE) {
+    stop("`bins` should be a dataframe.")
+  }
+  
+  possible_methods <- c("all", "majority", "random", "point", "mid")
+  method_match <- charmatch(method, possible_methods)
+  
+  if (is.na(method_match) == TRUE) {
+    # If the user has entered a non-valid term for the "method" argument,
+    # generate an error and warn the user.
+    stop("Invalid `method`. Choose either:
+  'all', 'majority', 'random', 'point', or 'mid'.")
+  } else {
+    method <- possible_methods[method_match]
+  }
+  
+  if (scale %in% c("GTS2020", "GTS2012") == FALSE) {
+    stop("Invalid `scale`. Choose either 'GTS2020' or 'GTS2012'")
+  }
+  if (is.numeric(reps) == FALSE) {
+    stop("Invalid `reps`. Choose an numeric value.")
+  }
+  if (is.logical(return_error) == FALSE) {
+    stop("Invalid `return_error`.
+           Choose a logical value (i.e. TRUE or FALSE).")
+  }
+  if (class(occdf$max_ma) != class(occdf$min_ma)) {
+    stop("Invalid occdf$max_ma or occdf$min_ma.
+           Columns should be of the same class.")
+  }
+  
+  if (is.numeric(occdf$max_ma) &&
+      max(occdf$max_ma) > max(bins$max_ma)) {
+    stop("Maximum age of occurrence data surpasses maximum age of bins")
+  }
+  
+  #=== Sorting non-numeric age designations ===
+  if (is.character(occdf$max_ma)) {
+    # If entered value for max_ma is character rather than numeric:
+    
+    # which geological timescale to use?
+    if (scale == "GTS2020") {
+      df <- palaeoverse::GTS2020
+    }
+    if (scale == "GTS2012") {
+      df <- palaeoverse::GTS2012
+    }
+    
+    # Re-name columns to work with rest of function.
+    occdf$tmp_bin <- seq_len(nrow(occdf))
+    names(occdf)[names(occdf) == "max_ma"] <- "max_interval"
+    names(occdf)[names(occdf) == "min_ma"] <- "min_interval"
+    
+    # Merge dataframes (max ma)
+    occdf <- merge(
+      x = occdf,
+      y = df[, c("interval_name", "max_ma")],
+      by.x = "max_interval",
+      by.y = "interval_name",
+      all.x = TRUE
+    )
+    
+    # Merge dataframes (min ma)
+    occdf <- merge(
+      x = occdf,
+      y = df[, c("interval_name", "min_ma")],
+      by.x = "min_interval",
+      by.y = "interval_name",
+      all.x = TRUE
+    )
+    
+    # Ensure order of dataframe is maintained after merge
+    occdf <- occdf[order(occdf$tmp_bin), ]
+    
+    occdf <- occdf[, -which(colnames(occdf) == "tmp_bin")]
+    
+    # If not all intervals can be matched, produce error report
+    # and message to fix spellings.
+    if (any(is.na(occdf$min_ma)) == TRUE ||
+        any(is.na(occdf$max_ma)) == TRUE) {
+      # Generate error vector
+      error_vec <- which(is.na(occdf$min_ma) | is.na(occdf$max_ma))
+      # Should an error vector be returned to the user?
+      if (return_error == TRUE) {
+        return(error_vec)
+      } else {
+        # return error message
+        stop(paste(c(
+          "Unable to match interval to numeric value for all occurrences. Available
+  intervals names are accessible via GTS2020 and GTS2012. Please check interval
+  spelling for the following rows in `occdf` (note: an error vector can be
+  returned with the `return_error` argument):",
+          capture.output(print(error_vec))
+        ),
+        collapse = "\n"
+        ))
+      }
+    }
+  }
+  
+  #=== Reporting Info ===
+  
+  # Make an empty list that's the length of the occurrence dataframe.
+  bin_list <- list()
+  bin_list <- sapply(seq_len(nrow(occdf)), function(x) NULL)
+  
+  # For each occurrence, find all the bins that it is present within, and
+  # add as elements to that part of the list.
+  for (i in seq_len(nrow(bins))) {
+    v <-
+      which(occdf$max_ma > bins$min_ma[i] &
+              occdf$min_ma < bins$max_ma[i])
+    for (j in v) {
+      bin_list[[j]] <- append(bin_list[[j]], bins$bin[i])
+    }
+  }
+  
+  # Generate id column for data (this is for tracking duplicate rows).
+  id <- seq_len(nrow(occdf))
+  occdf$id <- id
+  
+  # Generate empty column for recording the number of bins an occurrence
+  # appears in, and empty columns for the new bin allocation and midpoint.
+  occdf$n_bins <- NA
+  occdf$bin_assignment <- NA
+  occdf$bin_midpoint <- NA
+  
+  # Assign number of bins per occurrence.
+  occdf$n_bins <- lengths(bin_list)
+  
+  # Generate midpoint ages of bins
+  bins$mid_ma <- (bins$max_ma + bins$min_ma) / 2
+  
+  #=== Methods ===
+  
+  #--- Method 1: Midpoint ---
+  if (method == "mid") {
+    # If no mid point is present for occurrence age range, add one in a
+    # new column.
+    rmcol <- FALSE
+    if (("mid_ma" %in% colnames(occdf)) == FALSE) {
+      occdf$mid_ma <- (occdf$max_ma + occdf$min_ma) / 2
+      rmcol <- TRUE
+    }
+    
+    # Assign bin based on midpoint age of the age range
+    for (i in seq_len(nrow(bins))) {
+      v <-
+        which(occdf$mid_ma > bins$min_ma[i] &
+                occdf$mid_ma < bins$max_ma[i])
+      occdf$bin_assignment[v] <- bins$bin[i]
+      occdf$bin_midpoint[v] <- bins$mid_ma[i]
+    }
+    
+    # Remove mid_ma for fossil occurrences (if not already present as input)
+    if (rmcol == TRUE) {
+      occdf <- occdf[, -which(colnames(occdf) == "mid_ma")]
+    }
+    
+    # Return the dataframe and end the function.
+    return(occdf)
+  }
+  
+  #--- Method 2: Point estimates ---
+  if (method == "point") {
+    # make occurrence list for filling with reps
+    occ_list <- list()
+    occ_list <- sapply(seq_len(nrow(occdf)), function(x) NULL)
+    
+    # For each occurrence max/min age, make probability distribution and
+    # sample from it. Record that with each occurrence.
+    for (i in seq_len(nrow(occdf))) {
+      #generate occurrence sequence for sampling
+      occ_seq <- seq(from = occdf[i, "min_ma"],
+                     to = occdf[i, "max_ma"],
+                     by = 0.01)
+      #if max/min ages are the same replicate age
+      if (length(occ_seq) == 1) {
+        occ_list[[i]] <- rep(occ_seq, times = reps)
+        next
+      }else {
+        prob <- dunif(occ_seq,
+                      max = max(occ_seq),
+                      min = min(occ_seq))
+        estimates <-
+          sample(
+            x = occ_seq,
+            size = reps,
+            replace = TRUE,
+            prob = prob
+          )
+        occ_list[[i]] <- estimates
+      }
+    }
+    
+    occdf$point_estimates <- NA
+    #drop cols that are not needed
+    occdf <- occdf[, -which(colnames(occdf) == "bin_midpoint")]
+    
+    occ_df_list <- list()
+    occ_df_list <- sapply(1:reps, function(x) NULL)
+    
+    #add point estimates to each dataframe
+    for (i in 1:reps) {
+      occdf$point_estimates <- do.call(rbind, occ_list)[, i]
+      for (j in seq_len(nrow(bins))){
+        vec <- which(occdf$point_estimates <= bins$max_ma[j] &
+                       occdf$point_estimates >= bins$min_ma[j])
+        occdf$bin_assignment[vec] <- bins$bin[j]
+      }
+      occ_df_list[[i]] <- occdf
+    }
+    
+    #return list of data
+    return(occ_df_list)
+  }
+  
+  
+  #--- Method 3: All ---
+  if (method == "all") {
+    # Duplicate rows by number of bins.
+    occdf <- occdf[rep(seq_len(dim(occdf)[1]), occdf$n_bins), ]
+    
+    # Use id to track unique rows and update bin numbers.
+    for (i in id) {
+      id_vec <- which(occdf$id == i)
+      occdf$bin_assignment[id_vec] <- bin_list[[i]]
+    }
+    # Add bin midpoints to dataframe
+    for (i in seq_len(nrow(occdf))) {
+      vec <- which(occdf$bin_assignment == bins$bin[i])
+      occdf$bin_midpoint[vec] <- bins$mid_ma[i]
+    }
+    
+    rownames(occdf) <- seq_len(nrow(occdf))
+    
+    # Return the dataframe and end the function.
+    return(occdf)
+  }
+  
+  #--- Method 4: Majority ---
+  if (method == "majority") {
+    # Setup column for calculating overlap of age range with bin
+    occdf$overlap_percentage <- NA
+    
+    # Run across bin list
+    for (i in seq_along(bin_list)) {
+      # Dataframe of bins occurrence known to occur in
+      tmpbin <- bins[bins$bin %in% bin_list[[i]], ]
+      
+      # Generate sequence of length 10000 for percentage calculations
+      occ_seq <-
+        seq(occdf[i, "min_ma"], occdf[i, "max_ma"], length.out = 10000)
+      
+      # Calculate overlap across known bins
+      percentage <- vector()
+      for (j in seq_len(nrow(tmpbin))) {
+        percentage[j] <-
+          (length(
+            which(occ_seq >= tmpbin$min_ma[j] &
+                    occ_seq <= tmpbin$max_ma[j])
+          ) / 10000) * 100
+      }
+      
+      # Assign bins, bin midpoints and overlap percentage
+      occdf[i, "bin_assignment"] <-
+        tmpbin$bin[which.max(percentage)]
+      occdf[i, "bin_midpoint"] <-
+        tmpbin$mid_ma[which.max(percentage)]
+      occdf[i, "overlap_percentage"] <-
+        percentage[which.max(percentage)]
+    }
+    return(occdf)
+  }
+  
+  #--- Method 5: Random ---
+  if (method == "random") {
+    # Generate empty lists for populating
+    occ_list <- list()
+    occ_list <- sapply(seq_len(nrow(occdf)), function(x) NULL)
+    occ_df_list <- list()
+    occ_df_list <- sapply(seq_len(reps), function(x) NULL)
+    
+    # Randomly sample from the list of bins that occurrence appears in, and
+    # add to the bin column for the occurrence.
+    for (i in seq_along(bin_list)) {
+      # Dataframe of bins occurrence known to occur in
+      tmpbin <- bins[bins$bin %in% bin_list[[i]], ]
+      
+      # If occurrence only appears in one bin, assign bin
+      if (length(bin_list[[i]]) == 1) {
+        occ_list[[i]] <- rep(x = bin_list[[i]], times = reps)
+        next
+      } else {
+        # Randomly sample from possible bins
+        occ_list[[i]] <- sample(x = tmpbin$bin,
+                                size = reps,
+                                replace = TRUE)
+      }
+    }
+    
+    #add point estimates to each dataframe
+    for (i in 1:reps) {
+      occdf$bin_assignment <- do.call(rbind, occ_list)[, i]
+      occdf$bin_midpoint <- bins$mid_ma[
+        sapply(occdf$bin_assignment, function(x) {
+          which(bins$bin == x)}, simplify = TRUE)]
+      occ_df_list[[i]] <- occdf
+    }
+    return(occ_df_list)
+  }
+}
+
+#=============================================== FORMATION BINNING ===========================================================
+
+#==== Scoring_Grid_2 ====
+
+# Create a scoring grid ignoring formations with length longer than the 3rd quantile. In his way, long ranging formations don't 
+# bias the creation of bins, especially when they appear during the same time interval.
+Scoring_Grid_2 <- function(formations, res=0.01) { # Requires formation information. Resolution of time lines is set automatically at 0.01, but can be adjusted.
+  max_age <- max(formations$max_age) #finds max age of all formations
+  min_age <- min(formations$min_age) #finds min age of all formations
+  allbins <- seq(min_age-1.0045, max_age+1.0045, res) # Makes 1ma bins in sequence based on max/min ages. 0.00045 added to ensure formation is never exactly equivalent to a bin.
+  
+  score_grid <- matrix(data = NA, nrow = nrow(formations), ncol = length(allbins)) # makes a matrix for the scoring of each time line in terms of how good it is to be a bin boundary
+  colnames(score_grid) <- allbins # All time lines
+  rownames(score_grid) <- formations$Formation # All formations
+  
+  counter <- 0
+  for(i in allbins) { # Go through each time line
+    counter <- sum(counter,1)
+    for (f in 1:nrow(formations)){ # go through each formation 
+      if (formations$Range[f] < quantile(formations$Range, 0.75, type = 7)) { # If formation range is less than the 3rd Quantile
+        if (i <= formations$max_age[f] && i >= formations$min_age[f]){ # if timeline is between max/min age of a formation (i.e. formation crosses that line)
+          a <- formations$max_age[f] - i # Work out how much of formation is older than timeline
+          b <- i - formations$min_age[f] # Work out how much of formation is younger than timeline
+          range <- formations$max_age[f] - formations$min_age[f] # Calculate range of formation
+          if (a > b){
+            score_grid[,counter][f] <- (a/range)*100
+          }
+          else{ 
+            score_grid[,counter][f] <- (b/range)*100 # Work out percentage that sits each side of line, reduce score by that amount.
+          }
+        }
+        else {
+          score_grid[,counter][f] = 100 # Otherwise, just score it 100. 
+        }
+      }
+      else { # If formation range is longer than mean formation range, skip (bin drawing isn't affected)
+        next
+      }
+    }
+  }  
+  score_grid <- na.omit(score_grid) # Remove effect of formations longer than mean formation range
+  means <- colMeans(score_grid) # Work out mean score for each time bin
+  score_grid <- rbind(score_grid, means) # add to grid
+  score_grid <<- score_grid
+  allbins <<- allbins
+}
+
+#=============================================== NEWBINS ==============================================================
+
+# Looks at the previously generated score_grid and generates appropriate new bins based on those scores. Boundaries are 
+# outputted as a list (binlist). If bins are shorter than 0.5 Ma, they are amalgamated into the bins above and below, and 
+# a warning is produced.
+
+newBins <- function(score_grid, formations, bin_limits, allbins, stages, smallamalg = TRUE){ # Takes previously generated score grid, formations, 
+  # allbins and stages from DivDyn package. Also require bin_limits, a user made vector of the following: 
+  # 1) user chosen time window in which to look to draw bins. Advised to be set at 3 Ma. 
+  # 2) Hard maximum age of bins
+  # 3) Hard minimum age of bins
+  
+  score_grid<- as.data.frame(score_grid)
+  bin_size <- bin_limits[1]
+  max_age <- bin_limits[2]
+  min_age <- bin_limits[3]
+  form_bins <- c(min_age)
+  testbin <- seq(min_age, max_age, bin_size) # Creates broader bins for testing best point to draw a bin
+  
+  # Drawing bins and giving form_bins (vector of bin boundaries)
+  for (i in 1:length((testbin)-1)){
+    seqs <- seq(testbin[i],testbin[i]+bin_size, 1) # Creates a sequence of ages to draw bins within
+    pasting <- c()
+    for (n in 1:bin_size){
+      pasting <- c(pasting, paste("^",seqs[n],"|", sep = "")) # Sets up expression to match to score_grid
+    }
+    testmatch2 <- paste(pasting, collapse = "")
+    testmatch2 <- substr(testmatch2, 1, nchar(testmatch2)-1) 
+    a <- score_grid[grep(testmatch2, names(score_grid))] # Finds all scores within this time window
+    z <- apply(a,1,which.max) # Finds maximum bin score within this time window
+    form_bins[i+1] <- names(a)[z][nrow(a)] # Adds maximum bin score to a vector of bins
+  }
+  form_bins <- as.numeric(unique(form_bins)) # Finds all unique bins
+  if (smallamalg == TRUE){ # If small bin amalgamation is turned on (is on automatically):
+    range <- (diff(form_bins) < 0.5) # Finds all bins which are under 0.5 Ma in length
+    range_checker <- c()
+    for (r in 1:length(range)){
+      if (range[r] == TRUE){ # If a bin is under 0.5 Ma in length
+        difference <- diff(c(form_bins[r], form_bins[r+1])) # Find the length of that bin
+        warning("Original bin ",  r, " removed due to small range: ~", signif(difference, digits = 3), " Ma. The difference in time has been added to the bins above and below.") # Generate warning about bin amalgamation
+        form_bins[r] <- form_bins[r]+(difference/2) # Adds half length of old bin to bin below
+        form_bins[r+1] <- form_bins[r+1]-(difference/2) # Adds half length of old bin to bin above
+        range_checker <- c(range_checker, r) # Records which bin was too small
+      }
+    }
+    if(length(range_checker) > 0){ # If there have been amalgamated bins
+      form_bins <- form_bins[-range_checker] # Remove old amalgamated bins
+    }
+  }
+  if (smallamalg == FALSE){
+    warning("Small bin amalgamation is turned off. Bins may be too short to record occurrences. You are advised to check bins before running further analyses.") # Generate warning if small bin amalgamation is turned off. 
+  }
+  form_bins <<- form_bins
+  
+  # Creating binlist (data.frame of bins and appropriate age info)
+  prefix <- "FB."
+  suffix <- seq(1:(length(form_bins)-1))
+  my_names <- paste(prefix, suffix, sep = "")
+  binlist <- data.frame(bin = my_names, # Combines bin data to make dataframe of minimum, maximum and mid point of each new bin
+                        bottom = as.numeric(form_bins[1:(length(form_bins)-1)]), 
+                        top = as.numeric(form_bins[2:(length(form_bins))]))
+  binlist$mid <- (binlist$bottom + binlist$top) / 2
+  binlist <<- binlist
+  
+  #Plotting new bins
+  par(mar = c(4.1, 4.1, 1, 2.1))
+  tsplot(stages, boxes=c("short","system"), # Generates plot using DivDyn package
+         xlim=1:nrow(stages),  ylim=c(min(colMeans(score_grid), na.rm = TRUE), 100), 
+         prop = 0.08, plot.args = list(cex.lab = 2, cex.axis = 2),
+         shading=NULL, boxes.col=c("col","systemCol"), labels.args=list(cex=1.8),
+         ylab = "Bin Splitting Score") 
+  for(n in 1:length(form_bins)){ # draws new bins as coloured boxes for comparison to traditional bins
+    if(((n %% 2) == 0) == TRUE) next
+    else {
+      if(n == length(form_bins)){
+        if(nrow(binlist) %% 2 == 0){
+          next
+        }
+        else{
+          rect(useful_bins[n], 0, useful_bins[n-1], 100, col = rgb(0.89,0.89,0.89,alpha=0.5), border = NA)
+        }
+      }
+      else{
+        rect(form_bins[n], 0, form_bins[n+1], 100-0.01, col = rgb(0.89,0.89,0.89,alpha=0.5), border = NA)
+      }
+    }
+  }
+  lines(allbins, colMeans(score_grid), lwd = 1.75) # draws bin splitting score on plot
+  box(lwd=2)
+}
+
+#=============================================== FORMATIONGRAPH =======================================================
+
+# Shows what formations look like through time in comparison to Stages and new Bins.
+# Requires formations, form_bins from newBins function and stages from DivDyn package
+FormationGraph <- function(formations, form_bins, stages, score_grid_2 = FALSE, draw_by = "Lat", Col = "None", legend = TRUE, STAGE = FALSE){ # Requires formations, form_bins from newBins function and stages from DivDyn package. Has a number of user defined options:
+  # score_grid_2: When turned to TRUE, long ranging formations will appear in grey.
+  # draw_by: Arranges y axis (and formations) in different ways. Takes the arguments "Lat" (arrange by mean latitude of occurrences for formation), "Max_Age" (arrange by maximum age), and "Number" (arrange by arbitrary number).
+  # Col: Colours formations by either "Diversity" (taxic diversity per formation), "Occurrences" (number of occurrences per formation), or "None" (No colour)
+  # Legend: When TRUE, draws a legend.
+  # STAGE: When TRUE, draws stage bins rather than updated bins.
+  TYPE <- c("Lat", "Max_Age", "Number")
+  if (is.na(pmatch(draw_by, TYPE))){
+    stop("Invalid drawing method. Choose either 'Lat', 'Max_Age', or 'Number'.") # If the user has entered a non-valid term for the "draw_by" argument, generate an error and warn the user. 
+  }
+  TYPE <- c("None", "Diversity", "Occurrences")
+  if (is.na(pmatch(Col, TYPE))){
+    stop("Invalid colouring method. Choose either 'None', 'Diversity', or 'Occurrences'.") # If the user has entered a non-valid term for the "Col" argument, generate an error and warn the user.
+  }
+  fp1 <- data.frame(matrix(ncol = 5, nrow = 0)) # Setup dataframe for recording formations with short durations
+  fplong <- data.frame(matrix(ncol = 5, nrow = 0)) # Setup dataframe for recording formations with long durations 
+  for (f in 1:nrow(formations)){
+    if (formations$Range[f] > quantile(formations$Range, 0.75, type = 7)) {
+      if (draw_by == "Lat"){ # If user has set draw_by argument to "Lat"
+        fplong <- rbind(fplong, c(formations$min_age[f], formations$Mean_Lat[f], formations$max_age[f], formations$Mean_Lat[f], formations$Diversity[f], formations$Occurrences[f])) # Add latitude and bind other relevant information. 
+      }
+      if (draw_by == "Max_Age"){
+        fplong <- rbind(fplong, c(formations$min_age[f], formations$max_age[f], formations$max_age[f], formations$max_age[f], formations$Diversity[f], formations$Occurrences[f])) # Add Max Age and bind other relevant information. 
+      }
+      if (draw_by == "Number"){
+        fplong <- rbind(fplong, c(formations$min_age[f], formations$forbinning[f], formations$max_age[f], formations$forbinning[f], formations$Diversity[f], formations$Occurrences[f])) # Add Number of formation and bind other relevant information. 
+      }
+    }
+    else{ # Otherwise, do the same things as above but add to dataframe of short formations
+      if(draw_by == "Lat"){
+        fp1 <- rbind(fp1, c(formations$min_age[f], formations$Mean_Lat[f], formations$max_age[f], formations$Mean_Lat[f], formations$Diversity[f], formations$Occurrences[f]))
+      }
+      if(draw_by == "Max_Age"){
+        fp1 <- rbind(fp1, c(formations$min_age[f], formations$max_age[f], formations$max_age[f], formations$max_age[f], formations$Diversity[f], formations$Occurrences[f]))
+      }
+      if(draw_by == "Number")
+        fp1 <- rbind(fp1, c(formations$min_age[f], formations$forbinning[f], formations$max_age[f], formations$forbinning[f], formations$Diversity[f], formations$Occurrences[f]))
+    }
+  }
+  names <- c("x1", "y1", "x2", "y2", "Diversity", "Occurrences")
+  colnames(fp1) <- names
+  colnames(fplong) <- names
+  fp1$Type <- "Short"
+  fplong$Type <- "Long"
+  fp <- rbind(fp1, fplong) # Bind dataframes
+  layout(matrix(1:1,nrow=1), widths=c(1,1), height = c(1,1)) # Set layout
+  if(Col == "Diversity"){ #  If colouring by diversity
+    graphcol <- rev(sequential_hcl(10, "BluYl"))
+    fp$Col <- graphcol[as.numeric(cut(fp$Diversity,breaks = 10))] # Colour taxic diversity of formations according to those colours
+    if (legend == TRUE){
+      layout(matrix(1:2,nrow=1), widths=c(0.85,0.15), heights = c(1,1)) #  Draw a legend, if set to TRUE
+    }
+  }
+  if(Col == "Occurrences"){ #  If colouring by diversity
+    graphcol <- rev(sequential_hcl(10, "BluYl"))
+    fp$Col <- graphcol[as.numeric(cut(fp$Occurrences,breaks = 10))] # Colour taxic diversity of formations according to those colours
+    if (legend == TRUE){
+      layout(matrix(1:2,nrow=1), widths=c(0.85,0.15), heights = c(1,1)) #  Draw a legend, if set to TRUE
+    }
+  }
+  par(mar = c(4.1, 4.1, 1, 1))
+  if (draw_by == "Lat"){ # Sets appropriate y axis for mean latitude of occurrences of each formation
+    tsplot(stages, boxes=c("short","system"), # Generates plot using Divdyn package
+           xlim=1:nrow(stages),  ylim=range(fp$y1 - 1, fp$y2 + 1), 
+           prop = 0.08, plot.args = list(cex.lab = 2, cex.axis = 2),
+           shading=NULL, boxes.col=c("col","systemCol"), labels.args=list(cex=1.8),
+           ylab = "Formations by mean occurrence latitude")
+  }
+  if (draw_by == "Max_Age"){ # Sets appropriate y axis for max age of each formation
+    tsplot(stages, boxes=c("short","system"), # Generates plot using Divdyn package
+           xlim=1:nrow(stages),  ylim=range(fp$y1 - 1, fp$y2 + 1), 
+           prop = 0.08, plot.args = list(cex.lab = 2, cex.axis = 2),
+           shading=NULL, boxes.col=c("col","systemCol"), labels.args=list(cex=1.8),
+           ylab = "Formations by Maximum Age")
+  }
+  if (draw_by == "Number"){ # Sets appropriate y axis for aarbitrary number of each formation
+    tsplot(stages, boxes=c("short","system"), # Generates plot using Divdyn package
+           xlim=1:nrow(stages),  ylim=range(fp$y1 - 1, fp$y2 + 1), 
+           prop = 0.08, plot.args = list(cex.lab = 2, cex.axis = 2),
+           shading=NULL, boxes.col=c("col","systemCol"), labels.args=list(cex=1.8),
+           ylab = "Formations (Number order)")
+  }
+  if(STAGE == TRUE){ # If user has set stage to true
+    for(n in 1:nrow(stages)){ # 
+      if(((n %% 2) == 0) == TRUE) next
+      else {
+        if(n == 7){
+          if(nrow(binlist) %% 2 == 0){
+            next
+          }
+          else{
+            rect(stages$top[max(nrow(stages))], 0, stages$bottom[max(nrow(stages))], # Draw grey boxes on graph as stages
+                 max(fp$y2+1, na.rm = TRUE), col = rgb(0.89,0.89,0.89,alpha=0.5), border = NA)
+          }
+        }
+        else{
+          rect(stages$top[n], 0, stages$bottom[n], 
+               max(fp$y2+1, na.rm = TRUE), col = rgb(0.89,0.89,0.89,alpha=0.5), border = NA)
+        }
+      }
+    }
+  }
+  else{ # Otherwise, use newly generated bins
+    for(n in 1:length(form_bins)){ # draws new bins as coloured boxes for comparison to traditional bins
+      if(((n %% 2) == 0) == TRUE) next
+      else {
+        if(n == length(form_bins)){
+          if(nrow(binlist) %% 2 == 0){
+            next
+          }
+          else{
+            rect(useful_bins[n], 0, useful_bins[n-1], 
+                 max(fp$y2+1, na.rm = TRUE), col = rgb(0.89,0.89,0.89,alpha=0.5), border = NA)
+          }
+        }
+        else{
+          rect(form_bins[n], 0, form_bins[n+1], 
+               max(fp$y2+1, na.rm = TRUE), col = rgb(0.89,0.89,0.89,alpha=0.5), border = NA)
+        }
+      }
+    }
+  }
+  if (score_grid_2 == TRUE){
+    # segments(fplong$x1, fplong$y1, fplong$x2, fplong$y2, lwd = 2, col = "grey") # Plots formations as lines showing their duration
+    if (Col == "Diversity" | Col == "Occurrences"){
+      segments(fp1$x1, fp1$y1, fp1$x2, fp1$y2, lwd = 5, col = "grey") 
+      segments(fp1$x1, fp1$y1, fp1$x2, fp1$y2, lwd = 3, col = fp$Col[fp$Type == "Short"]) 
+      rect(fplong$x1, fplong$y1-0.05, fplong$x2, fplong$y2+0.05, angle = 45, col = "lightgrey", density = 40, border = NA, lwd = 5)
+      rect(fplong$x1, fplong$y1-0.05, fplong$x2, fplong$y2+0.05, angle = 45, col = fp$Col[fp$Type == "Long"], density = 40, border = NA, lwd = 3)
+    }
+    else{
+      segments(fp1$x1, fp1$y1, fp1$x2, fp1$y2, lwd = 3) 
+      rect(fplong$x1, fplong$y1-0.05, fplong$x2, fplong$y2+0.05, angle = 45, col = "grey", density = 40, border = NA, lwd = 3)
+    }
+  }
+  else{
+    if (Col == "Diversity" | Col == "Occurrences"){
+      segments(fp$x1, fp$y1, fp$x2, fp$y2, lwd = 5, col = "grey") 
+      segments(fp$x1, fp$y1, fp$x2, fp$y2, lwd = 3, col = fp$Col) 
+    }
+    else{
+      segments(fp$x1, fp$y1, fp$x2, fp$y2, lwd = 3) 
+    }
+  }
+  box(lwd=2)
+  if (Col == "Diversity" && legend == TRUE){
+    par(mar = c(4.1, 0.5, 1, 0))
+    legend_image <- as.raster(matrix(rev(graphcol), ncol=1))
+    plot(c(0,4),c(0,1),type = 'n', axes = F, xlab = '', ylab = '')
+    title("Diversity", cex.main = 1.5, line = -9, adj = 0)
+    text(x=1.1, y = seq(0.25,0.75,l=5), cex = 1.25, labels = round(seq(0,max(fp$Diversity),l=5)))
+    rasterImage(legend_image, 0, 0.25, 0.5, 0.75)
+  }
+  if (Col == "Occurrences" && legend == TRUE){
+    par(mar = c(4.1, 0.5, 1, 0))
+    legend_image <- as.raster(matrix(rev(graphcol), ncol=1))
+    plot(c(0,4),c(0,1),type = 'n', axes = F, xlab = '', ylab = '')
+    title("Occurrences", cex.main = 1.5, line = -9, adj = 0)
+    text(x=1.1, y = seq(0.25,0.75,l=5), cex = 1.25, labels = round(seq(0,max(fp$Occurrences),l=5)))
+    rasterImage(legend_image, 0, 0.25, 0.5, 0.75)
+  }
+  p <<- recordPlot()
 }
