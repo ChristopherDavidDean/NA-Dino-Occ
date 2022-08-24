@@ -15,7 +15,7 @@ library(dplyr)
 library(beepr)
 
 # Set working directory
-setwd("C:/Users/deancd/Documents/RESEARCH/PROJECTS/DINO_RANGE/NA-Dino-Occ/") # Set your working directory
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path)) # Set your working directory
 
 # Load in Functions
 source("0.Functions_DR.R")
@@ -36,6 +36,7 @@ dir.create(paste0("Data/Covariate_Data/Formatted/MGVF", sep =""), showWarnings =
 dir.create(paste0("Data/Covariate_Data/Formatted/Outcrop", sep =""), showWarnings = FALSE)
 dir.create(paste0("Data/Covariate_Data/Formatted/Worldclim", sep =""), showWarnings = FALSE)
 dir.create(paste0("Data/Covariate_Data/Formatted/PalaeoClimate", sep =""), showWarnings = FALSE)
+dir.create(paste0("Data/Covariate_Data/Formatted/Relief", sep =""), showWarnings = FALSE)
 
 #=========================================== FORMAT DEM =================================================================
 
@@ -58,6 +59,18 @@ newData <- terrain(newData, opt='slope', unit='degrees', neighbors=8)
 plot(newData)
 writeRaster(newData, paste("Data/Covariate_Data/Formatted/Elevation_GRID/SLOPE_", res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE) #write ascii
 writeRaster(newData, paste("Data/Covariate_Data/Formatted/All_data/", res, "deg/SLOPE_", res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE) #write ascii
+
+# Add Relief
+res1 <- res/10
+r1 <- raster(res = res1)
+newData <- projectRaster(dem, r1) #project raster
+test1 <- aggregate(newData, 10, fun = max)
+test2 <- aggregate(newData, 10, fun = min)
+Relief <- (test1 - test2)
+Relief <- crop(Relief, e)
+plot(Relief)
+writeRaster(Relief, paste("Data/Covariate_Data/Formatted/Relief/Relief_", res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE) #write ascii
+writeRaster(Relief, paste("Data/Covariate_Data/Formatted/All_data/", res, "deg/Relief_", res,".asc", sep = ""), pattern = "ascii", overwrite = TRUE) #write ascii
 
 #======================================= FORMAT LANDCVI =================================================================
 
