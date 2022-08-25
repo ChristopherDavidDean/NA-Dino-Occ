@@ -767,7 +767,7 @@ bin_time <- function(occdf, bins, method = "mid", reps = 100,
                     occ_seq <= tmpbin$max_ma[j])
           ) / 10000) * 100
       }
-      
+
       # Assign bins, bin midpoints and overlap percentage
       occdf[i, "bin_assignment"] <-
         tmpbin$bin[which.max(percentage)]
@@ -819,10 +819,48 @@ bin_time <- function(occdf, bins, method = "mid", reps = 100,
 
 #=============================================== FORMATION BINNING ===========================================================
 
-#==== Scoring_Grid_2 ====
+#==== Scoring_Grid 1 ====
 
 # Create a scoring grid ignoring formations with length longer than the 3rd quantile. In his way, long ranging formations don't 
 # bias the creation of bins, especially when they appear during the same time interval.
+Scoring_Grid_1 <- function(formations, res=0.01) { # Requires formation information. Resolution of time lines is set automatically at 0.01, but can be adjusted.
+  max_age <- max(formations$max_age) #finds max age of all formations
+  min_age <- min(formations$min_age) #finds min age of all formations
+  allbins <- seq(min_age-1.0045, max_age+1.0045, res) # Makes 1ma bins in sequence based on max/min ages. 0.0045 added to ensure formation is never exactly equivalent to a bin.
+  
+  score_grid <- matrix(data = NA, nrow = nrow(formations), ncol = length(allbins)) # makes a matrix for the scoring 
+  # of each time line in terms of how good it is to be a bin boundary
+  colnames(score_grid) <- allbins # All time lines
+  rownames(score_grid) <- formations$Formation # All formations
+  
+  counter <- 0
+  for(i in allbins) { # Go through each time line
+    counter <- sum(counter,1) 
+    for (f in 1:nrow(formations)){ # go through each formation 
+      if (i <= formations$max_age[f] && i >= formations$min_age[f]){ # if timeline is between max/min age of a formation (i.e. formation crosses that line)
+        a <- formations$max_age[f] - i # Work out how much of formation is older than timeline
+        b <- i - formations$min_age[f] # Work out how much of formation is younger than timeline
+        range <- formations$max_age[f] - formations$min_age[f] # Calculate range of formation
+        if (a > b){
+          score_grid[,counter][f] <- (a/range)*100 # Work out percentage that sits each side of line, reduce score by that amount.
+        }
+        else{ 
+          score_grid[,counter][f] <- (b/range)*100 # Work out percentage that sits each side of line, reduce score by that amount.
+        }
+      }
+      else {
+        score_grid[,counter][f] = 100 # Otherwise, just score it 100. 
+      }
+    }
+  }  
+  means <- colMeans(score_grid) # Work out mean score for each time bin
+  score_grid <- rbind(score_grid, means) # add to grid
+  score_grid <<- score_grid # Outputs score_grid for later use
+  allbins <<- allbins # Outputs bins for later use
+}
+
+#==== Scoring_Grid 2 ====
+
 Scoring_Grid_2 <- function(formations, res=0.01) { # Requires formation information. Resolution of time lines is set automatically at 0.01, but can be adjusted.
   max_age <- max(formations$max_age) #finds max age of all formations
   min_age <- min(formations$min_age) #finds min age of all formations
@@ -863,7 +901,6 @@ Scoring_Grid_2 <- function(formations, res=0.01) { # Requires formation informat
   score_grid <<- score_grid
   allbins <<- allbins
 }
-
 #=============================================== NEWBINS ==============================================================
 
 # Looks at the previously generated score_grid and generates appropriate new bins based on those scores. Boundaries are 
@@ -931,7 +968,7 @@ newBins <- function(score_grid, formations, bin_limits, allbins, stages, smallam
   #Plotting new bins
   par(mar = c(4.1, 4.1, 1, 2.1))
   tsplot(stages, boxes=c("short","system"), # Generates plot using DivDyn package
-         xlim=1:nrow(stages),  ylim=c(min(colMeans(score_grid), na.rm = TRUE), 100), 
+         xlim=c(stages$bottom[1], stages$top[nrow(stages)]),  ylim=c(min(colMeans(score_grid), na.rm = TRUE), 100), 
          prop = 0.08, plot.args = list(cex.lab = 2, cex.axis = 2),
          shading=NULL, boxes.col=c("col","systemCol"), labels.args=list(cex=1.8),
          ylab = "Bin Splitting Score") 
@@ -959,6 +996,7 @@ newBins <- function(score_grid, formations, bin_limits, allbins, stages, smallam
 
 # Shows what formations look like through time in comparison to Stages and new Bins.
 # Requires formations, form_bins from newBins function and stages from DivDyn package
+
 FormationGraph <- function(formations, form_bins, stages, score_grid_2 = FALSE, draw_by = "Lat", Col = "None", legend = TRUE, STAGE = FALSE){ # Requires formations, form_bins from newBins function and stages from DivDyn package. Has a number of user defined options:
   # score_grid_2: When turned to TRUE, long ranging formations will appear in grey.
   # draw_by: Arranges y axis (and formations) in different ways. Takes the arguments "Lat" (arrange by mean latitude of occurrences for formation), "Max_Age" (arrange by maximum age), and "Number" (arrange by arbitrary number).
@@ -1022,21 +1060,21 @@ FormationGraph <- function(formations, form_bins, stages, score_grid_2 = FALSE, 
   par(mar = c(4.1, 4.1, 1, 1))
   if (draw_by == "Lat"){ # Sets appropriate y axis for mean latitude of occurrences of each formation
     tsplot(stages, boxes=c("short","system"), # Generates plot using Divdyn package
-           xlim=1:nrow(stages),  ylim=range(fp$y1 - 1, fp$y2 + 1), 
+           xlim=c(stages$bottom[1], stages$top[nrow(stages)]),  ylim=range(fp$y1 - 1, fp$y2 + 1), 
            prop = 0.08, plot.args = list(cex.lab = 2, cex.axis = 2),
            shading=NULL, boxes.col=c("col","systemCol"), labels.args=list(cex=1.8),
            ylab = "Formations by mean occurrence latitude")
   }
   if (draw_by == "Max_Age"){ # Sets appropriate y axis for max age of each formation
     tsplot(stages, boxes=c("short","system"), # Generates plot using Divdyn package
-           xlim=1:nrow(stages),  ylim=range(fp$y1 - 1, fp$y2 + 1), 
+           xlim=c(stages$bottom[1], stages$top[nrow(stages)]),  ylim=range(fp$y1 - 1, fp$y2 + 1), 
            prop = 0.08, plot.args = list(cex.lab = 2, cex.axis = 2),
            shading=NULL, boxes.col=c("col","systemCol"), labels.args=list(cex=1.8),
            ylab = "Formations by Maximum Age")
   }
   if (draw_by == "Number"){ # Sets appropriate y axis for aarbitrary number of each formation
     tsplot(stages, boxes=c("short","system"), # Generates plot using Divdyn package
-           xlim=1:nrow(stages),  ylim=range(fp$y1 - 1, fp$y2 + 1), 
+           xlim=c(stages$bottom[1], stages$top[nrow(stages)]),  ylim=range(fp$y1 - 1, fp$y2 + 1), 
            prop = 0.08, plot.args = list(cex.lab = 2, cex.axis = 2),
            shading=NULL, boxes.col=c("col","systemCol"), labels.args=list(cex=1.8),
            ylab = "Formations (Number order)")
