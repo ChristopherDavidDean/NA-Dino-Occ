@@ -37,6 +37,7 @@ library(maptools)
 library(parallel)
 library(reshape2)
 library(tibble)
+library(divDyn)
 
 #=============================================== GET_EXTENT =============================================================
 
@@ -84,7 +85,9 @@ target_maker <- function (data, level, target){ # Data is entered data. Level is
 
 # Function that extracts data from a raster, and makes a new raster with only a chosen vector of cells.
 
-view_cells <- function(chosen_raster, vector_of_cells, res, zero = FALSE){ # Chosen_raster is the raster with cells that you want to view. vector_of_cells is the vector of cells to view. res is chosen resolution. zero chooses whether other cells are listed as NAs or 0 values (for levelplot)
+view_cells <- function(chosen_raster, vector_of_cells, res, zero = FALSE){ # Chosen_raster is the raster with cells that you want to view. 
+  # vector_of_cells is the vector of cells to view. res is chosen resolution. zero chooses whether other cells are listed as NAs or 0 values (for levelplot)
+  
   # Get relevant info
   total_cells <- ncell(chosen_raster)
   total_layers <- nlayers(chosen_raster)
@@ -114,7 +117,7 @@ view_cells <- function(chosen_raster, vector_of_cells, res, zero = FALSE){ # Cho
 
 #==== gen_raster ====
 
-# Function that extracts data from a raster from scratch, using a vector of cells and associated values. Used for quickly visualising covariate data.
+# Function that makes a raster from scratch, using a vector of cells and associated values. Used for quickly visualising covariate data.
 
 gen_raster <- function(cell_data, value_data, res, ext, zero = FALSE){
   init_raster <- raster(res = res, ext = ext, val = 1)
@@ -134,19 +137,6 @@ gen_raster <- function(cell_data, value_data, res, ext, zero = FALSE){
   }
   raster_for_values <- raster(res = res, val = full_dframe$Vals, ext = ext)
   plot(raster_for_values)
-}
-
-#=============================================== BIN_SPLITTER =======================================================
-
-# Takes combined data and splits it into user defined bins based off a vector. 
-
-bin_splitter <- function(bins, fossils){ # takes first output from combined_data and a vector of time bins. 
-  for (s in 1:(length(bins)-1)){
-    temp_data <- fossils %>%
-      dplyr::filter(mid_ma < bins[s] & mid_ma > bins[s + 1])
-    temp_name <- paste(deparse(substitute(fossils)), ".bin", s, sep = "") #Name files based on data entered to function
-    assign(temp_name, temp_data, envir = .GlobalEnv)
-  }
 }
 
 #=============================================== GET_GRID ===========================================================
@@ -289,6 +279,7 @@ prepare_for_res_data <- function(data, target, single = TRUE){ # Data is first o
     dplyr::group_by(cells) %>%
     dplyr::summarize(ceiling(mean(Pres.Abs)))
   results <- c(nrow(prestest), # number of cells
+               sum(prestest$`ceiling(mean(Pres.Abs))`), # Number of occupied cells
                sum(prestest$`ceiling(mean(Pres.Abs))`)/nrow(prestest)*100, #naive occupancy
                nrow(joined_data), # total number of collections
                mean(table(joined_data$cells)), # mean number of collections in each cell
@@ -303,12 +294,12 @@ prepare_for_res_data <- function(data, target, single = TRUE){ # Data is first o
 
 # Carries out prepare_for_res_data over a sequence of resolutions, and outputs as a data.frame.
 
-res_data <- function(data, target, single = TRUE, start, fin, int){ # Data is first output from combine_data (fossil.colls). Target is chosen group to test. start is first resolution, fin is last resolution,int is the interval to count between start and fin.
-  s1 <- seq(start, fin, int)
+res_data <- function(data, target, single = TRUE, vect){ # Data is first output from combine_data (fossil.colls). Target is chosen group to test. start is first resolution, fin is last resolution,int is the interval to count between start and fin.
+  s1 <- vect
   Res_results_list <- list()
    for(t in 1:length(target)){
-    Res_results <- data.frame(matrix(ncol = 8, nrow = length(s1)))
-    colnames(Res_results) <- c("No.Cells", "Naive.occ", "Total.Colls", 
+    Res_results <- data.frame(matrix(ncol = 9, nrow = length(s1)))
+    colnames(Res_results) <- c("No.Cells", "Occupied.cells", "Naive.occ", "Total.Colls", 
                                "Mean.Colls", "Min.Colls", 
                                "Max.Colls", "Median.Colls", "No.Singleton.Cells.Removed.")
     row.names(Res_results) <- s1
@@ -415,9 +406,9 @@ SubSamp_for_unmarked <- function(data, target, sampval = 10, trials = 100){ # Da
 
 #===== ALL_RESULTS_FOR_UNMARKED =====
 
-# loop that take basic combined data and writes multiple .csv files into Results folder in current directory for chosen grid cells resolutions and targets in correct format for unmarked. Sound rings when function has finished running.
+# loop that takes basic combined data and writes multiple .csv files into Results folder in current directory for chosen grid cells resolutions and targets in correct format for unmarked. Sound rings when function has finished running.
 
-all_results_for_unmarked <- function(data, res, target, ext, subsamp = TRUE, sampval = 10, single = TRUE){ # data is first output from combined_data (fossil.colls). res is vectors of chosen resolutions. target is vector of chosen targets. 
+all_results_for_unmarked <- function(data, res, target, ext, name, subsamp = TRUE, sampval = 10, single = TRUE){ # data is first output from combined_data (fossil.colls). res is vectors of chosen resolutions. target is vector of chosen targets. 
   for (r in 1:length(res)){
     ptm <- proc.time()
     test1 <- get_grid(data, res[r], ext)
@@ -431,7 +422,7 @@ all_results_for_unmarked <- function(data, res, target, ext, subsamp = TRUE, sam
       if (subsamp==TRUE){
         test2 <- SubSamp_for_unmarked(test2, target[t], sampval = sampval)
       }
-      temp_name <- paste(deparse(substitute(data)), ".", res[r], ".", target[t], sep = "")
+      temp_name <- paste(name, ".", res[r], ".", target[t], sep = "")
       dir.create(paste0("Results/", res, sep =""), showWarnings = FALSE) #stops warnings if folder already exists
       if (subsamp == TRUE){
         write.csv(test2, file.path(paste("Results/", res, "/", temp_name, "SS.csv", sep="")))

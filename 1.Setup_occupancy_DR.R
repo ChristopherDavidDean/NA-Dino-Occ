@@ -15,20 +15,6 @@
 # Set working directory
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path)) # Set your working directory
 
-# Load master spreadsheets and organise
-master.occs <- read.csv("Data/Occurrences/occs_all_stages_tetrapoda_28_06_2022.csv", skip = 20)
-master.occs <- master.occs %>%
-  filter(max_ma < 85) # Remove older occurrences than we are looking at
-
-formations <- read.csv("Data/Occurrences/Formations.csv") # Load formations
-formations <- formations[,1:11] # Remove additional columns
-formations <- formations[order(formations$Formation),] # Reorganise formations
-formations$forbinning <- 1:nrow(formations) # Provide if for formations
-formations$Range <- formations$max_age - formations$min_age # Calculate formation range
-formations$Diversity <- 0 # Add in dummy variables to ensure code works (sorry!)
-formations$Occurrences <- 0 # Add in dummy variables to ensure code works (sorry!)
-colnames(formations)[1] <- "formation" # Change to allow for further analysis
-
 #==== If first time using: ====
 # Make vector of package names
 packages <- c("beepr", "raster", "dplyr", "lattice", "rasterVis", "sp", "maps", "maptools", "parallel") #list your packages here
@@ -55,6 +41,20 @@ library(divDyn)
 # Load in Functions
 source("0.Functions_DR.R") # Import functions from other R file (must be in same working directory)
 
+#==== Load master spreadsheets and organise ====
+master.occs <- read.csv("Data/Occurrences/occs_all_stages_tetrapoda_28_06_2022.csv", skip = 20)
+master.occs <- master.occs %>%
+  filter(max_ma < 85) # Remove older occurrences than we are looking at
+
+formations <- read.csv("Data/Occurrences/Formations.csv") # Load formations
+formations <- formations[,1:11] # Remove additional columns
+formations <- formations[order(formations$Formation),] # Reorganise formations
+formations$forbinning <- 1:nrow(formations) # Provide if for formations
+formations$Range <- formations$max_age - formations$min_age # Calculate formation range
+formations$Diversity <- 0 # Add in dummy variables to ensure code works (sorry!)
+formations$Occurrences <- 0 # Add in dummy variables to ensure code works (sorry!)
+colnames(formations)[1] <- "formation" # Change to allow for further analysis
+
 #==== Set working resolution and extent ====
 res <- 0.1
 #get_extent(master.occs)
@@ -68,7 +68,7 @@ e <- extent(-155, -72, 22.5, 73)
 #e <<- extent(minLng, maxLng, minLat, maxLat)
 
 #==== Convert rasters to desired resolution ====
-source("0.Format_data_DR.R") # Import extent and run cleaning/import of raster datasets. Running this will take a while, 
+# source("0.Format_data_DR.R") # Import extent and run cleaning/import of raster datasets. Running this will take a while, 
 # but will automatically update rasters so that they are of the desired resolution and place them in the appropriate folder
 # for running the next steps. 
 
@@ -87,9 +87,17 @@ test <- test %>%
 test$max_ma <- test$max_age # Add new ages to ma_ma and min_ma
 test$min_ma <- test$min_age
 master.occs <- test[,1:140] # Remove extra columns from final dataset.
+master.occs <- master.occs %>% 
+  filter(is.na(max_ma) == F) %>% # Remove occurrences without a max age (occurrences which can't be matched to a formation)
+  filter(max_ma <84.6) # Remove occurrences older than necessary.
 
 #==== STAGE ====
 bins <- stages
+colnames(bins) <- c("sys","system", "series", "stage", "short", "max_ma", "mid_ma", "min_ma", "dur", "stg", "systemCol", "seriesCol", "col")
+bins$bin <- c(1,2)
+master.occs$max_ma[master.occs$max_ma > 83.59] <- 83.59
+master.occs$min_ma[master.occs$min_m < 66] <- 66
+
 master.occs.stage <- bin_time(master.occs, bins, method = "majority")
          
 #==== SUB STAGE ====
@@ -109,58 +117,74 @@ bins <- binlist %>% # Remove non-useful bins outside of range
 colnames(bins) <- c("bin", "min_ma", "max_ma", "mid_ma") # Rename bin names to match across
 bins[1,2] <- 66 # Cap youngest bin at 66 Ma. 
 
-master.occs <- master.occs %>% 
-  filter(is.na(max_ma) == F) %>% # Remove occurrences without a max age (occurrences which can't be matched to a formation)
-  filter(max_ma <84.6) # Remove occurrences older than necessary.
-
 # If using majority method, all occurrences with minimum age of <66 Ma must be capped to 66 Ma, otherwise bin_time() breaks.
-master.occs$min_ma[master.occs$min_m<66] <- 66
+master.occs$min_ma[master.occs$min_ma<66] <- 66
 
 # Bin occurrences
 master.occs.form <- bin_time(master.occs, bins, method = 'majority') 
 
- #=============================================== CAMPANIAN DATA SETUP ===============================================
+ #=============================================== DATA SETUP ===============================================
+
+# Select relevant occurrences for bin. In this instance, Campanian.
+bin.name <- "Campanian"
+#bin.name <- "Maastrichtian"
+bin.occs <- master.occs.stage %>% 
+  filter(bin_assignment == 1)
 
 #==== Visualise grid cells for collections and occurrences ====
-camp.colls <- camp.occs %>% # Make unique collections for visualisation
+bin.colls <- bin.occs %>% # Make unique collections for visualisation
   dplyr::select(collection_no, lat, lng) %>%
   dplyr::distinct()
-camp.dinos <- camp.occs %>%
-  filter(class == "Ornithischia" | class == "Saurischia")
-maas.dino <- maas.occs %>%
+
+bin.dinos <- bin.occs %>%
   filter(class == "Ornithischia" | class == "Saurischia")
 
-get_grid_im(camp.occs, res, "Campanian Occurrences", ext = e)
-get_grid_im(maas.dino, res, "Maastrichtian Occurrences", ext = e)
-
-get_grid_im(camp.colls, res, "Collections", ext = e)
+get_grid_im(bin.occs, res, "Occurrences", ext = e)
+get_grid_im(bin.dinos, res, "Dinosaur Occurrences", ext = e)
+get_grid_im(bin.colls, res, "Collections", ext = e)
 
 #==== Testing Targets ====
-# target_maker(camp.occs, "family", "Ceratopsidae")
-# Ceratops <- camp.occs.targeted %>%
+# target_maker(bin.occs, "family", "Ceratopsidae")
+# Ceratops <- bin.occs.targeted %>%
 #   filter(Target == "Ceratopsidae")
 # get_grid_im(Ceratops, 1, "Ceratopsidae Occurrences")
-
 
 #=============================================== OCCUPANCY SETUP ===============================================
 
 # Set Target taxa
 target = c("Ceratopsidae", "Tyrannosauridae", "Hadrosauridae") # set Targets
-target_maker(camp.occs, "family", target) # run target_maker
+target_maker(bin.occs, "family", target) # run target_maker
 
 # Check resolution data
-res_data(camp.occs.targeted, target, 0.5, 1, 0.5, single = TRUE) # Makes list of dataframes, each containing information about various cell resolutions. Can also see Naive occupancy estimates.
+vect <- c(0.1, 0.5, 1)
+res_data(bin.occs.targeted, target, vect = vect, single = TRUE) # Makes list of dataframes, each containing information about various cell resolutions. Can also see Naive occupancy estimates.
 Res_results_list$Ceratopsidae
 Res_results_list$Tyrannosauridae
 Res_results_list$Hadrosauridae
 
-# Prepare data for unmarked - Campanian
-all_results_for_unmarked(data = camp.occs.targeted, res = res, ext = e, target = target, subsamp = FALSE, single = TRUE)
-all_results_for_unmarked(data = camp.occs.targeted, res = res, ext = e, target = target, subsamp = TRUE, sampval = 20, single = TRUE)
+# Prepare data for unmarked
+all_results_for_unmarked(data = bin.occs.targeted, name = bin.name, res = res, ext = e, target = target, subsamp = FALSE, single = TRUE)
+all_results_for_unmarked(data = bin.occs.targeted, name = bin.name, res = res, ext = e, target = target, subsamp = TRUE, sampval = 20, single = TRUE)
 
 # Prepare data for multispecies
-prepare_for_multispecies(camp.occs.targeted, res, e, level = "species", target)
-prepare_for_multispecies(camp.occs.targeted, res, e, level = "genus", target)
+prepare_for_multispecies(bin.occs.targeted, res, e, level = "species", target)
+prepare_for_multispecies(bin.occs.targeted, res, e, level = "genus", target)
+
+#=============================================== VISUAL CHECKS ===============================================
+
+# Independently find all Ceratopsian occurrences and visualise
+Cera <- bin.dinos %>%
+  filter(family == "Ceratopsidae")
+get_grid_im(Cera, res, "Ceratopsian Occurrences", ext = e)
+
+# Use unmarked dataset to find Ceratopsian occupied cells
+test <- SS_unmarked_Ceratopsidae %>% 
+  filter_all(any_vars(. %in% c(1)))
+cells <- as.numeric(rownames(test))
+values <- base::rep(1,length(cells))
+
+# Generate raster to compare against original dataset
+gen_raster(cells, values, res, ext = e)
 
 #=============================================== COVARIATE SETUP ===============================================
 
@@ -229,85 +253,3 @@ Camp_Covs <- Camp_Covs %>%
 Camp_Covs <- aggregate(x = Camp_Covs, by = list(Camp_Covs$cells.1), FUN = "mean", na.rm = TRUE)
 Camp_Covs$CampTemp <- Camp_Covs$CampTemp - 273.15 # Convert from Kelvin to degrees Celsius
 write.csv(Camp_Covs, file.path(paste("Results/", res, "/CampanianCovariates.csv", sep="")))
-
-#=============================================== MAASTRICHTIAN DATA SETUP ===============================================
-
-# Read in files
-maas.occs <- read.csv("Data/Occurrences/Maas_data_V1_Species_removed.csv", stringsAsFactors = FALSE) # Load in occurrences
-
-#==== Visualise grid cells for collections and occu rrences ====
-maas.colls <- maas.occs %>% # Make unique collections for visualisation
-  dplyr::select(collection_no, lat, lng) %>%
-  dplyr::distinct()
-
-get_grid_im(maas.occs, res, "Collections")
-get_grid_im(maas.colls, res, "Collections")
-
-#==== Testing Targets ====
-# target_maker(maas.occs, "family", "Ceratopsidae")
-# Ceratops <- maas.occs.targeted %>%
-#   filter(Target == "Ceratopsidae")
-# get_grid_im(Ceratops, 1, "Ceratopsidae Occurrences")
-
-#=============================================== OCCUPANCY SETUP ===============================================
-
-# Set Target taxa
-target = c("Ceratopsidae", "Tyrannosauridae", "Hadrosauridae") # set Targets
-target_maker(maas.occs, "family", target) # run target_maker
-
-# Check resolution data
-res_data(maas.occs.targeted, target, 0.5, 1, 0.5, single = TRUE) # Makes list of dataframes, each containing information about various cell resolutions. Can also see Naive occupancy estimates.
-Res_results_list$Ceratopsidae
-Res_results_list$Tyrannosauridae
-Res_results_list$Hadrosauridae
-
-# Prepare data for unmarked 
-# Prepare data for unmarked - Campanian
-all_results_for_unmarked(data = maas.occs.targeted, res = res, ext = e, target = target, subsamp = FALSE, single = FALSE)
-all_results_for_unmarked(data = maas.occs.targeted, res = res, ext = e, target = target, subsamp = TRUE, sampval = 15, single = TRUE)
-# Prepare data for multispecies
-prepare_for_multispecies(maas.occs.targeted, res, e, level = "species", target)
-prepare_for_multispecies(maas.occs.targeted, res, e, level = "genus", target)
-
-#=============================================== COVARIATE SETUP ===============================================
-
-# Add covariates to Occurrence spreadsheet
-get_cov_from_stack(Final, res = res)
-plot(CovStack)
-# Clean/split data to just relevant covariates
-Maas_Covs <- cov_dat[, -grep("Camp_out_", colnames(cov_dat))]
-
-#===== PALAEO-DATA =====
-# Data
-MaasPrecip <- raster(paste("Data/Covariate_Data/Formatted/PalaeoClimate/MaasPrecip_", res, ".asc", sep = ""))
-MaasTemp <- raster(paste("Data/Covariate_Data/Formatted/PalaeoClimate/MaasTemp_", res, ".asc", sep = ""))
-
-# Maas Stack Extract
-MaasStack <- stack(MaasPrecip, MaasTemp)
-NAcells <- Maas_Covs %>% # Clean for NA values in paleolat/lng - Record cells with NAs
-  filter(is.na(paleolat)) %>%
-  distinct(cells.1) # Remove cells with NAs
-Maas_Covs <- Maas_Covs %>%
-  filter(!is.na(paleolat))
-xy <- SpatialPointsDataFrame(cbind.data.frame(Maas_Covs$paleolng, Maas_Covs$paleolat), Maas_Covs) # Use palaeo lat/long to extract from palaeo GCMs
-Maas_Covs <- raster::extract(MaasStack, xy, sp = TRUE, cellnumbers = TRUE) # Extract Palaeo Temp and Rainfall
-Maas_Covs <- as.data.frame(Maas_Covs) # Conver to dataframe
-
-# Make Master Maas Spreadsheet
-Maas_Cov_Master <- Maas_Covs
-Maas_Cov_Master <- Maas_Cov_Master %>%
-  select(collection_no, collection_name, accepted_name, identified_rank, family, genus, formation, member, 
-         cells.1, Maas_out_0.5, DEM_0.5, LANDCVI_selected_0.5, MGVF_0.5, 
-         SLOPE_0.5, WC_Prec_0.5, WC_Temp_0.5, cells, MaasPrecip_0.5, MaasTemp_0.5, colls_per_cell)
-
-write.csv(Maas_Cov_Master, file.path(paste("Results/", res, "/MaastrichtianMasterSheet.csv", sep="")))
-
-# Clean data to just gridcells and associated covariates
-Maas_Covs <- Maas_Covs %>%
-  select(cells.1, Maas_out_0.5, DEM_0.5, LANDCVI_selected_0.5, MGVF_0.5, 
-         SLOPE_0.5, WC_Prec_0.5, WC_Temp_0.5, cells, MaasPrecip_0.5, MaasTemp_0.5, colls_per_cell)
-Maas_Covs <- Maas_Covs %>%
-  distinct()
-Maas_Covs <- aggregate(x = Maas_Covs, by = list(Maas_Covs$cells.1), FUN = "mean")
-Maas_Covs$MaasTemp <- Maas_Covs$MaasTemp - 273.15 # Convert from Kelvin to degrees Celsius
-write.csv(Maas_Covs, file.path(paste("Results/", res, "/MaastrichtianCovariates.csv", sep="")))
