@@ -166,30 +166,33 @@ Res_results_list$Hadrosauridae
 all_results_for_unmarked(data = bin.occs.targeted, name = bin.name, res = res, ext = e, target = target, subsamp = FALSE, single = TRUE)
 all_results_for_unmarked(data = bin.occs.targeted, name = bin.name, res = res, ext = e, target = target, subsamp = TRUE, sampval = 20, single = TRUE)
 
-# Prepare data for multispecies
+#===== Prepare data for multispecies =====
 prepare_for_multispecies(bin.occs.targeted, res, e, level = "species", target)
 prepare_for_multispecies(bin.occs.targeted, res, e, level = "genus", target)
 
 #=============================================== VISUAL CHECKS ===============================================
 
-# Independently find all Ceratopsian occurrences and visualise
+# Independently find all Ceratopsian occurrences and visualise.
 Cera <- bin.dinos %>%
   filter(family == "Ceratopsidae")
 get_grid_im(Cera, res, "Ceratopsian Occurrences", ext = e)
 
-# Use unmarked dataset to find Ceratopsian occupied cells
+# Use unmarked dataset to find Ceratopsian occupied cells.
 test <- SS_unmarked_Ceratopsidae %>% 
   filter_all(any_vars(. %in% c(1)))
 cells <- as.numeric(rownames(test))
 values <- base::rep(1,length(cells))
 
-# Generate raster to compare against original dataset
-gen_raster(cells, values, res, ext = e)
+# Generate raster to compare against original dataset.
+test <- gen_raster(cells, values, res, ext = e)
 
 #=============================================== COVARIATE SETUP ===============================================
 
 # Grab hi resolution covariate
 alt_cov_grab(Final)
+
+# Test using gen_raster
+gen_raster(cells, values, res, ext = e)
 
 # Add covariates to Occurrence spreadsheet
 #get_cov_from_stack(Final, res = res)

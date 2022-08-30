@@ -135,7 +135,7 @@ gen_raster <- function(cell_data, value_data, res, ext, zero = FALSE){
   if (zero == TRUE){
      full_dframe[is.na(full_dframe)] <- 0
   }
-  raster_for_values <- raster(res = res, val = full_dframe$Vals, ext = ext)
+  raster_for_values <<- raster(res = res, val = full_dframe$Vals, ext = ext)
   plot(raster_for_values)
 }
 
@@ -200,14 +200,16 @@ get_cov_from_stack <- function(data, res){ # data is first output from combine_d
 
 #===== HIRES_COV_DAT =====
 
-# Creates dataframe of covariate data associated with relevant grid cells, taken from original hi-resolution rasters. Covariate values are created from the mean value of collections within larger grid cells of chosen resolution. 
+# Creates dataframe of covariate data associated with relevant grid cells, taken from original hi-resolution rasters. 
+# Covariate values are created from the mean value of collections within larger grid cells of chosen resolution. 
 
 alt_cov_grab <- function(data){
   wc <- list.files("Data/Covariate_Data/Formatted_For_Precise/")
   wc <- wc[-1]
   wc <- stack(paste0("Data/Covariate_Data/Formatted_For_Precise/", wc, sep = ""))
   projection(wc) <- "+proj=laea +lat_0=45 +lon_0=-100 +x_0=0 +y_0=0 +a=6370997 +b=6370997 +units=m +no_defs" 
-  xy <- SpatialPointsDataFrame(cbind.data.frame(data$lng, data$lat), data, proj4string = CRS("+proj=laea +lat_0=45 +lon_0=-100 +x_0=0 +y_0=0 +a=6370997 +b=6370997 +units=m +no_defs"))
+  xy <- SpatialPointsDataFrame(cbind.data.frame(data$lng, data$lat), data, 
+                               proj4string = CRS("+proj=laea +lat_0=45 +lon_0=-100 +x_0=0 +y_0=0 +a=6370997 +b=6370997 +units=m +no_defs"))
   hires_cov_dat <- raster::extract(wc, xy, sp = TRUE, cellnumbers = TRUE)
   hires_cov_dat <- as.data.frame(hires_cov_dat)
   hires_cov_dat <- hires_cov_dat %>%
@@ -273,9 +275,14 @@ prepare_for_res_data <- function(data, target, single = TRUE){ # Data is first o
   if(single == TRUE){
     id.table <- table(joined_data$cells) # Create table for removing singleton cells (cells with only one collection)
     cells.removed <- sum(id.table == 1) # Record how many cells removed
+    removed <- subset(joined_data, cells %in% names(id.table[id.table == 1]))
     joined_data <- subset(joined_data, cells %in% names(id.table[id.table > 1])) # Remove cells with only one collection
+    
   }
   prestest<- joined_data %>%  # Get data for calculating naive occupancy
+    dplyr::group_by(cells) %>%
+    dplyr::summarize(ceiling(mean(Pres.Abs)))
+  rem.prestest <- removed %>%
     dplyr::group_by(cells) %>%
     dplyr::summarize(ceiling(mean(Pres.Abs)))
   results <- c(nrow(prestest), # number of cells
@@ -286,7 +293,9 @@ prepare_for_res_data <- function(data, target, single = TRUE){ # Data is first o
                min(table(joined_data$cells)), # min number of collections in each cell
                max(table(joined_data$cells)), # max number of collections in each cell
                median(table(joined_data$cells)), # median number of collections in each cell
-               cells.removed) # Number of cells with one collection removed
+               cells.removed, # Number of cells with one collection removed
+               sum(rem.prestest$`ceiling(mean(Pres.Abs))`)
+               ) 
   results <<- results
 }
 
@@ -294,14 +303,15 @@ prepare_for_res_data <- function(data, target, single = TRUE){ # Data is first o
 
 # Carries out prepare_for_res_data over a sequence of resolutions, and outputs as a data.frame.
 
-res_data <- function(data, target, single = TRUE, vect){ # Data is first output from combine_data (fossil.colls). Target is chosen group to test. start is first resolution, fin is last resolution,int is the interval to count between start and fin.
+res_data <- function(data, target, single = TRUE, vect){ # Data is first output from combine_data (fossil.colls). Target is chosen group to test. Vect is a vector of resolutions to find data for.
   s1 <- vect
   Res_results_list <- list()
    for(t in 1:length(target)){
-    Res_results <- data.frame(matrix(ncol = 9, nrow = length(s1)))
+    Res_results <- data.frame(matrix(ncol = 10, nrow = length(s1)))
     colnames(Res_results) <- c("No.Cells", "Occupied.cells", "Naive.occ", "Total.Colls", 
                                "Mean.Colls", "Min.Colls", 
-                               "Max.Colls", "Median.Colls", "No.Singleton.Cells.Removed.")
+                               "Max.Colls", "Median.Colls", "No.Singleton.Cells.Removed.",
+                               "No.Singleton.Targeted.Cells.Removed")
     row.names(Res_results) <- s1
     for (i in (1:length(s1))){
       test <- get_grid(data, s1[i])
