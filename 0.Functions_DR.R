@@ -151,7 +151,15 @@ get_grid <- function(data, res, e, r = "N"){ # data is first output from combine
   crs <- r@crs
   xy <- SpatialPointsDataFrame(cbind.data.frame(data$lng, data$lat), data, proj4string = crs)
   Final <- raster::extract(r, xy, sp = TRUE, cellnumbers = TRUE)
-  Final <<- as.data.frame(Final)
+  Final <- as.data.frame(Final)
+  singletons <- Final %>%
+    dplyr::select(cells, collection_no) %>%
+    dplyr::distinct() %>%
+    dplyr::group_by(cells) %>%
+    dplyr::summarize(Coll_count = n())
+  singletons$Coll_count[singletons$Coll_count == 1] <- "Singleton"
+  singletons$Coll_count[singletons$Coll_count != "Singleton"] <- "Non-singleton"
+  Final <<- left_join(Final, singletons, by = "cells")
 }
 
 #=============================================== GET_COV FUNCTIONS ===========================================================
@@ -212,12 +220,21 @@ alt_cov_grab <- function(data){
                                proj4string = CRS("+proj=laea +lat_0=45 +lon_0=-100 +x_0=0 +y_0=0 +a=6370997 +b=6370997 +units=m +no_defs"))
   hires_cov_dat <- raster::extract(wc, xy, sp = TRUE, cellnumbers = TRUE)
   hires_cov_dat <- as.data.frame(hires_cov_dat)
+  counting_colls <- hires_cov_dat %>%
+    dplyr::select(cells, collection_no) %>%
+    dplyr::distinct() %>%
+    dplyr::group_by(cells) %>%
+    dplyr::summarize(Coll_count = n())
   hires_cov_dat <- hires_cov_dat %>%
     dplyr::group_by(cells) %>%
     dplyr::summarize(mean_DEM = mean(DEM, na.rm = TRUE), 
               mean_MGVF = mean(MGVF, na.rm = TRUE),
               mean_prec = mean(prec, na.rm = TRUE),
-              mean_temp = mean(temp, na.rm = TRUE))
+              mean_temp = mean(temp, na.rm = TRUE), 
+              max_DEM = max(DEM, na.rm = TRUE),
+              min_DEM = min(DEM, na.rm = TRUE),
+              relief = (max(DEM, na.rm = TRUE) - min(DEM, na.rm = TRUE)))
+  hires_cov_dat <- cbind(hires_cov_dat, counting_colls$Coll_count)
   hires_cov_dat <<- hires_cov_dat
 }
 
@@ -233,6 +250,7 @@ states <<- maptools::map2SpatialPolygons(states, IDs = states$names, proj4string
 
 get_grid_im <- function(data, res, name, ext){ # Data is first output from combine_data (fossil.colls). Res is chosen resolution in degrees. name is user inputted string related to data inputted, for display on graphs. 
   xy <- cbind(as.double(data$lng), as.double(data$lat))
+  xy <- unique(xy)
   r <- raster::raster(ext = ext, res = res)
   r <- raster::rasterize(xy, r, fun = 'count')
   #r[r > 0] <- 1 # Remove if you want values instead of pure presence/absence.
@@ -410,6 +428,17 @@ SubSamp_for_unmarked <- function(data, target, sampval = 10, trials = 100){ # Da
     }
   }
   new_dframe_for_unmarked <- new_dframe_for_unmarked[,1:sampval]
+  
+  # Comparison between subsampled and original datasets
+  ori_data <- rowSums(data, na.rm = T)
+  new_data <- rowSums(new_dframe_for_unmarked, na.rm = T)
+  comp <- as.data.frame(cbind(ori_data, new_data))
+  comp[comp > 1] <- 1
+  comp$comp <- ifelse(comp$ori_data > comp$new_data, 1, 0)
+  warning(paste("Decrease in naive occupancy of ", sum(comp$comp), " sites, equivalent to ", 
+        round((sum(comp$comp)/nrow(comp))*100, digits = 2), "%. Information about lost sites can be found in 'comp'.", sep = ""))
+  
+  # Assign name
   temp_name <- paste("SS_unmarked_", target, sep = "")
   assign(temp_name, new_dframe_for_unmarked, envir = .GlobalEnv)
 }
