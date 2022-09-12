@@ -233,7 +233,8 @@ alt_cov_grab <- function(data){
               mean_temp = mean(temp, na.rm = TRUE), 
               max_DEM = max(DEM, na.rm = TRUE),
               min_DEM = min(DEM, na.rm = TRUE),
-              relief = (max(DEM, na.rm = TRUE) - min(DEM, na.rm = TRUE)))
+              relief = (max(DEM, na.rm = TRUE) - min(DEM, na.rm = TRUE)),
+              mean_plat = mean(paleolat, na.rm = TRUE))
   hires_cov_dat <- cbind(hires_cov_dat, counting_colls$Coll_count)
   hires_cov_dat <<- hires_cov_dat
 }
@@ -437,7 +438,8 @@ SubSamp_for_unmarked <- function(data, target, sampval = 10, trials = 100){ # Da
   comp$comp <- ifelse(comp$ori_data > comp$new_data, 1, 0)
   warning(paste("Decrease in naive occupancy of ", sum(comp$comp), " sites, equivalent to ", 
         round((sum(comp$comp)/nrow(comp))*100, digits = 2), "%. Information about lost sites can be found in 'comp'.", sep = ""))
-  
+  comp_num <<- sum(comp$comp)
+  comp <<- comp
   # Assign name
   temp_name <- paste("SS_unmarked_", target, sep = "")
   assign(temp_name, new_dframe_for_unmarked, envir = .GlobalEnv)
