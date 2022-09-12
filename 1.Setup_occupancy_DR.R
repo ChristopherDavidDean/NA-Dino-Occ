@@ -101,7 +101,7 @@ master.occs$min_ma[master.occs$min_m < 66] <- 66
 master.occs.stage <- bin_time(master.occs, bins, method = "majority")
          
 #==== SUB STAGE ====
-bins <- 
+bins <- read.csv("Data/Occurrences/substages.csv")
 master.occs.stage <- bin_time(master.occs, bins, method = "majority")
 
 #==== FORMATION BINS ====
@@ -164,7 +164,14 @@ Res_results_list$Hadrosauridae
 
 # Prepare data for unmarked
 all_results_for_unmarked(data = bin.occs.targeted, name = bin.name, res = res, ext = e, target = target, subsamp = FALSE, single = TRUE)
-all_results_for_unmarked(data = bin.occs.targeted, name = bin.name, res = res, ext = e, target = target, subsamp = TRUE, sampval = 20, single = TRUE)
+all_results_for_unmarked(data = bin.occs.targeted, name = bin.name, res = res, ext = e, target = target, subsamp = TRUE, sampval = 10, single = FALSE)
+
+# Testing reduction of naive occupancy with subsampling
+stri <- c()
+for (t in 1:50){
+  all_results_for_unmarked(data = bin.occs.targeted, name = bin.name, res = res, ext = e, target = target, subsamp = TRUE, sampval = 10, single = FALSE)
+  stri <- c(stri, comp_num)
+} # Mean score of 2.68 occupied sites dropped.
 
 #===== Prepare data for multispecies =====
 prepare_for_multispecies(bin.occs.targeted, res, e, level = "species", target)
@@ -173,31 +180,33 @@ prepare_for_multispecies(bin.occs.targeted, res, e, level = "genus", target)
 #=============================================== VISUAL CHECKS ===============================================
 
 # Independently find all Ceratopsian occurrences and visualise.
-Cera <- bin.dinos %>%
-  filter(family == "Ceratopsidae")
+Cera <- Final %>%
+  filter(family == "Ceratopsidae")# %>%
+#  filter(Coll_count == "Non-singleton")
 get_grid_im(Cera, res, "Ceratopsian Occurrences", ext = e)
 
 # Use unmarked dataset to find Ceratopsian occupied cells.
-test <- SS_unmarked_Ceratopsidae %>% 
+Cera_occupied <- SS_unmarked_Ceratopsidae %>% 
   filter_all(any_vars(. %in% c(1)))
-cells <- as.numeric(rownames(test))
+cells <- as.numeric(rownames(Cera_occupied))
 values <- base::rep(1,length(cells))
 
 # Generate raster to compare against original dataset.
-test <- gen_raster(cells, values, res, ext = e)
+gen_raster(cells, values, res, ext = e)
 
 #=============================================== COVARIATE SETUP ===============================================
 
-# Grab hi resolution covariate
+# Grab hi resolution covariates (taken directly from collection co-ordinates)
 alt_cov_grab(Final)
 
 # Test using gen_raster
-gen_raster(cells, values, res, ext = e)
+gen_raster(hires_cov_dat$cells, hires_cov_dat$mean_prec, res, ext = e)
 
 # Add covariates to Occurrence spreadsheet
-#get_cov_from_stack(Final, res = res)
+get_cov_from_stack(Final, res = res)
+
 # Clean/split data to just relevant covariates
-#Camp_Covs <- cov_dat[, -grep("Maas_out_", colnames(cov_dat))]
+Camp_Covs <- cov_dat[, -grep("Maas_out_", colnames(cov_dat))]
 
 #===== PALAEO-DATA =====
 # Data
@@ -209,27 +218,29 @@ projection(CampTemp) <- CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +t
 # Camp Stack Extract
 CampStack <- stack(CampPrecip, CampTemp)
 
-#NAcells <- Final %>% # Clean for NA values in paleolat/lng - Record cells with NAs
-#  filter(is.na(paleolat)) %>%
-#  distinct(cells.1) # Remove cells with NAs
-#Camp_Covs <- Camp_Covs %>%
-#  filter(!is.na(paleolat))
-
+NAcells <- Final %>% # Clean for NA values in paleolat/lng - Record cells with NAs
+  filter(is.na(paleolat)) %>%
+  distinct(cells.1) # Remove cells with NAs
 Final2 <- Final %>%
   drop_na("paleolat", "paleolng")
 
 xy <- SpatialPointsDataFrame(cbind.data.frame(Final2$paleolng, Final2$paleolat), Final2) # Use palaeo lat/long to extract from palaeo GCMs
-Camp_Occ_Covs <- raster::extract(CampStack, xy, sp = TRUE, cellnumbers = TRUE) # Extract Palaeo Temp and Rainfall
-Camp_Occ_Covs <- as.data.frame(Camp_Occ_Covs) # Conver to dataframe
-
-Camp_Occ_Covs <- Camp_Occ_Covs %>%
+Camp_rain <- raster::extract(CampPrecip, xy, sp = TRUE, cellnumbers = TRUE)
+Camp_rain <- as.data.frame(Camp_rain)
+Camp_rain <- Camp_rain %>%
   dplyr::group_by(cells) %>%
-  dplyr::summarize(mean_Cpre = mean(Camp_Precip, na.rm = TRUE),
-                   mean_Ctem = mean(Camp_Temp, na.rm = TRUE))
-Camp_Occ_Covs$mean_Ctem <- Camp_Occ_Covs$mean_Ctem - 273.15 # Convert from Kelvin to degrees Celsius
+  dplyr::summarize(mean_Cpre = mean(Camp_Precip, na.rm = TRUE))
+
+Camp_temp <- raster::extract(CampTemp, xy, sp = TRUE, cellnumbers = TRUE) # Extract Palaeo Temp and Rainfall
+Camp_temp <- as.data.frame(Camp_temp) # Conver to dataframe
+Camp_temp <- Camp_temp %>%
+  dplyr::group_by(cells) %>%
+  dplyr::summarize(mean_Ctemp = mean(Camp_Temp, na.rm = TRUE))
+Camp_temp$mean_Ctemp <- Camp_temp$mean_Ctemp - 273.15 # Convert from Kelvin to degrees Celsius
+Camp_Occ_Covs <- left_join(Camp_rain, Camp_temp, by = "cells")
 
 # Visualise values on modern lat/long
-gen_raster(Camp_Occ_Covs$cells, Camp_Occ_Covs$mean_Ctem, res, e)
+gen_raster(Camp_Occ_Covs$cells, Camp_Occ_Covs$mean_Ctemp, res, e)
 gen_raster(Camp_Occ_Covs$cells, Camp_Occ_Covs$mean_Cpre, res, e)
 
 # Combine datasets

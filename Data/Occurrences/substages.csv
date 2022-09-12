@@ -1,0 +1,6 @@
+stage,substage,max_ma,min_ma,mid_ma,duration
+Maastrichtian,upper Maastrichtian,69.91,66,67.955,3.91
+Maastrichtian,lower Maastrichtian,72.1,69.91,71.005,2.19
+Campanian,upper Campanian,76.38,72.1,74.24,4.28
+Campanian,middle Campanian,81,76.38,78.69,4.62
+Campanian,lower Campanian,83.6,81,82.3,2.6
