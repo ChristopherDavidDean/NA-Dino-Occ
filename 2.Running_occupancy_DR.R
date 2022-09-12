@@ -15,25 +15,18 @@ library(MuMIn)
 library(dplyr)
 
 # Load data
-data <- read.csv("Results/0.5/Standard_Occ/Subsampled_20/Singleton/camp.occs.targeted.0.5.HadrosauridaeSS.csv") # import data from previous step. Result here is just a test case to show.
-
+data <- read.csv("Results/0.1/Campanian.0.1.CeratopsidaeSS.csv") # import data from previous step. Result here is just a test case to show.
 
 # Covariates
-site.covs <- read.csv("Results/0.5/CampanianHiResCovariates.csv") # Remember to change resolution!!!
+site.covs <- read.csv("Results/0.1/CampanianHiResCovariates.csv") # Remember to change resolution!!!
 #site.covs <- site.covs %>%
 #  dplyr::arrange(cells)
 
-# Ensure data is the same between Observations and Covariates
-as.numeric(rownames(data))
-site.covs$cells
-
-
 # Check covariates for missing data and remove cells from both datasets
-site.covs <- site.covs[-c(2, 170, 281, 284, 285, 287),] # 0.1
-data <- data[-c(2, 170, 281, 284, 285, 287),] # 0.1
-
-site.covs <- site.covs[-c(2, 79, 121),] # 0.5
-data <- data[-c(2, 79, 121),] # 0.5
+frame <- as.data.frame(unique(which(is.na(site.covs), arr.ind=TRUE)))
+frame <- unique(na.omit(frame$row))
+site.covs <- site.covs[!(row.names(site.covs) %in% frame),]
+data <- data[!(row.names(data) %in% frame),]
 
 # Turn into matrix
 y <- as.matrix(data[,2:ncol(data)])
@@ -42,29 +35,31 @@ DEMs.orig <- site.covs[,"mean_DEM"]      # Unstandardised, original values of co
 RAIN.orig <- site.covs[,"mean_prec"]
 TEMP.orig <- site.covs[,"mean_temp"]
 MGVF.orig <- site.covs[,"mean_MGVF"]
+RELI.orig <- site.covs[,"relief"]
 Cpre.orig <- site.covs[,"mean_Cpre"]
-Ctem.orig <- site.covs[,"mean_Ctem"]
+Ctem.orig <- site.covs[,"mean_Ctemp"]
 
 # Overview of Covariates
-covs <- cbind(DEMs.orig, RAIN.orig, MGVF.orig, TEMP.orig, Cpre.orig, Ctem.orig)
+covs <- cbind(DEMs.orig, RAIN.orig, MGVF.orig, TEMP.orig, RELI.orig, Cpre.orig, Ctem.orig)
 par(mfrow = c(1,1))
 for(i in 1:length(covs)){
   hist(covs[,i], breaks = 50, col = "grey", main = colnames(covs)[i])
 }
-pairs(cbind(DEMs.orig, RAIN.orig, MGVF.orig, TEMP.orig, Cpre.orig, Ctem.orig))
+pairs(cbind(DEMs.orig, RAIN.orig, MGVF.orig, TEMP.orig, RELI.orig, Cpre.orig, Ctem.orig))
 
 
 # Compute means and standard deviations
-(means <- c(apply(cbind(DEMs.orig, RAIN.orig, MGVF.orig, TEMP.orig, Cpre.orig, Ctem.orig), 2, mean, na.rm = TRUE)))
-(sds <- c(apply(cbind(DEMs.orig, RAIN.orig, MGVF.orig, TEMP.orig, Cpre.orig, Ctem.orig), 2, sd, na.rm = TRUE)))
+(means <- c(apply(cbind(DEMs.orig, RAIN.orig, MGVF.orig, TEMP.orig, RELI.orig, Cpre.orig, Ctem.orig), 2, mean, na.rm = TRUE)))
+(sds <- c(apply(cbind(DEMs.orig, RAIN.orig, MGVF.orig, TEMP.orig, RELI.orig, Cpre.orig, Ctem.orig), 2, sd, na.rm = TRUE)))
 
 # Scale covariates
 DEMs <- (DEMs.orig - means[1]) / sds[1] #
 RAIN <- (RAIN.orig - means[2]) / sds[2] #
 MGVF <- (MGVF.orig - means[3]) / sds[3] #
 TEMP <- (TEMP.orig - means[4]) / sds[4]
-Cpre <- (Cpre.orig - means[5]) / sds[5]
-Ctem <- (Ctem.orig - means[6]) / sds[6]
+RELI <- (RELI.orig - means[4]) / sds[4]
+Cpre <- (Cpre.orig - means[6]) / sds[6]
+Ctem <- (Ctem.orig - means[7]) / sds[7]
 
 #============================================== OCCUPANCY MODELLING =========================================
 
@@ -83,6 +78,7 @@ umf <- unmarkedFrameOccu(y = y, siteCovs = data.frame(DEMs = DEMs,
                                                       RAIN = RAIN, 
                                                       MGVF = MGVF, 
                                                       TEMP = TEMP,
+                                                      RELI = RELI,
                                                       Cpre = Cpre,
                                                       Ctem = Ctem))
 
@@ -106,69 +102,69 @@ summary(umf)
 ### DETECTION ###
 summary(fm1 <- occu(~1 ~1, data=umf))
 
-summary(fm2 <- occu(~DEMs ~1, data=umf))
+summary(fm2 <- occu(~RELI ~1, data=umf))
 summary(fm3 <- occu(~RAIN ~1, data=umf))
 summary(fm4 <- occu(~MGVF ~1, data=umf))
 summary(fm5 <- occu(~TEMP ~1, data=umf))
 
-summary(fm6 <- occu(~DEMs + RAIN ~1, data=umf))
-summary(fm7 <- occu(~DEMs + MGVF ~1, data=umf))
-summary(fm8 <- occu(~DEMs + TEMP ~1, data=umf))
+summary(fm6 <- occu(~RELI + RAIN ~1, data=umf))
+summary(fm7 <- occu(~RELI + MGVF ~1, data=umf))
+summary(fm8 <- occu(~RELI + TEMP ~1, data=umf))
 summary(fm9 <- occu(~RAIN + MGVF ~1, data=umf))
 summary(fm10 <- occu(~RAIN + TEMP ~1, data=umf)) #
 summary(fm11 <- occu(~MGVF + TEMP ~1, data=umf))
 
-summary(fm12 <- occu(~DEMs + RAIN + MGVF ~1, data=umf))
-summary(fm13 <- occu(~DEMs + RAIN + TEMP ~1, data=umf)) #
-summary(fm14 <- occu(~DEMs + MGVF + TEMP ~1, data=umf))
+summary(fm12 <- occu(~RELI + RAIN + MGVF ~1, data=umf))
+summary(fm13 <- occu(~RELI + RAIN + TEMP ~1, data=umf)) #
+summary(fm14 <- occu(~RELI + MGVF + TEMP ~1, data=umf))
 summary(fm15 <- occu(~RAIN + MGVF + TEMP ~1, data=umf)) #
 
-summary(fm16 <- occu(~DEMs + RAIN + MGVF + TEMP ~1, data=umf)) #
+summary(fm16 <- occu(~RELI + RAIN + MGVF + TEMP ~1, data=umf)) #
 
 # Put the fitted models in a "fitList" and rank them by AIC
 fms <- fitList("1"                        = fm1,
                "2"                     = fm2,
-               "3"                     = fm3, # BEST
-               "4"                     = fm4,
-               "5"                     = fm5,
+               "3"                     = fm3, 
+               "4"                     = fm4, # BEST
+               "5"                     = fm5, # BEST
                "6"                     = fm6,
-               "7"                = fm7, # BEST
+               "7"                = fm7, 
                "8"                = fm8,
-               "9"                = fm9, 
+               "9"                = fm9, # BEST
                "10"                = fm10,
-               "11"                = fm11,
-               "12"                = fm12, # BEST
+               "11"                = fm11,# BEST
+               "12"                = fm12, 
                "13"                = fm13,
                "14"                = fm14,
-               "15"                = fm15,
+               "15"                = fm15,# BEST
                "16"                = fm16
                )
 (ms <- modSel(fms))
 
 # Further tests
-summary(fm1 <- occu(~RAIN + TEMP ~1, data=umf))
-summary(fm2 <- occu(~RAIN + I(RAIN^2) + TEMP ~1, data=umf))
-summary(fm3 <- occu(~RAIN + I(RAIN^2) + I(RAIN^3) + TEMP ~1, data=umf))
-summary(fm4 <- occu(~RAIN + TEMP + I(TEMP^2) ~1, data=umf))
-summary(fm5 <- occu(~RAIN + TEMP + I(TEMP^2) +I(TEMP^3) ~1, data=umf))
-summary(fm6 <- occu(~RAIN + I(RAIN^2) + TEMP + I(TEMP^2) ~1, data=umf))
-summary(fm7 <- occu(~RAIN + I(RAIN^2) + I(RAIN^3) + TEMP + I(TEMP^2) ~1, data=umf))
-summary(fm8 <- occu(~RAIN + I(RAIN^2) + TEMP + I(TEMP^2) + I(TEMP^3) ~1, data=umf))
-summary(fm9 <- occu(~RAIN + I(RAIN^2) + I(RAIN^3) + TEMP + I(TEMP^2) + I(TEMP^3) ~1, data=umf))
+summary(fm1 <- occu(~MGVF + TEMP ~1, data=umf))
+summary(fm2 <- occu(~MGVF + I(MGVF^2) + TEMP ~1, data=umf))
+summary(fm3 <- occu(~MGVF + I(MGVF^2) + I(MGVF^3) + TEMP ~1, data=umf))
+summary(fm4 <- occu(~MGVF + TEMP + I(TEMP^2) ~1, data=umf))
+summary(fm5 <- occu(~MGVF + TEMP + I(TEMP^2) +I(TEMP^3) ~1, data=umf))
+summary(fm6 <- occu(~MGVF + I(MGVF^2) + TEMP + I(TEMP^2) ~1, data=umf))
+summary(fm7 <- occu(~MGVF + I(MGVF^2) + I(MGVF^3) + TEMP + I(TEMP^2) ~1, data=umf))
+summary(fm8 <- occu(~MGVF + I(MGVF^2) + TEMP + I(TEMP^2) + I(TEMP^3) ~1, data=umf))
+summary(fm9 <- occu(~MGVF + I(MGVF^2) + I(MGVF^3) + TEMP + I(TEMP^2) + I(TEMP^3) ~1, data=umf))
 
-fms <- fitList("p(RAIN+TEMP)psi(.)"                                  = fm1, # BEST
-               "p(RAIN+RAIN2+TEMP)psi(.)"                            = fm2,
-               "p(RAIN+RAIN2+RAIN3+TEMP)psi(.)"                      = fm3, 
-               "p(RAIN+TEMP+TEMP2)psi(.)"                            = fm4,
-               "p(RAIN+TEMP+TEMP2+TEMP3)psi(.)"                      = fm5,
-               "p(RAIN+RAIN2+TEMP+TEMP2)psi(.)"                      = fm6,
-               "p(RAIN+RAIN2+RAIN3+TEMP+TEMP2)psi(.)"                = fm7, 
-               "p(RAIN+RAIN2+TEMP+TEMP2+TEMP3)psi(.)"                = fm8,
-               "p(RAIN+RAIN2+RAIN3+TEMP+TEMP2+TEMP3)psi(.)"          = fm9
+fms <- fitList("p(MGVF+TEMP)psi(.)"                                  = fm1, # BEST
+               "p(MGVF+MGVF2+TEMP)psi(.)"                            = fm2,
+               "p(MGVF+MGVF2+MGVF3+TEMP)psi(.)"                      = fm3, 
+               "p(MGVF+TEMP+TEMP2)psi(.)"                            = fm4,
+               "p(MGVF+TEMP+TEMP2+TEMP3)psi(.)"                      = fm5,
+               "p(MGVF+MGVF2+TEMP+TEMP2)psi(.)"                      = fm6,
+               "p(MGVF+MGVF2+MGVF3+TEMP+TEMP2)psi(.)"                = fm7, 
+               "p(MGVF+MGVF2+TEMP+TEMP2+TEMP3)psi(.)"                = fm8,
+               "p(MGVF+MGVF2+MGVF3+TEMP+TEMP2+TEMP3)psi(.)"          = fm9
 )
 (ms <- modSel(fms))
 
-best.model <- fm3
+best.model <- fm8
 confint(best.model, type = "det")
 
 
@@ -183,10 +179,10 @@ fms <- fitList("p(RAIN+RAIN2+RAIN3+TEMP+TEMP2+TEMP3)psi(.)"                   = 
                "p(RAIN+RAIN2+RAIN3+TEMP+TEMP2+TEMP3)psi(Cpre + Ctem)"         = fm4
 )
 
-summary(fm1 <- occu(~DEMs + I(DEMs^2) + I(DEMs^3) + TEMP ~1, data=umf))
-summary(fm2 <- occu(~DEMs + I(DEMs^2) + I(DEMs^3) + TEMP ~Ctem, data=umf))
-summary(fm3 <- occu(~DEMs + I(DEMs^2) + I(DEMs^3) + TEMP ~Cpre, data=umf))
-summary(fm4 <- occu(~DEMs + I(DEMs^2) + I(DEMs^3) + TEMP ~Cpre + Ctem, data=umf))
+summary(fm1 <- occu(~RELI + I(RELI^2) + I(RELI^3) + TEMP ~1, data=umf))
+summary(fm2 <- occu(~RELI + I(RELI^2) + I(RELI^3) + TEMP ~Ctem, data=umf))
+summary(fm3 <- occu(~RELI + I(RELI^2) + I(RELI^3) + TEMP ~Cpre, data=umf))
+summary(fm4 <- occu(~RELI + I(RELI^2) + I(RELI^3) + TEMP ~Cpre + Ctem, data=umf))
 fms <- fitList("p(RAIN+RAIN2+RAIN3+TEMP+TEMP2+TEMP3)psi(.)"                   = fm1,
                "p(RAIN+RAIN2+RAIN3+TEMP+TEMP2+TEMP3)psi(Cpre)"                = fm2,
                "p(RAIN+RAIN2+RAIN3+TEMP+TEMP2+TEMP3)psi(Ctem)"                = fm3,
@@ -226,14 +222,14 @@ fms <- fitList("p(RAIN+RAIN2+RAIN3+TEMP+TEMP2+TEMP3)psi(Cpre+2Cpre)"            
 (ms <- modSel(fms))
 
 
-summary(fm1 <- occu(~DEMs + I(DEMs^2) + I(DEMs^3) + TEMP ~Cpre + I(Cpre^2), data=umf)) # Null best
-summary(fm2 <- occu(~DEMs + I(DEMs^2) + I(DEMs^3) + TEMP ~Cpre + I(Cpre^2) + I(Cpre^3), data=umf))
-summary(fm3 <- occu(~DEMs + I(DEMs^2) + I(DEMs^3) + TEMP ~Ctem + I(Ctem^2), data=umf))
-summary(fm4 <- occu(~DEMs + I(DEMs^2) + I(DEMs^3) + TEMP ~Ctem + I(Ctem^2) + I(Ctem^3), data=umf))
-summary(fm5 <- occu(~DEMs + I(DEMs^2) + I(DEMs^3) + TEMP ~Cpre + Ctem + I(Ctem^2), data=umf))
-summary(fm6 <- occu(~DEMs + I(DEMs^2) + I(DEMs^3) + TEMP ~Cpre + Ctem + I(Cpre^2), data=umf))
-summary(fm7 <- occu(~DEMs + I(DEMs^2) + I(DEMs^3) + TEMP ~Cpre + Ctem + I(Cpre^2) + I(Ctem^2), data=umf))
-summary(fm8 <- occu(~DEMs + I(DEMs^2) + I(DEMs^3) + TEMP ~1, data=umf))
+summary(fm1 <- occu(~RELI + I(RELI^2) + I(RELI^3) + TEMP ~Cpre + I(Cpre^2), data=umf)) # Null best
+summary(fm2 <- occu(~RELI + I(RELI^2) + I(RELI^3) + TEMP ~Cpre + I(Cpre^2) + I(Cpre^3), data=umf))
+summary(fm3 <- occu(~RELI + I(RELI^2) + I(RELI^3) + TEMP ~Ctem + I(Ctem^2), data=umf))
+summary(fm4 <- occu(~RELI + I(RELI^2) + I(RELI^3) + TEMP ~Ctem + I(Ctem^2) + I(Ctem^3), data=umf))
+summary(fm5 <- occu(~RELI + I(RELI^2) + I(RELI^3) + TEMP ~Cpre + Ctem + I(Ctem^2), data=umf))
+summary(fm6 <- occu(~RELI + I(RELI^2) + I(RELI^3) + TEMP ~Cpre + Ctem + I(Cpre^2), data=umf))
+summary(fm7 <- occu(~RELI + I(RELI^2) + I(RELI^3) + TEMP ~Cpre + Ctem + I(Cpre^2) + I(Ctem^2), data=umf))
+summary(fm8 <- occu(~RELI + I(RELI^2) + I(RELI^3) + TEMP ~1, data=umf))
 
 summary(fm1 <- occu(~RAIN + MGVF + TEMP ~Cpre + I(Cpre^2), data=umf)) # Null best
 summary(fm2 <- occu(~RAIN + MGVF + TEMP ~Cpre + I(Cpre^2) + I(Cpre^3), data=umf))
@@ -307,11 +303,11 @@ p.Ctem <- (pred.Ctem - means[6]) / sds[6]
 
 
 # Obtain predictions
-newData <- data.frame(TEMP=p.TEMP, RAIN = 0)
+newData <- data.frame(TEMP=p.TEMP, MGVF = 0)
 pred.det.TEMP <- predict(best.model, type="det", newdata=newData, appendData=TRUE)
-newData <- data.frame(TEMP=0, RAIN = p.RAIN)
-pred.det.RAIN <- predict(best.model, type="det", newdata=newData, appendData=TRUE)
-newData <- data.frame(TEMP=0, RAIN = 0, MGVF = p.MGVF)
+newData <- data.frame(TEMP=0, MGVF = p.MGVF)
+pred.det.MGVF <- predict(best.model, type="det", newdata=newData, appendData=TRUE)
+newData <- data.frame(TEMP=0, MGVF = 0, MGVF = p.MGVF)
 pred.det.MGVF <- predict(best.model, type="det", newdata=newData, appendData=TRUE)
 
 newData <- data.frame(Cpre = p.Cpre)
@@ -323,9 +319,7 @@ pred.occ.Ctem <- predict(best.model, type="state", newdata=newData, appendData=T
 par(mfrow = c(3,1), mar = c(5,5,2,3), cex.lab = 1.2)
 plot(pred.det.TEMP[[1]] ~ pred.TEMP, type = "l", lwd = 3, col = "blue", ylim = c(0,1), las = 1, ylab = "Pred. detection prob.", xlab = "Temperature", frame = F)
 matlines(pred.TEMP, pred.det.TEMP[,3:4], lty = 1, lwd = 1, col = "grey")
-plot(pred.det.RAIN[[1]] ~ pred.RAIN, type = "l", lwd = 3, col = "blue", ylim = c(0,1), las = 1, ylab = "Pred. detection prob.", xlab = "Precipitation", frame = F)
-matlines(pred.RAIN, pred.det.RAIN[,3:4], lty = 1, lwd = 1, col = "grey")
-plot(pred.det.MGVF[[1]] ~ pred.MGVF, type = "l", lwd = 3, col = "blue", ylim = c(0,1), las = 1, ylab = "Pred. detection prob.", xlab = "MGVF", frame = F)
+plot(pred.det.MGVF[[1]] ~ pred.MGVF, type = "l", lwd = 3, col = "blue", ylim = c(0,1), las = 1, ylab = "Pred. detection prob.", xlab = "Precipitation", frame = F)
 matlines(pred.MGVF, pred.det.MGVF[,3:4], lty = 1, lwd = 1, col = "grey")
 
 plot(pred.occ.Cpre[[1]] ~ pred.Cpre, type = "l", lwd = 3, col = "blue", ylim = c(0,1), las = 1, ylab = "Pred. occupancy prob.", xlab = "Palaeo Precip.", frame = F)
