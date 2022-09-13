@@ -36,6 +36,8 @@ library(maptools)
 library(parallel)
 library(tibble)
 library(divDyn)
+library(rgeos)
+library(RColorBrewer)
 
 #==== if not: ====
 # Load in Functions
@@ -49,7 +51,7 @@ master.occs <- master.occs %>%
 formations <- read.csv("Data/Occurrences/Formations.csv") # Load formations
 formations <- formations[,1:11] # Remove additional columns
 formations <- formations[order(formations$Formation),] # Reorganise formations
-formations$forbinning <- 1:nrow(formations) # Provide if for formations
+formations$forbinning <- 1:nrow(formations) # Provide ID for formations
 formations$Range <- formations$max_age - formations$min_age # Calculate formation range
 formations$Diversity <- 0 # Add in dummy variables to ensure code works (sorry!)
 formations$Occurrences <- 0 # Add in dummy variables to ensure code works (sorry!)
@@ -102,7 +104,7 @@ master.occs.stage <- bin_time(master.occs, bins, method = "majority")
          
 #==== SUB STAGE ====
 bins <- read.csv("Data/Occurrences/substages.csv")
-master.occs.stage <- bin_time(master.occs, bins, method = "majority")
+master.occs.substage <- bin_time(master.occs, bins, method = "majority")
 
 #==== FORMATION BINS ====
 formations <- formations %>%
@@ -163,8 +165,10 @@ Res_results_list$Tyrannosauridae
 Res_results_list$Hadrosauridae
 
 # Prepare data for unmarked
-all_results_for_unmarked(data = bin.occs.targeted, name = bin.name, res = res, ext = e, target = target, subsamp = FALSE, single = TRUE)
+all_results_for_unmarked(data = bin.occs.targeted, name = bin.name, res = res, ext = e, target = target, subsamp = FALSE, single = FALSE)
+all_results_for_unmarked(data = bin.occs.targeted, name = bin.name, res = res, ext = e, target = target, subsamp = TRUE, sampval = 5, single = FALSE)
 all_results_for_unmarked(data = bin.occs.targeted, name = bin.name, res = res, ext = e, target = target, subsamp = TRUE, sampval = 10, single = FALSE)
+all_results_for_unmarked(data = bin.occs.targeted, name = bin.name, res = res, ext = e, target = target, subsamp = TRUE, sampval = 20, single = FALSE)
 
 # Testing reduction of naive occupancy with subsampling
 stri <- c()
@@ -179,16 +183,16 @@ prepare_for_multispecies(bin.occs.targeted, res, e, level = "genus", target)
 
 #=============================================== VISUAL CHECKS ===============================================
 
-# Independently find all Ceratopsian occurrences and visualise.
-Cera <- Final %>%
-  filter(family == "Ceratopsidae")# %>%
+# Independently find all Hadrosaur occurrences and visualise.
+Hadro <- Final %>%
+  filter(family == "Hadrosauridae")# %>%
 #  filter(Coll_count == "Non-singleton")
-get_grid_im(Cera, res, "Ceratopsian Occurrences", ext = e)
+get_grid_im(Hadro, res, "Hadrosauridae Occurrences", ext = e)
 
 # Use unmarked dataset to find Ceratopsian occupied cells.
-Cera_occupied <- SS_unmarked_Ceratopsidae %>% 
+Hadro_occupied <- SS_unmarked_Hadrosauridae %>% 
   filter_all(any_vars(. %in% c(1)))
-cells <- as.numeric(rownames(Cera_occupied))
+cells <- as.numeric(rownames(Hadro_occupied))
 values <- base::rep(1,length(cells))
 
 # Generate raster to compare against original dataset.
@@ -197,16 +201,15 @@ gen_raster(cells, values, res, ext = e)
 #=============================================== COVARIATE SETUP ===============================================
 
 # Grab hi resolution covariates (taken directly from collection co-ordinates)
-alt_cov_grab(Final)
+alt_cov_grab(Final, res = res)
 
 # Test using gen_raster
 gen_raster(hires_cov_dat$cells, hires_cov_dat$mean_prec, res, ext = e)
 
 # Add covariates to Occurrence spreadsheet
-get_cov_from_stack(Final, res = res)
-
+# get_cov_from_stack(Final, res = res)
 # Clean/split data to just relevant covariates
-Camp_Covs <- cov_dat[, -grep("Maas_out_", colnames(cov_dat))]
+#Camp_Covs <- cov_dat[, -grep("Maas_out_", colnames(cov_dat))]
 
 #===== PALAEO-DATA =====
 # Data
@@ -220,7 +223,7 @@ CampStack <- stack(CampPrecip, CampTemp)
 
 NAcells <- Final %>% # Clean for NA values in paleolat/lng - Record cells with NAs
   filter(is.na(paleolat)) %>%
-  distinct(cells.1) # Remove cells with NAs
+  distinct(cells) # Remove cells with NAs
 Final2 <- Final %>%
   drop_na("paleolat", "paleolng")
 
@@ -250,20 +253,20 @@ full_camp_covs <- full_join(hires_cov_dat, Camp_Occ_Covs, by = "cells")
 write.csv(full_camp_covs, file.path(paste("Results/", res, "/CampanianHiResCovariates.csv", sep="")))
 
 # Make Master Camp Spreadsheet
-Camp_Cov_Master <- Camp_Covs
-Camp_Cov_Master <- Camp_Cov_Master %>%
-  select(collection_no, collection_name, accepted_name, identified_rank, family, genus, formation, member, 
-         cells.1, Camp_out_1, DEM_1, LANDCVI_selected_1, MGVF_1, 
-         SLOPE_1, WC_Prec_1, WC_Temp_1, cells.2, CampPrecip_1, CampTemp_1, colls_per_cell)
+#Camp_Cov_Master <- Camp_Covs
+#Camp_Cov_Master <- Camp_Cov_Master %>%
+#  select(collection_no, collection_name, accepted_name, identified_rank, family, genus, formation, member, 
+#         cells.1, Camp_out_1, DEM_1, LANDCVI_selected_1, MGVF_1, 
+#         SLOPE_1, WC_Prec_1, WC_Temp_1, cells.2, CampPrecip_1, CampTemp_1, colls_per_cell)
 
-write.csv(Camp_Cov_Master, file.path(paste("Results/", res, "/CampanianMasterSheet.csv", sep="")))
+#write.csv(Camp_Cov_Master, file.path(paste("Results/", res, "/CampanianMasterSheet.csv", sep="")))
 
 # Clean data to just gridcells and associated covariates
-Camp_Covs <- Camp_Covs %>%
-  select(cells.1, Camp_out_1, DEM_1, LANDCVI_selected_1, MGVF_1, 
-  SLOPE_1, WC_Prec_1, WC_Temp_1, colls_per_cell) 
-Camp_Covs <- Camp_Covs %>%
-  distinct()
-Camp_Covs <- aggregate(x = Camp_Covs, by = list(Camp_Covs$cells.1), FUN = "mean", na.rm = TRUE)
-Camp_Covs$CampTemp <- Camp_Covs$CampTemp - 273.15 # Convert from Kelvin to degrees Celsius
-write.csv(Camp_Covs, file.path(paste("Results/", res, "/CampanianCovariates.csv", sep="")))
+#Camp_Covs <- Camp_Covs %>%
+#  select(cells.1, Camp_out_1, DEM_1, LANDCVI_selected_1, MGVF_1, 
+#  SLOPE_1, WC_Prec_1, WC_Temp_1, colls_per_cell) 
+#Camp_Covs <- Camp_Covs %>%
+#  distinct()
+#Camp_Covs <- aggregate(x = Camp_Covs, by = list(Camp_Covs$cells.1), FUN = "mean", na.rm = TRUE)
+#Camp_Covs$CampTemp <- Camp_Covs$CampTemp - 273.15 # Convert from Kelvin to degrees Celsius
+#write.csv(Camp_Covs, file.path(paste("Results/", res, "/CampanianCovariates.csv", sep="")))
