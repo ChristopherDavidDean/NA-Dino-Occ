@@ -32,12 +32,15 @@ library(dplyr)
 library(lattice)
 library(rasterVis)
 library(sp)
+library(rgdal)
 library(maps)
 library(maptools)
 library(parallel)
 library(reshape2)
 library(tibble)
 library(divDyn)
+library(rgeos)
+library(RColorBrewer)
 
 #=============================================== GET_EXTENT =============================================================
 
@@ -211,7 +214,7 @@ get_cov_from_stack <- function(data, res){ # data is first output from combine_d
 # Creates dataframe of covariate data associated with relevant grid cells, taken from original hi-resolution rasters. 
 # Covariate values are created from the mean value of collections within larger grid cells of chosen resolution. 
 
-alt_cov_grab <- function(data){
+alt_cov_grab <- function(data, res){
   wc <- list.files("Data/Covariate_Data/Formatted_For_Precise/")
   wc <- wc[-1]
   wc <- stack(paste0("Data/Covariate_Data/Formatted_For_Precise/", wc, sep = ""))
@@ -230,12 +233,26 @@ alt_cov_grab <- function(data){
     dplyr::summarize(mean_DEM = mean(DEM, na.rm = TRUE), 
               mean_MGVF = mean(MGVF, na.rm = TRUE),
               mean_prec = mean(prec, na.rm = TRUE),
-              mean_temp = mean(temp, na.rm = TRUE), 
+              mean_temp = mean(temp, na.rm = TRUE),
               max_DEM = max(DEM, na.rm = TRUE),
               min_DEM = min(DEM, na.rm = TRUE),
               relief = (max(DEM, na.rm = TRUE) - min(DEM, na.rm = TRUE)),
               mean_plat = mean(paleolat, na.rm = TRUE))
   hires_cov_dat <- cbind(hires_cov_dat, counting_colls$Coll_count)
+  
+  wc <- list.files(paste0("Data/Covariate_Data/Formatted_For_Precise/", res, sep = ""))
+  wc <- stack(paste0("Data/Covariate_Data/Formatted_For_Precise/", res, "/", wc, sep = ""))
+  projection(wc) <- "+proj=laea +lat_0=45 +lon_0=-100 +x_0=0 +y_0=0 +a=6370997 +b=6370997 +units=m +no_defs" 
+  xy <- SpatialPointsDataFrame(cbind.data.frame(data$lng, data$lat), data, 
+                               proj4string = CRS("+proj=laea +lat_0=45 +lon_0=-100 +x_0=0 +y_0=0 +a=6370997 +b=6370997 +units=m +no_defs"))
+  out_dat <- raster::extract(wc, xy, sp = TRUE, cellnumbers = TRUE)
+  out_dat <- as.data.frame(out_dat)
+  colnames(out_dat) <- sub("_0.*", "", colnames(out_dat))
+  out_dat <- out_dat %>%
+    dplyr::group_by(cells.1) %>%
+    dplyr::summarize(Camp_outcrop = mean(COut, na.rm = TRUE), 
+                     Maas_outcrop = mean(MOut, na.rm = TRUE))
+  hires_cov_dat <- cbind(hires_cov_dat, out_dat[,2:3])
   hires_cov_dat <<- hires_cov_dat
 }
 
@@ -463,10 +480,10 @@ all_results_for_unmarked <- function(data, res, target, ext, name, subsamp = TRU
       if (subsamp==TRUE){
         test2 <- SubSamp_for_unmarked(test2, target[t], sampval = sampval)
       }
-      temp_name <- paste(name, ".", res[r], ".", target[t], sep = "")
+      temp_name <- paste(name, ".", res[r], ".", target[t],  sep = "")
       dir.create(paste0("Results/", res, sep =""), showWarnings = FALSE) #stops warnings if folder already exists
       if (subsamp == TRUE){
-        write.csv(test2, file.path(paste("Results/", res, "/", temp_name, "SS.csv", sep="")))
+        write.csv(test2, file.path(paste("Results/", res, "/", temp_name, "SS.", sampval, ".csv", sep="")))
       }
       else{
         write.csv(test2, file.path(paste("Results/", res, "/", temp_name, ".csv", sep="")))
