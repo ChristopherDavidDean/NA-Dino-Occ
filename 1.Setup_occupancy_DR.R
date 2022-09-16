@@ -38,6 +38,7 @@ library(tibble)
 library(divDyn)
 library(rgeos)
 library(RColorBrewer)
+library(chronosphere)
 
 #==== if not: ====
 # Load in Functions
@@ -45,8 +46,6 @@ source("0.Functions_DR.R") # Import functions from other R file (must be in same
 
 #==== Load master spreadsheets and organise ====
 master.occs <- read.csv("Data/Occurrences/occs_all_stages_tetrapoda_28_06_2022.csv", skip = 20)
-master.occs <- master.occs %>%
-  filter(max_ma < 85) # Remove older occurrences than we are looking at
 
 formations <- read.csv("Data/Occurrences/Formations.csv") # Load formations
 formations <- formations[,1:11] # Remove additional columns
@@ -69,120 +68,88 @@ e <- extent(-155, -72, 22.5, 73)
 #minLng <- round_any((min(occurrence_dataset$lng) - 10), 0.5) #get value for defining extent, and increase by x for visualisation purposes
 #e <<- extent(minLng, maxLng, minLat, maxLat)
 
-#==== Convert rasters to desired resolution ====
-# source("0.Format_data_DR.R") # Import extent and run cleaning/import of raster datasets. Running this will take a while, 
-# but will automatically update rasters so that they are of the desired resolution and place them in the appropriate folder
-# for running the next steps. 
-
 #=============================================== TIME BINNING =======================================================
 
 # Standard Bin setup - trim to fit relevant time frame. 
 data(stages)
 stages <- stages[80:81,] # Set stages to range from Campanian to Maastrichtian
 
-# Attach new age constraints from formations data
+# Attach new age constraints from formations data and setup for binning
 master.occs$old_max_ma <- master.occs$max_ma # Move old values to legacy
 master.occs$old_min_ma <- master.occs$min_ma
-test <- merge(master.occs, formations, by = "formation", all = T) # Merge occurrences with formation ages
-test <- test %>%
+master.occs <- merge(master.occs, formations, by = "formation", all = T) # Merge occurrences with formation ages
+master.occs <- master.occs %>%
   filter(is.na(occurrence_no) == F) # Remove non-occurrences
-test$max_ma <- test$max_age # Add new ages to ma_ma and min_ma
-test$min_ma <- test$min_age
-master.occs <- test[,1:140] # Remove extra columns from final dataset.
+master.occs$max_ma <- master.occs$max_age # Add new ages to ma_ma and min_ma
+master.occs$min_ma <- master.occs$min_age
+master.occs <- master.occs[,1:140] # Remove extra columns from final dataset.
 master.occs <- master.occs %>% 
-  filter(is.na(max_ma) == F) %>% # Remove occurrences without a max age (occurrences which can't be matched to a formation)
-  filter(max_ma <84.6) # Remove occurrences older than necessary.
+  filter(is.na(max_ma) == F)# %>% # Remove occurrences without a max age (occurrences which can't be matched to a formation)
+master.occs$max_ma[master.occs$max_ma > 83.59] <- 83.59
+master.occs$min_ma[master.occs$min_m < 66] <- 66 # If using majority method, all occurrences with minimum age of <66 Ma must be capped to 66 Ma, otherwise bin_time() breaks.
 
 #==== STAGE ====
 bins <- stages
 colnames(bins) <- c("sys","system", "series", "stage", "short", "max_ma", "mid_ma", "min_ma", "dur", "stg", "systemCol", "seriesCol", "col")
-bins$bin <- c(1,2)
-master.occs$max_ma[master.occs$max_ma > 83.59] <- 83.59
-master.occs$min_ma[master.occs$min_m < 66] <- 66
-
-master.occs.stage <- bin_time(master.occs, bins, method = "majority")
+bins <- arrange(bins, (max_ma))
+bins$bin <- c("S.1","S.2")
+master.occs.binned <- bin_time(master.occs, bins, method = "majority")
+bins$code <- c("teyeo", "teyeq")
+bin.type <- "stage"
          
 #==== SUB STAGE ====
 bins <- read.csv("Data/Occurrences/substages.csv")
-master.occs.substage <- bin_time(master.occs, bins, method = "majority")
+bins$bin <- c("SB.1","SB.2","SB.3","SB.4","SB.5")
+master.occs.binned <- bin_time(master.occs, bins, method = "majority")
+bin.type <- "substage"
+
+#==== SCOTESE BINS ====
+bins <- read.csv("Data/Occurrences/scotesebins.csv")
+bins$bin <- c("SC.1","SC.2","SC.3","SC.4")
+master.occs.binned <- bin_time(master.occs, bins, method = "majority")
+bin.type <- "scotese"
 
 #==== FORMATION BINS ====
-formations <- formations %>%
-  dplyr::filter(min_age < 84) # Limit what formations are included
 bin_limits <- c(2.5, max(formations$max_age), 66) # Set user defined bin size - change the first number to vary resolution in graphs.
-Scoring_Grid_1(formations = formations, res = 0.01)
+Scoring_Grid_1(formations = formations, res = 0.01) # run score grid to work out appropriate bin points
 #Scoring_Grid_2(formations = formations, res = 0.01)
-newBins(score_grid = score_grid, formations = formations, bin_limits = bin_limits, allbins = allbins, stages = stages, smallamalg = TRUE)
-
-bins <- binlist %>% # Remove non-useful bins outside of range
-  filter(bottom < 84)
-colnames(bins) <- c("bin", "min_ma", "max_ma", "mid_ma") # Rename bin names to match across
+newBins(score_grid = score_grid, formations = formations, bin_limits = bin_limits, allbins = allbins, stages = stages, smallamalg = TRUE) # Run new bins to generate bins
+bins <- binlist %>% # Remove non-useful bins outside of range, add range for bins
+  filter(bottom < 84) %>%
+  mutate(range = top-bottom)
+colnames(bins) <- c("bin", "min_ma", "max_ma", "mid_ma", "range") # Rename bin names to match across
 bins[1,2] <- 66 # Cap youngest bin at 66 Ma. 
+master.occs.binned <- bin_time(master.occs, bins, method = 'majority') # Bin occurrences
+bin.type <- "formation"
 
-# If using majority method, all occurrences with minimum age of <66 Ma must be capped to 66 Ma, otherwise bin_time() breaks.
-master.occs$min_ma[master.occs$min_ma<66] <- 66
-
-# Bin occurrences
-master.occs.form <- bin_time(master.occs, bins, method = 'majority') 
-
- #=============================================== DATA SETUP ===============================================
-
-# Select relevant occurrences for bin. In this instance, Campanian.
-bin.name <- "Campanian"
-#bin.name <- "Maastrichtian"
-bin.occs <- master.occs.stage %>% 
-  filter(bin_assignment == 1)
+ #=============================================== VISUALISATION AND TESTING ===============================================
 
 #==== Visualise grid cells for collections and occurrences ====
-bin.colls <- bin.occs %>% # Make unique collections for visualisation
+bin.colls <- master.occs %>% # Make unique collections for visualisation
   dplyr::select(collection_no, lat, lng) %>%
   dplyr::distinct()
 
-bin.dinos <- bin.occs %>%
+bin.dinos <- master.occs %>%
   filter(class == "Ornithischia" | class == "Saurischia")
 
-get_grid_im(bin.occs, res, "Occurrences", ext = e)
+get_grid_im(master.occs, res, "Occurrences", ext = e)
 get_grid_im(bin.dinos, res, "Dinosaur Occurrences", ext = e)
 get_grid_im(bin.colls, res, "Collections", ext = e)
 
 #==== Testing Targets ====
-# target_maker(bin.occs, "family", "Ceratopsidae")
-# Ceratops <- bin.occs.targeted %>%
-#   filter(Target == "Ceratopsidae")
-# get_grid_im(Ceratops, 1, "Ceratopsidae Occurrences")
+target_maker(bin.occs, "family", "Ceratopsidae")
+Ceratops <- bin.occs.targeted %>%
+   filter(Target == "Ceratopsidae")
+get_grid_im(Ceratops, 1, "Ceratopsidae Occurrences")
 
-#=============================================== OCCUPANCY SETUP ===============================================
-
-# Set Target taxa
-target = c("Ceratopsidae", "Tyrannosauridae", "Hadrosauridae") # set Targets
-target_maker(bin.occs, "family", target) # run target_maker
-
-# Check resolution data
-vect <- c(0.1, 0.5, 1)
-res_data(bin.occs.targeted, target, vect = vect, single = TRUE) # Makes list of dataframes, each containing information about various cell resolutions. Can also see Naive occupancy estimates.
-Res_results_list$Ceratopsidae
-Res_results_list$Tyrannosauridae
-Res_results_list$Hadrosauridae
-
-# Prepare data for unmarked
-all_results_for_unmarked(data = bin.occs.targeted, name = bin.name, res = res, ext = e, target = target, subsamp = FALSE, single = FALSE)
-all_results_for_unmarked(data = bin.occs.targeted, name = bin.name, res = res, ext = e, target = target, subsamp = TRUE, sampval = 5, single = FALSE)
-all_results_for_unmarked(data = bin.occs.targeted, name = bin.name, res = res, ext = e, target = target, subsamp = TRUE, sampval = 10, single = FALSE)
-all_results_for_unmarked(data = bin.occs.targeted, name = bin.name, res = res, ext = e, target = target, subsamp = TRUE, sampval = 20, single = FALSE)
-
-# Testing reduction of naive occupancy with subsampling
+#===== Testing reduction of naive occupancy with subsampling =====
 stri <- c()
 for (t in 1:50){
   all_results_for_unmarked(data = bin.occs.targeted, name = bin.name, res = res, ext = e, target = target, subsamp = TRUE, sampval = 10, single = FALSE)
   stri <- c(stri, comp_num)
 } # Mean score of 2.68 occupied sites dropped.
 
-#===== Prepare data for multispecies =====
-prepare_for_multispecies(bin.occs.targeted, res, e, level = "species", target)
-prepare_for_multispecies(bin.occs.targeted, res, e, level = "genus", target)
-
-#=============================================== VISUAL CHECKS ===============================================
-
+#===== Testing matchup of cells =====
 # Independently find all Hadrosaur occurrences and visualise.
 Hadro <- Final %>%
   filter(family == "Hadrosauridae")# %>%
@@ -198,20 +165,67 @@ values <- base::rep(1,length(cells))
 # Generate raster to compare against original dataset.
 gen_raster(cells, values, res, ext = e)
 
-#=============================================== COVARIATE SETUP ===============================================
+#=============================================== OCCUPANCY SETUP ===============================================
 
-# Grab hi resolution covariates (taken directly from collection co-ordinates)
-alt_cov_grab(Final, res = res)
+# Set Target taxa
+target = c("Ceratopsidae", "Tyrannosauridae", "Hadrosauridae") # set Targets
+target_maker(master.occs.binned, "family", target) # run target_maker
 
-# Test using gen_raster
-gen_raster(hires_cov_dat$cells, hires_cov_dat$mean_prec, res, ext = e)
+# Palaeorotate binned and targetted data using chronosphere
+dems <- fetch(dat="paleomap", var="dem")
+demord <- matchtime(dems, master.occs.binned$bin_midpoint)
+names(demord)
+master.occs.binned.targeted$mapage <- names(demord)
+newCoords <- reconstruct(master.occs.binned.targeted[, c("lng", "lat")], age=master.occs.binned.targeted[, "mapage"], enumerate=FALSE, verbose=FALSE)
+colnames(newCoords) <- c("plng", "plat")
+master.occs.binned.targeted <- cbind(master.occs.binned.targeted,newCoords)
 
-# Add covariates to Occurrence spreadsheet
-# get_cov_from_stack(Final, res = res)
-# Clean/split data to just relevant covariates
-#Camp_Covs <- cov_dat[, -grep("Maas_out_", colnames(cov_dat))]
+#===== Get all data necessary for running occupancy models ====
+# For each time bin - 
+for(t in 1:length(bins$bin)){
+  
+  #===== DATA READY FOR UNMARKED =====
+  # Select relevant occurrences for bin. In this instance, Campanian.
+  bin.name <- bins$bin[t]
+  bin.occs <- master.occs.binned.targeted %>% 
+    filter(bin_assignment == bin.name)
+  
+  # Create appropriate folder
+  dir.create(paste0("Results/", bin.type, "/", bin.name, "/", sep =""), showWarnings = FALSE)
+  dir.create(paste0("Results/", bin.type, "/", bin.name, "/", res, "/", sep =""), showWarnings = FALSE)
+  
+  # Record resolution target data
+  vect <- c(0.1, 0.5, 1)
+  res_data(bin.occs, target, vect = vect, single = TRUE) # Makes list of dataframes, each containing information about various cell resolutions. Can also see Naive occupancy estimates.
+  Res_results <- do.call(rbind.data.frame, Res_results_list)
+  write.csv(Res_results, file.path(paste("Results/", bin.type, "/", bin.name, "/Targeted_res_stats.csv", sep="")))
+  
+  # Prepare data for unmarked
+  all_results_for_unmarked(data = bin.occs, name = bin.name, res = res, ext = e, target = target, subsamp = TRUE, sampval = 5, single = FALSE)
+  write.csv(Final, file.path(paste("Results/", bin.type, "/", bin.name, "/", res, "/", bin.name, "_dataset.csv", sep = "")))
+  
+  #===== SITE DETECTION COVARIATE DATA =====
+  # Grab hi resolution covariates (taken directly from collection co-ordinates)
+  alt_cov_grab(Final, res = res, out = T)
+  
+  #===== SITE OCCUPANCY COVARIATE DATA =====
+  
+  if(bin.type == "stage" | bin.type == "scotese"){
+    # Load rasters
+    wc <- list.files(paste("Data/Covariate_Data/Lewis_Climate/Results/", bins$stage[t], "/", bins$code[t], "/", sep = ""), pattern="grd")
+    stacked <- raster::stack(paste("Data/Covariate_Data/Lewis_Climate/Results/", bins$stage[t], "/", bins$code[t], "/", wc, sep =""))
+    # Extract info
+    demord[t]
+    coll42$elev <- extract(dem42, coll42[, c("plng", "plat")])
+    
+    
+    # Save info
+  }
+}
 
-#===== PALAEO-DATA =====
+#=============================================== OLD PALAEO-DATA ====================================================
+
+#===== GETECH DATA =====
 # Data
 CampPrecip <- raster("Data/Covariate_Data/Climate_Data/Camp_Precip.asc")
 projection(CampPrecip) <- CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0")
@@ -270,3 +284,4 @@ write.csv(full_camp_covs, file.path(paste("Results/", res, "/CampanianHiResCovar
 #Camp_Covs <- aggregate(x = Camp_Covs, by = list(Camp_Covs$cells.1), FUN = "mean", na.rm = TRUE)
 #Camp_Covs$CampTemp <- Camp_Covs$CampTemp - 273.15 # Convert from Kelvin to degrees Celsius
 #write.csv(Camp_Covs, file.path(paste("Results/", res, "/CampanianCovariates.csv", sep="")))
+
