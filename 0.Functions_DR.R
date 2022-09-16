@@ -41,6 +41,7 @@ library(tibble)
 library(divDyn)
 library(rgeos)
 library(RColorBrewer)
+library(chronosphere)
 
 #=============================================== GET_EXTENT =============================================================
 
@@ -214,7 +215,7 @@ get_cov_from_stack <- function(data, res){ # data is first output from combine_d
 # Creates dataframe of covariate data associated with relevant grid cells, taken from original hi-resolution rasters. 
 # Covariate values are created from the mean value of collections within larger grid cells of chosen resolution. 
 
-alt_cov_grab <- function(data, res){
+alt_cov_grab <- function(data, res, out = T){
   wc <- list.files("Data/Covariate_Data/Formatted_For_Precise/")
   wc <- wc[-1]
   wc <- stack(paste0("Data/Covariate_Data/Formatted_For_Precise/", wc, sep = ""))
@@ -236,24 +237,40 @@ alt_cov_grab <- function(data, res){
               mean_temp = mean(temp, na.rm = TRUE),
               max_DEM = max(DEM, na.rm = TRUE),
               min_DEM = min(DEM, na.rm = TRUE),
-              relief = (max(DEM, na.rm = TRUE) - min(DEM, na.rm = TRUE)),
-              mean_plat = mean(paleolat, na.rm = TRUE))
+              relief = (max(DEM, na.rm = TRUE) - min(DEM, na.rm = TRUE)))
   hires_cov_dat <- cbind(hires_cov_dat, counting_colls$Coll_count)
-  
-  wc <- list.files(paste0("Data/Covariate_Data/Formatted_For_Precise/", res, sep = ""))
-  wc <- stack(paste0("Data/Covariate_Data/Formatted_For_Precise/", res, "/", wc, sep = ""))
-  projection(wc) <- "+proj=laea +lat_0=45 +lon_0=-100 +x_0=0 +y_0=0 +a=6370997 +b=6370997 +units=m +no_defs" 
-  xy <- SpatialPointsDataFrame(cbind.data.frame(data$lng, data$lat), data, 
-                               proj4string = CRS("+proj=laea +lat_0=45 +lon_0=-100 +x_0=0 +y_0=0 +a=6370997 +b=6370997 +units=m +no_defs"))
-  out_dat <- raster::extract(wc, xy, sp = TRUE, cellnumbers = TRUE)
-  out_dat <- as.data.frame(out_dat)
-  colnames(out_dat) <- sub("_0.*", "", colnames(out_dat))
-  out_dat <- out_dat %>%
-    dplyr::group_by(cells.1) %>%
-    dplyr::summarize(Camp_outcrop = mean(COut, na.rm = TRUE), 
-                     Maas_outcrop = mean(MOut, na.rm = TRUE))
-  hires_cov_dat <- cbind(hires_cov_dat, out_dat[,2:3])
-  hires_cov_dat <<- hires_cov_dat
+
+  if (out == T){
+    if(bin.type == "formation"){
+      stop("Formation bins unsuitable with outcrop covariates. Please set 'out' argument of alt_cov_grab() to F.")
+    }
+    wc <- list.files(paste0("Data/Covariate_Data/Formatted_For_Precise/", res, sep = ""))
+    wc <- stack(paste0("Data/Covariate_Data/Formatted_For_Precise/", res, "/", wc, sep = ""))
+    projection(wc) <- "+proj=laea +lat_0=45 +lon_0=-100 +x_0=0 +y_0=0 +a=6370997 +b=6370997 +units=m +no_defs" 
+    xy <- SpatialPointsDataFrame(cbind.data.frame(data$lng, data$lat), data, 
+                                 proj4string = CRS("+proj=laea +lat_0=45 +lon_0=-100 +x_0=0 +y_0=0 +a=6370997 +b=6370997 +units=m +no_defs"))
+    out_dat <- raster::extract(wc, xy, sp = TRUE, cellnumbers = TRUE)
+    out_dat <- as.data.frame(out_dat)
+    colnames(out_dat) <- sub("_0.*", "", colnames(out_dat))
+    if(bin.type == "stage" | bin.type == "subtage" | bin.type == "scotese"){
+      if(bins$stage[t] == "Maastrichtian"){
+        out_dat <- out_dat %>%
+          dplyr::group_by(cells.1) %>%
+          dplyr::summarize(Maastrichtian_outcrop = mean(MOut, na.rm = TRUE))
+          hires_cov_dat <- cbind(hires_cov_dat, out_dat[,2])
+      }
+      if(bins$stage[t] == "Campanian"){
+        out_dat <- out_dat %>%
+          dplyr::group_by(cells.1) %>%
+          dplyr::summarize(Campanian_outcrop = mean(COut, na.rm = TRUE))
+        hires_cov_dat <- cbind(hires_cov_dat, out_dat[,2])
+      }
+      if(bin.type == "subtage" | bin.type == "scotese"){
+        warning(paste("Outcrop covariate produced at stage level. Please bear in mind for further analysis."))
+      }
+    }
+  }
+  write.csv(hires_cov_dat, file.path(paste("Results/", bin.type, "/", bin.name, "/", res, "/site_detection_covs.csv", sep="")))
 }
 
 #=============================================== GET_GRID_IM ===========================================================
@@ -481,12 +498,14 @@ all_results_for_unmarked <- function(data, res, target, ext, name, subsamp = TRU
         test2 <- SubSamp_for_unmarked(test2, target[t], sampval = sampval)
       }
       temp_name <- paste(name, ".", res[r], ".", target[t],  sep = "")
-      dir.create(paste0("Results/", res, sep =""), showWarnings = FALSE) #stops warnings if folder already exists
+      dir.create(paste0("Results/", bin.type, "/", sep = ""), showWarnings = FALSE) #stops warnings if folder already exists
+      dir.create(paste0("Results/", bin.type, "/", bin.name, "/", sep =""), showWarnings = FALSE) #stops warnings if folder already exists
+      dir.create(paste0("Results/", bin.type, "/", bin.name, "/", res, "/", sep = ""), showWarnings = FALSE) #stops warnings if folder already exists
       if (subsamp == TRUE){
-        write.csv(test2, file.path(paste("Results/", res, "/", temp_name, "SS.", sampval, ".csv", sep="")))
+        write.csv(test2, file.path(paste("Results/", bin.type, "/", bin.name, "/", res, "/", temp_name, "SS.", sampval, ".csv", sep="")))
       }
       else{
-        write.csv(test2, file.path(paste("Results/", res, "/", temp_name, ".csv", sep="")))
+        write.csv(test2, file.path(paste("Results/", bin.type, "/", bin.name, "/", res, "/", temp_name, ".csv", sep="")))
       }
     }
     proc.time() - ptm
