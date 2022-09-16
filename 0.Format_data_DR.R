@@ -155,7 +155,16 @@ plot(CampOut)
 r1 <- raster(ext = e, res = res)
 CampOut2 <- rasterize(CampOut, r1, getCover = TRUE, progress = "window")
 plot(CampOut2)
-writeRaster(CampOut2, "Data/Covariate_Data/Formatted_For_Precise/COut_0.5.asc", pattern = "ascii", overwrite = TRUE)
+writeRaster(CampOut2, paste("Data/Covariate_Data/Formatted_For_Precise/COut_", res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
+
+CampAll <- readOGR(dsn = "Data/Covariate_Data/Outcrop/Updated_shapefiles/Campanian_All.shp")
+CampAll <- spTransform(CampAll,  CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"))
+plot(CampAll)
+r1 <- raster(ext = e, res = res)
+CampAll2 <- rasterize(CampAll, r1, getCover = TRUE, progress = "window")
+plot(CampAll2)
+writeRaster(CampAll2, paste("Data/Covariate_Data/Formatted_For_Precise/COut_all_", res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
+
 
 # Maastichtian #
 MaasMix <- readOGR(dsn = "Data/Covariate_Data/Outcrop/Updated_shapefiles/Maastrichtian_Mixed.shp")
