@@ -237,7 +237,8 @@ alt_cov_grab <- function(data, res, out = T){
               mean_temp = mean(temp, na.rm = TRUE),
               max_DEM = max(DEM, na.rm = TRUE),
               min_DEM = min(DEM, na.rm = TRUE),
-              relief = (max(DEM, na.rm = TRUE) - min(DEM, na.rm = TRUE)))
+              relief = (max(DEM, na.rm = TRUE) - min(DEM, na.rm = TRUE)),
+              max_plat = max(plat, na.rm = TRUE))
   hires_cov_dat <- cbind(hires_cov_dat, counting_colls$Coll_count)
 
   if (out == T){

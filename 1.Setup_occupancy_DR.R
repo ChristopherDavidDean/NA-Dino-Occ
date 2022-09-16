@@ -171,18 +171,19 @@ gen_raster(cells, values, res, ext = e)
 target = c("Ceratopsidae", "Tyrannosauridae", "Hadrosauridae") # set Targets
 target_maker(master.occs.binned, "family", target) # run target_maker
 
-# Palaeorotate binned and targetted data using chronosphere
-dems <- fetch(dat="paleomap", var="dem")
-demord <- matchtime(dems, master.occs.binned$bin_midpoint)
-names(demord)
-master.occs.binned.targeted$mapage <- names(demord)
-newCoords <- reconstruct(master.occs.binned.targeted[, c("lng", "lat")], age=master.occs.binned.targeted[, "mapage"], enumerate=FALSE, verbose=FALSE)
-colnames(newCoords) <- c("plng", "plat")
-master.occs.binned.targeted <- cbind(master.occs.binned.targeted,newCoords)
+# Palaeorotate binned and targetted data using chronosphere - WARNING: THIS STEP TAKES A LONG TIME!!!
+dems <- fetch(dat="paleomap", var="dem") # Fetch Scotese DEMs
+demord <- matchtime(dems, master.occs.binned$bin_midpoint) # Match up Scotese DEMs with bin midpoints.
+master.occs.binned.targeted$mapage <- names(demord) # Provide DEM names to allow for binned rotations.
+newCoords <- reconstruct(master.occs.binned.targeted[, c("lng", "lat")], 
+                         age=master.occs.binned.targeted[, "mapage"], enumerate=FALSE, 
+                         verbose=FALSE) # Palaeorotate occurrences. THIS TAKES AGES.
+colnames(newCoords) <- c("plng", "plat") # Rename co-ordinates
+master.occs.binned.targeted <- cbind(master.occs.binned.targeted,newCoords) # Attach p-coords back to dataset.
 
 #===== Get all data necessary for running occupancy models ====
 # For each time bin - 
-for(t in 1:length(bins$bin)){
+for(t in 1:length(bins$bin)){ 
   
   #===== DATA READY FOR UNMARKED =====
   # Select relevant occurrences for bin. In this instance, Campanian.
@@ -209,7 +210,6 @@ for(t in 1:length(bins$bin)){
   alt_cov_grab(Final, res = res, out = T)
   
   #===== SITE OCCUPANCY COVARIATE DATA =====
-  
   if(bin.type == "stage" | bin.type == "scotese"){
     # Load rasters
     wc <- list.files(paste("Data/Covariate_Data/Lewis_Climate/Results/", bins$stage[t], "/", bins$code[t], "/", sep = ""), pattern="grd")
@@ -218,7 +218,7 @@ for(t in 1:length(bins$bin)){
     demord[t]
     coll42$elev <- extract(dem42, coll42[, c("plng", "plat")])
     
-    
+    # NOTE - ADD PALAEOLAT COVARIATE BACK IN FROM DATA HERE
     # Save info
   }
 }
