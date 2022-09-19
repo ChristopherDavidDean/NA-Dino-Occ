@@ -171,7 +171,7 @@ gen_raster(cells, values, res, ext = e)
 target = c("Ceratopsidae", "Tyrannosauridae", "Hadrosauridae") # set Targets
 target_maker(master.occs.binned, "family", target) # run target_maker
 
-# Palaeorotate binned and targetted data using chronosphere - WARNING: This step takes about 3 minutes 30 to run currently.
+# Palaeorotate binned and targetted data using chronosphere - WARNING: This step takes about 4 minutes run currently.
 interColl <- master.occs.binned.targeted %>% # select distinct collections to speed up rotation process
   dplyr::select(collection_no, lng, lat, paleolat, paleolng, bin_assignment, bin_midpoint) %>%
   distinct()
@@ -236,6 +236,7 @@ for(t in 1:length(bins$bin)){
 }
 
 #=============================================== OLD PALAEO-DATA ====================================================
+# WARNING - THIS SECTION IS TO BE REWORKED. CURRENTLY USING SCOTESE GENERATED MODELS.
 
 #===== GETECH DATA =====
 # Data
