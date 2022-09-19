@@ -57,9 +57,16 @@ formations$Occurrences <- 0 # Add in dummy variables to ensure code works (sorry
 colnames(formations)[1] <- "formation" # Change to allow for further analysis
 
 #==== Set working resolution and extent ====
-res <- 0.1
+res <- 0.5
 #get_extent(master.occs)
 e <- extent(-155, -72, 22.5, 73)
+
+#===== Remove occurrences outside bounds =====
+master.occs <- master.occs %>%
+  filter(lat > 32) %>%
+  filter(lat < 60) %>%
+  filter(lng > -120) %>%
+  filter(lng < -90)
 
 #==== Manually setup extent for figures ====
 #maxLat <- round_any((max(occurrence_dataset$lat) + 7), 0.5)  #get value for defining extent, and increase by x for visualisation purposes
@@ -67,6 +74,8 @@ e <- extent(-155, -72, 22.5, 73)
 #maxLng <- round_any((max(occurrence_dataset$lng) + 10), 0.5)  #get value for defining extent, and increase by x for visualisation purposes
 #minLng <- round_any((min(occurrence_dataset$lng) - 10), 0.5) #get value for defining extent, and increase by x for visualisation purposes
 #e <<- extent(minLng, maxLng, minLat, maxLat)
+
+
 
 #=============================================== TIME BINNING =======================================================
 
@@ -171,7 +180,7 @@ gen_raster(cells, values, res, ext = e)
 target = c("Ceratopsidae", "Tyrannosauridae", "Hadrosauridae") # set Targets
 target_maker(master.occs.binned, "family", target) # run target_maker
 
-# Palaeorotate binned and targetted data using chronosphere - WARNING: This step takes about 4 minutes run currently.
+# Palaeorotate binned and targetted data using chronosphere - WARNING: This step takes about 2:30 minutes run currently.
 interColl <- master.occs.binned.targeted %>% # select distinct collections to speed up rotation process
   dplyr::select(collection_no, lng, lat, paleolat, paleolng, bin_assignment, bin_midpoint) %>%
   distinct()
@@ -190,7 +199,6 @@ master.occs.binned.targeted <- merge(x=master.occs.binned.targeted,y=interColl,b
 #===== Get all data necessary for running occupancy models ====
 # For each time bin - 
 for(t in 1:length(bins$bin)){ 
-  
   #===== DATA READY FOR UNMARKED =====
   # Select relevant occurrences for bin. In this instance, Campanian.
   bin.name <- bins$bin[t]
@@ -198,6 +206,7 @@ for(t in 1:length(bins$bin)){
     filter(bin_assignment == bin.name)
   
   # Create appropriate folder
+  dir.create(paste0("Results/", bin.type, "/"), showWarnings = FALSE)
   dir.create(paste0("Results/", bin.type, "/", bin.name, "/", sep =""), showWarnings = FALSE)
   dir.create(paste0("Results/", bin.type, "/", bin.name, "/", res, "/", sep =""), showWarnings = FALSE)
   
