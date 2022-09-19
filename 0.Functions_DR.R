@@ -237,8 +237,7 @@ alt_cov_grab <- function(data, res, out = T){
               mean_temp = mean(temp, na.rm = TRUE),
               max_DEM = max(DEM, na.rm = TRUE),
               min_DEM = min(DEM, na.rm = TRUE),
-              relief = (max(DEM, na.rm = TRUE) - min(DEM, na.rm = TRUE)),
-              max_plat = max(plat, na.rm = TRUE))
+              relief = (max(DEM, na.rm = TRUE) - min(DEM, na.rm = TRUE)))
   hires_cov_dat <- cbind(hires_cov_dat, counting_colls$Coll_count)
 
   if (out == T){
@@ -256,15 +255,19 @@ alt_cov_grab <- function(data, res, out = T){
     if(bin.type == "stage" | bin.type == "subtage" | bin.type == "scotese"){
       if(bins$stage[t] == "Maastrichtian"){
         out_dat <- out_dat %>%
-          dplyr::group_by(cells.1) %>%
-          dplyr::summarize(Maastrichtian_outcrop = mean(MOut, na.rm = TRUE))
-          hires_cov_dat <- cbind(hires_cov_dat, out_dat[,2])
+          dplyr::group_by(cells) %>%
+          dplyr::summarize(Maas_terr_outcrop = mean(MOut, na.rm = TRUE), 
+                           Maas_all_outcrop = mean(MOut_all, na.rm = TRUE), 
+                           Cret_outcrop = mean(Out_all, na.rm = TRUE))
+        hires_cov_dat <- cbind(hires_cov_dat, out_dat[,2:4])
       }
       if(bins$stage[t] == "Campanian"){
         out_dat <- out_dat %>%
-          dplyr::group_by(cells.1) %>%
-          dplyr::summarize(Campanian_outcrop = mean(COut, na.rm = TRUE))
-        hires_cov_dat <- cbind(hires_cov_dat, out_dat[,2])
+          dplyr::group_by(cells) %>%
+          dplyr::summarize(Camp_terr_outcrop = mean(COut, na.rm = TRUE), 
+                           Camp_all_outcrop = mean(COut_all, na.rm = TRUE), 
+                           Cret_outcrop = mean(Out_all, na.rm = TRUE))
+        hires_cov_dat <- cbind(hires_cov_dat, out_dat[,2:4])
       }
       if(bin.type == "subtage" | bin.type == "scotese"){
         warning(paste("Outcrop covariate produced at stage level. Please bear in mind for further analysis."))
