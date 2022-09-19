@@ -1,0 +1,26 @@
+[general]
+creator=R package 'raster'
+created=2022-09-16 13:55:40
+[georeference]
+nrows=900
+ncols=3600
+xmin=-180
+ymin=0
+xmax=180
+ymax=90
+projection=+proj=longlat +datum=WGS84 +no_defs
+[data]
+datatype=FLT4S
+byteorder=little
+nbands=1
+bandorder=BIL
+categorical=FALSE
+minvalue=10.3799072265625
+maxvalue=49.1573387288412
+nodatavalue=-3.4e+38
+[legend]
+legendtype=
+values=
+color=
+[description]
+layername=max_temp

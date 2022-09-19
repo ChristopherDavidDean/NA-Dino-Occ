@@ -1,0 +1,26 @@
+[general]
+creator=R package 'raster'
+created=2022-09-16 13:55:40
+[georeference]
+nrows=900
+ncols=3600
+xmin=-180
+ymin=0
+xmax=180
+ymax=90
+projection=+proj=longlat +datum=WGS84 +no_defs
+[data]
+datatype=FLT4S
+byteorder=little
+nbands=1
+bandorder=BIL
+categorical=FALSE
+minvalue=5.64176449557863e-05
+maxvalue=4.51211342588067
+nodatavalue=-3.4e+38
+[legend]
+legendtype=
+values=
+color=
+[description]
+layername=min_precip

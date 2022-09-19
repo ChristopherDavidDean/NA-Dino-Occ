@@ -2,7 +2,7 @@
 #============================================== OCCUPANCY OF LATE CRETACEOUS NORTH AMERICAN DINOSAURS ==========================================
 #===============================================================================================================================================
 
-# Christopher D. Dean, Lewis A. Jones, Alfio A. Chiarenza, Alex Farnsworth, María V. Jiménez‐Franco, Richard J. Butler.
+# Christopher D. Dean, Lewis A. Jones, Alfio A. Chiarenza, Sinéad Lyster, Alex Farnsworth, Philip D. Mannion, Richard J. Butler.
 # 2019
 # Script written by Christopher D. Dean and Lewis A. Jones
 
@@ -171,15 +171,21 @@ gen_raster(cells, values, res, ext = e)
 target = c("Ceratopsidae", "Tyrannosauridae", "Hadrosauridae") # set Targets
 target_maker(master.occs.binned, "family", target) # run target_maker
 
-# Palaeorotate binned and targetted data using chronosphere - WARNING: THIS STEP TAKES A LONG TIME!!!
+# Palaeorotate binned and targetted data using chronosphere - WARNING: This step takes about 3 minutes 30 to run currently.
+interColl <- master.occs.binned.targeted %>% # select distinct collections to speed up rotation process
+  dplyr::select(collection_no, lng, lat, paleolat, paleolng, bin_assignment, bin_midpoint) %>%
+  distinct()
 dems <- fetch(dat="paleomap", var="dem") # Fetch Scotese DEMs
-demord <- matchtime(dems, master.occs.binned$bin_midpoint) # Match up Scotese DEMs with bin midpoints.
-master.occs.binned.targeted$mapage <- names(demord) # Provide DEM names to allow for binned rotations.
-newCoords <- reconstruct(master.occs.binned.targeted[, c("lng", "lat")], 
-                         age=master.occs.binned.targeted[, "mapage"], enumerate=FALSE, 
-                         verbose=FALSE) # Palaeorotate occurrences. THIS TAKES AGES.
+demord <- matchtime(dems, interColl$bin_midpoint) # Match up Scotese DEMs with bin midpoints.
+interColl$mapage <- names(demord) # Provide DEM names to allow for binned rotations.
+newCoords <- reconstruct(interColl[, c("lng", "lat")], 
+                         age=interColl[, "mapage"], enumerate=FALSE, 
+                         verbose=FALSE) # Palaeorotate collections. 
 colnames(newCoords) <- c("plng", "plat") # Rename co-ordinates
-master.occs.binned.targeted <- cbind(master.occs.binned.targeted,newCoords) # Attach p-coords back to dataset.
+interColl <- cbind(interColl,newCoords) # Attach p-coords back to collections dataset.
+interColl <- interColl %>% # Select just relevant things for merging datasets
+  dplyr::select(collection_no, plng, plat)
+master.occs.binned.targeted <- merge(x=master.occs.binned.targeted,y=interColl,by="collection_no",all.x=TRUE) # Merge new co-ordinates with full dataset. 
 
 #===== Get all data necessary for running occupancy models ====
 # For each time bin - 
@@ -214,12 +220,18 @@ for(t in 1:length(bins$bin)){
     # Load rasters
     wc <- list.files(paste("Data/Covariate_Data/Lewis_Climate/Results/", bins$stage[t], "/", bins$code[t], "/", sep = ""), pattern="grd")
     stacked <- raster::stack(paste("Data/Covariate_Data/Lewis_Climate/Results/", bins$stage[t], "/", bins$code[t], "/", wc, sep =""))
-    # Extract info
-    demord[t]
-    coll42$elev <- extract(dem42, coll42[, c("plng", "plat")])
-    
-    # NOTE - ADD PALAEOLAT COVARIATE BACK IN FROM DATA HERE
-    # Save info
+    # Extract palaeoclimate data
+    bin.dem <- matchtime(dems, unique(Final$bin_midpoint))# Match up correct pgeog
+    extracted <- cbind(Final, extract(stacked, Final[, c("plng", "plat")]), extract(bin.dem, Final[, c("plng", "plat")]))
+    pvals <- extracted %>%
+      dplyr::group_by(cells) %>%
+      dplyr::summarize(mean_max_ptemp = mean(max_temp, na.rm = TRUE), 
+                       mean_min_ptemp = mean(min_temp, na.rm = TRUE),
+                       mean_max_pprec = mean(max_precip, na.rm = TRUE),
+                       mean_min_pprec = mean(min_precip, na.rm = TRUE), 
+                       mean_PDEM = mean(`extract(bin.dem, Final[, c("plng", "plat")])`, na.rm = TRUE), 
+                       plat = mean(plat, na.rm = TRUE))
+    write.csv(pvals, file.path(paste("Results/", bin.type, "/", bin.name, "/", res, "/", "site_occupancy_covs.csv", sep = "")))
   }
 }
 
