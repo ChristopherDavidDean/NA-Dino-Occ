@@ -217,7 +217,7 @@ get_cov_from_stack <- function(data, res){ # data is first output from combine_d
 
 alt_cov_grab <- function(data, res, out = T){
   wc <- list.files("Data/Covariate_Data/Formatted_For_Precise/")
-  wc <- wc[-1]
+  wc <- wc[!grepl('0.*', wc)] # Remove folders based on resolution
   wc <- stack(paste0("Data/Covariate_Data/Formatted_For_Precise/", wc, sep = ""))
   projection(wc) <- "+proj=laea +lat_0=45 +lon_0=-100 +x_0=0 +y_0=0 +a=6370997 +b=6370997 +units=m +no_defs" 
   xy <- SpatialPointsDataFrame(cbind.data.frame(data$lng, data$lat), data, 
@@ -274,6 +274,7 @@ alt_cov_grab <- function(data, res, out = T){
       }
     }
   }
+  hires_cov_dat <<- hires_cov_dat
   write.csv(hires_cov_dat, file.path(paste("Results/", bin.type, "/", bin.name, "/", res, "/site_detection_covs.csv", sep="")))
 }
 

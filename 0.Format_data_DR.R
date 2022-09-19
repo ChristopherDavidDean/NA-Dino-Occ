@@ -9,7 +9,6 @@
 
 library(raster)
 library(ncdf4)
-library(ncdf.tools)
 library(rgdal)
 library(dplyr)
 library(beepr)
@@ -175,7 +174,7 @@ plot(MaasOut)
 r1 <- raster(ext = e, res = res)
 MaasOut2 <- rasterize(MaasOut, r1, getCover = TRUE)
 plot(MaasOut2)
-writeRaster(MaasOut2, "Data/Covariate_Data/Formatted_For_Precise/MOut.asc", pattern = "ascii", overwrite = TRUE)
+writeRaster(MaasOut2, paste("Data/Covariate_Data/Formatted_For_Precise/MOut_", res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
 
 MaasAll <- readOGR(dsn = "Data/Covariate_Data/Outcrop/Updated_shapefiles/Maastrichtian_All.shp")
 MaasAll <- spTransform(MaasAll,  CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"))
@@ -185,6 +184,7 @@ MaasAll2 <- rasterize(MaasAll, r1, getCover = TRUE, progress = "window")
 plot(MaasAll2)
 writeRaster(MaasAll2, paste("Data/Covariate_Data/Formatted_For_Precise/MOut_all_", res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
 
+# All outcrop
 MaasAll <- readOGR(dsn = "Data/Covariate_Data/Outcrop/Updated_shapefiles/Maastrichtian_All.shp")
 CampAll <- readOGR(dsn = "Data/Covariate_Data/Outcrop/Updated_shapefiles/Campanian_All.shp")
 CretAll <- rbind(CampAll, MaasAll)
@@ -193,9 +193,6 @@ r1 <- raster(ext = e, res = res)
 CretAll2 <- rasterize(CretAll, r1, getCover = TRUE, progress = "window")
 plot(CretAll2)
 writeRaster(CretAll2, paste("Data/Covariate_Data/Formatted_For_Precise/Out_all_", res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
-
-
-
 
 #========================================= PALAEO DATA ================================================================
 
