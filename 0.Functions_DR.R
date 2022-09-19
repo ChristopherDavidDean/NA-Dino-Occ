@@ -450,8 +450,11 @@ prepare_for_unmarked <- function(data, target, single = TRUE){ # data is output 
 SubSamp_for_unmarked <- function(data, target, sampval = 10, trials = 100){ # Data is output from prepare_for_unmarked. Outputs same data, but subsampled to sampval site visits. sampval by default set to 10
   new_dframe_for_unmarked <- data.frame()
   for (n in 1:nrow(data)){ # for each row in unmarked ready data
-    if(rowSums(is.na(data[n,])) > (NCOL(data)-(sampval+1))){ # If number of collections in a site is less than set subsample value (sampval)
-      new_dframe_for_unmarked <- rbind(new_dframe_for_unmarked, data[n,]) # Ignore, and add all obs to new dataframe
+     if(rowSums(is.na(data[n,])) > (NCOL(data)-(sampval+1))){ # If number of collections in a site is less than set subsample value (sampval)
+       namecols <- colnames(new_dframe_for_unmarked)
+       tempdat <- data[n,1:sampval]
+       colnames(tempdat) <- namecols
+       new_dframe_for_unmarked <- rbind(new_dframe_for_unmarked, tempdat) # Ignore, and add all obs to new dataframe
     }
     else{ # otherwise (total collections (observations) is greater than chosen subsampled value (sampval)):
       temp_dframe <- data.frame(1:sampval) # Make temporary dataframe
@@ -468,6 +471,7 @@ SubSamp_for_unmarked <- function(data, target, sampval = 10, trials = 100){ # Da
     }
   }
   new_dframe_for_unmarked <- new_dframe_for_unmarked[,1:sampval]
+  colnames(new_dframe_for_unmarked) <-  c(sprintf("y.%d", seq(1,sampval)))
   
   # Comparison between subsampled and original datasets
   ori_data <- rowSums(data, na.rm = T)
@@ -492,17 +496,17 @@ all_results_for_unmarked <- function(data, res, target, ext, name, subsamp = TRU
   for (r in 1:length(res)){
     ptm <- proc.time()
     test1 <- get_grid(data, res[r], ext)
-    for (t in 1:length(target)){
+    for (q in 1:length(target)){
       if(single == FALSE){
-        test2 <- prepare_for_unmarked(test1, target[t], single = FALSE)
+        test2 <- prepare_for_unmarked(test1, target[q], single = FALSE)
       }
       else {
-        test2 <- prepare_for_unmarked(test1, target[t])
+        test2 <- prepare_for_unmarked(test1, target[q])
       }
       if (subsamp==TRUE){
-        test2 <- SubSamp_for_unmarked(test2, target[t], sampval = sampval)
+        test2 <- SubSamp_for_unmarked(test2, target[q], sampval = sampval)
       }
-      temp_name <- paste(name, ".", res[r], ".", target[t],  sep = "")
+      temp_name <- paste(name, ".", res[r], ".", target[q],  sep = "")
       dir.create(paste0("Results/", bin.type, "/", sep = ""), showWarnings = FALSE) #stops warnings if folder already exists
       dir.create(paste0("Results/", bin.type, "/", bin.name, "/", sep =""), showWarnings = FALSE) #stops warnings if folder already exists
       dir.create(paste0("Results/", bin.type, "/", bin.name, "/", res, "/", sep = ""), showWarnings = FALSE) #stops warnings if folder already exists

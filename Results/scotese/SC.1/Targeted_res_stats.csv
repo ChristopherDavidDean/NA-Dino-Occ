@@ -1,0 +1,10 @@
+"","No.Cells","Occupied.cells","Naive.occ","Total.Colls","Mean.Colls","Min.Colls","Max.Colls","Median.Colls","No.Singleton.Cells.Removed.","No.Singleton.Targeted.Cells.Removed"
+"Ceratopsidae.0.1",108,78,72.2222222222222,567,5.25,2,36,3,139,42
+"Ceratopsidae.0.5",55,44,80,654,11.8909090909091,2,78,3,51,12
+"Ceratopsidae.1",44,32,72.7272727272727,682,15.5,2,113,5,22,4
+"Tyrannosauridae.0.1",108,49,45.3703703703704,567,5.25,2,36,3,139,23
+"Tyrannosauridae.0.5",55,30,54.5454545454545,654,11.8909090909091,2,78,3,51,9
+"Tyrannosauridae.1",44,24,54.5454545454545,682,15.5,2,113,5,22,3
+"Hadrosauridae.0.1",108,62,57.4074074074074,567,5.25,2,36,3,139,45
+"Hadrosauridae.0.5",55,43,78.1818181818182,654,11.8909090909091,2,78,3,51,12
+"Hadrosauridae.1",44,35,79.5454545454545,682,15.5,2,113,5,22,4
