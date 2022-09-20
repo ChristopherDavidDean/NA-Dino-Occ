@@ -27,7 +27,6 @@ target <- "Ceratopsidae"
 # Load occupancy data
 data <- read.csv(paste("Results/", bin.type, "/", bin, "/", res, "/", bin, ".", 
                        res, ".", target, "SS.5.csv", sep = "")) 
-
 # Load site occupancy covariates
 site.occ <- read.csv(paste("Results/", bin.type, "/", bin, "/", res, "/", 
                            "site_occupancy_covs.csv", sep = ""))
@@ -118,6 +117,7 @@ umf@siteCovs$Plat <- scale(umf@siteCovs$Plat)
 #PDEM <- (PDEM.orig - means[11]) / sds[11]
 
 
+
 #============================ OCCUPANCY MODELLING ==============================
 
 #===== Simple quick test =====
@@ -130,6 +130,11 @@ summary(fm1 <- occu(~1 ~1, data=umf))
 # Get estimates for occupancy and detection from basic model
 print(occ.null <- backTransform(fm1, "state")) 
 print(det.null <- backTransform(fm1, "det")) 
+
+# Compile results
+null.res <- rbind(Null.occ.prob = c(Estimate = mean(occ.null@estimate), confint(occ.null, level = 0.9)),
+      Null.det.prob = c(Estimate = mean(det.null@estimate), confint(det.null, level = 0.9)))
+colnames(null.res) <- c("Estimate", "5%", "95%")
 
 #===== Test and Auto Select =====
 # Fit full model
@@ -148,21 +153,49 @@ print(occ_gof)
 occu_dredge_95 <- get.models(modelList, subset = cumsum(weight) <= 0.95)
 oc_avg <- model.avg(occu_dredge_95, fit = TRUE)
 
+# Report best model and top 5 models
+best.model <- occu_dredge_95[[1]]
+top.5 <- occu_dredge_95[1:5]
+
+# Run MacKenzie and Bailey Goodnes-of-fit test (WARNING: MIGHT TAKE A WHILE)
+system.time(occ_gof <- mb.gof.test(best.model, nsim = 500, plot.hist = FALSE))
+occ_gof$p.value
+
 # Examine the effect of covariates from averaged model
-coef(oc_avg)
-coef(oc_avg) %>% 
+coef(oc_avg)  
+temp.model.res <- coef(oc_avg) %>% 
   enframe() 
 
-#===== Proportion of Area Occupied =====
-re <- ranef(occu_dredge_95[[1]])
+#===== Model Stats =====
+# Proportion of area occupied
+re <- ranef(best.model)
 EBUP <- bup(re, stat="mean")
 CI <- confint(re, level=0.9)
-rbind(PAO = c(Estimate = sum(EBUP), colSums(CI)) / nrow(y))
+PAO <- rbind(PAO = c(Estimate = sum(EBUP), colSums(CI)) / nrow(y))
 
-#===== Estimate of Detection Prob. per site =====
-det.prob <- predict(occu_dredge_95[[1]], type="det")
+# Estimate of Detection Prob. per site
+det.prob <- predict(best.model, type="det")
 det.prob <- det.prob[seq(1, nrow(det.prob), (ncol(data)-1)), ]
-det.prob <- c(mean(det.prob$Predicted), sd(det.prob$Predicted))
+det.prob <- rbind(Det.prob = c(Estimate = mean(det.prob$Predicted), SD = sd(det.prob$Predicted)))
+
+# Combine results
+comb <- merge(det.prob, PAO, all = T)
+comb <- comb[order(comb$'5%'),]
+rownames(comb) <- c("PAO", "Det.prob")
+
+#================================ SAVING RESULTS ===============================
+
+# Make results directory
+dir.create(paste0("Results/", bin.type, "/", bin, "/", res, "/", "Model_results/", sep =""), showWarnings = FALSE)
+
+# Null results and model stats
+combined.res <- merge(null.res, comb, all = T, sort = F)
+combined.res$Bin <- bin
+rownames(combined.res) <- c("null.occ.prob", "null.det.prob", "PAO", "mean.det.prob")
+write.csv(combined.res, paste0("Results/", bin.type, "/", bin, "/", res, "/", "Model_results/", target, ".combined.res.csv", sep =""))
+
+# Average model table
+write.csv(temp.model.res, paste0("Results/", bin.type, "/", bin, "/", res, "/", "Model_results/", target, ".model.res.csv", sep =""))
 
 #===== Old manual model selection =====
 #### DETECTION ###
