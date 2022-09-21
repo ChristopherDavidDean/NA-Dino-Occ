@@ -448,15 +448,12 @@ prepare_for_unmarked <- function(data, target, single = TRUE){ # data is output 
 # Takes data prepared for unmarked, and standardizes it down to a total of five site visits (collections) for each gridsquare through subsampling.  
 
 SubSamp_for_unmarked <- function(data, target, sampval = 10, trials = 100){ # Data is output from prepare_for_unmarked. Outputs same data, but subsampled to sampval site visits. sampval by default set to 10
-  if(ncol(data) < sampval){
-    temp_name <- paste("SS_unmarked_", target, sep = "")
-    assign(temp_name, data, envir = .GlobalEnv)
-    return(warning(paste("Sub-sample value higher than max number of collections per site. Returned original data.")))
-  }
   new_dframe_for_unmarked <- data.frame()
+  if(sampval > ncol(data)){
+    stop(paste("Sampling value (", sampval, ") is larger than maximum number of collections per grid cell (", ncol(data),"). Please choose a lower sampling value.", sep = ""))
+  }
   for (n in 1:nrow(data)){ # for each row in unmarked ready data
      if(rowSums(is.na(data[n,])) > (NCOL(data)-(sampval+1))){ # If number of collections in a site is less than set subsample value (sampval)
-
        namecols <- colnames(new_dframe_for_unmarked)
        tempdat <- data[n,1:sampval]
        colnames(tempdat) <- namecols
@@ -511,7 +508,11 @@ all_results_for_unmarked <- function(data, res, target, ext, name, subsamp = TRU
         test2 <- prepare_for_unmarked(test1, target[q])
       }
       if (subsamp==TRUE){
-        test2 <- SubSamp_for_unmarked(test2, target[q], sampval = sampval)
+        if (ncol(test2) >= sampval){
+          test2 <- SubSamp_for_unmarked(test2, target[q], sampval = sampval)
+        } else{
+          warning("Subsampling skipped due to maximum number of collections per site lower than sampling value.")
+        }
       }
       temp_name <- paste(name, ".", res[r], ".", target[q],  sep = "")
       dir.create(paste0("Results/", bin.type, "/", sep = ""), showWarnings = FALSE) #stops warnings if folder already exists
