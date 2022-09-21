@@ -57,9 +57,12 @@ formations$Occurrences <- 0 # Add in dummy variables to ensure code works (sorry
 colnames(formations)[1] <- "formation" # Change to allow for further analysis
 
 #==== Set working resolution and extent ====
-res <- 0.5
+res <- 0.1
 #get_extent(master.occs)
 e <- extent(-155, -72, 22.5, 73)
+
+#==== Set sampling value for subsampling =====
+sampval <- 10
 
 #===== Remove occurrences outside bounds =====
 master.occs <- master.occs %>%
@@ -74,8 +77,6 @@ master.occs <- master.occs %>%
 #maxLng <- round_any((max(occurrence_dataset$lng) + 10), 0.5)  #get value for defining extent, and increase by x for visualisation purposes
 #minLng <- round_any((min(occurrence_dataset$lng) - 10), 0.5) #get value for defining extent, and increase by x for visualisation purposes
 #e <<- extent(minLng, maxLng, minLat, maxLat)
-
-
 
 #=============================================== TIME BINNING =======================================================
 
@@ -199,6 +200,7 @@ master.occs.binned.targeted <- merge(x=master.occs.binned.targeted,y=interColl,b
 #===== Get all data necessary for running occupancy models ====
 # For each time bin - 
 for(t in 1:length(bins$bin)){ 
+  
   #===== DATA READY FOR UNMARKED =====
   # Select relevant occurrences for bin. In this instance, Campanian.
   bin.name <- bins$bin[t]
@@ -217,7 +219,7 @@ for(t in 1:length(bins$bin)){
   write.csv(Res_results, file.path(paste("Results/", bin.type, "/", bin.name, "/Targeted_res_stats.csv", sep="")))
   
   # Prepare data for unmarked
-  all_results_for_unmarked(data = bin.occs, name = bin.name, res = res, ext = e, target = target, subsamp = TRUE, sampval = 5, single = FALSE)
+  all_results_for_unmarked(data = bin.occs, name = bin.name, res = res, ext = e, target = target, subsamp = TRUE, sampval = sampval, single = FALSE)
   write.csv(Final, file.path(paste("Results/", bin.type, "/", bin.name, "/", res, "/", bin.name, "_dataset.csv", sep = "")))
   
   #===== SITE DETECTION COVARIATE DATA =====
