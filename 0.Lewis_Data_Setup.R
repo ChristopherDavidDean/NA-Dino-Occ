@@ -136,7 +136,7 @@ writeRaster(
 msk <- raster("Data/Covariate_Data/Lewis_Climate/Campanian/teyep/teyep.qrparm.mask.nc", 
               varname = "lsm")
 # Get file names
-files <- list.files("./data/raw-data/climate/Campanian/teyep/",
+files <- list.files("Data/Covariate_Data/Lewis_Climate/Campanian/teyep/",
                     full.names = TRUE)
 # Extract only monthly variables
 files <- files[sapply(months, function(x){str_which(files, x)})]
@@ -187,7 +187,7 @@ writeRaster(
 msk <- raster("Data/Covariate_Data/Lewis_Climate/Campanian/teyeq/teyeq.qrparm.mask.nc", 
               varname = "lsm")
 # Get file names
-files <- list.files("./data/raw-data/climate/Campanian/teyeq/",
+files <- list.files("Data/Covariate_Data/Lewis_Climate/Campanian/teyeq/",
                     full.names = TRUE)
 # Extract only monthly variables
 files <- files[sapply(months, function(x){str_which(files, x)})]
