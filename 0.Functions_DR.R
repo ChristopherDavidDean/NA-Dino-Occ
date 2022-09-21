@@ -448,9 +448,15 @@ prepare_for_unmarked <- function(data, target, single = TRUE){ # data is output 
 # Takes data prepared for unmarked, and standardizes it down to a total of five site visits (collections) for each gridsquare through subsampling.  
 
 SubSamp_for_unmarked <- function(data, target, sampval = 10, trials = 100){ # Data is output from prepare_for_unmarked. Outputs same data, but subsampled to sampval site visits. sampval by default set to 10
+  if(ncol(data) < sampval){
+    temp_name <- paste("SS_unmarked_", target, sep = "")
+    assign(temp_name, data, envir = .GlobalEnv)
+    return(warning(paste("Sub-sample value higher than max number of collections per site. Returned original data.")))
+  }
   new_dframe_for_unmarked <- data.frame()
   for (n in 1:nrow(data)){ # for each row in unmarked ready data
      if(rowSums(is.na(data[n,])) > (NCOL(data)-(sampval+1))){ # If number of collections in a site is less than set subsample value (sampval)
+
        namecols <- colnames(new_dframe_for_unmarked)
        tempdat <- data[n,1:sampval]
        colnames(tempdat) <- namecols
@@ -483,6 +489,7 @@ SubSamp_for_unmarked <- function(data, target, sampval = 10, trials = 100){ # Da
         round((sum(comp$comp)/nrow(comp))*100, digits = 2), "%. Information about lost sites can be found in 'comp'.", sep = ""))
   comp_num <<- sum(comp$comp)
   comp <<- comp
+  
   # Assign name
   temp_name <- paste("SS_unmarked_", target, sep = "")
   assign(temp_name, new_dframe_for_unmarked, envir = .GlobalEnv)
