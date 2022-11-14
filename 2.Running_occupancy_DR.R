@@ -1,32 +1,41 @@
-#===============================================================================================================================================
-#============================================== OCCUPANCY OF LATE CRETACEOUS NORTH AMERICAN DINOSAURS ==========================================
-#===============================================================================================================================================
+#==============================================================================#
+#============= OCCUPANCY OF LATE CRETACEOUS NORTH AMERICAN DINOSAURS ==========#
+#==============================================================================#
 
-# Christopher D. Dean, Lewis A. Jones, Alfio A. Chiarenza, Sinéad Lyster, Alex Farnsworth, Philip D. Mannion, Richard J. Butler.
+# Christopher D. Dean, Lewis A. Jones, Alfio A. Chiarenza, Sinéad Lyster, 
+# Alex Farnsworth, Philip D. Mannion, Richard J. Butler.
 # 2019
 # Script written by Christopher D. Dean and Lewis A. Jones
 
-#============================================== FILE 2: RUNNING OCCUPANCY MODELLING WITH UNMARKED ==============================================
+#==============================================================================#
+#================ FILE 2: RUNNING OCCUPANCY MODELS IN UNMARKED ================#
+#==============================================================================#
 
-#============================================== INITIAL SETUP ===============================================
+#============================ INITIAL SETUP ====================================
+
+# Set working directory
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path)) # Set your working directory
 
 #===== Load Packages =====
 library(unmarked)
 library(MuMIn)
 library(dplyr)
 library(AICcmodavg)
+library(tibble)
 
 #===== Load Data =====
 
 # Quick filters for loading data
 bin.type <- "stage"
-res <- 0.1
+res <- 0.5
 bin <- "S.1"
+stage <- "Maas" # Remember to change this along with bin
 target <- "Ceratopsidae"
+ss <- 5
 
 # Load occupancy data
 data <- read.csv(paste("Results/", bin.type, "/", bin, "/", res, "/", bin, ".", 
-                       res, ".", target, "SS.5.csv", sep = "")) 
+                       res, ".", target, "SS.", ss ,".csv", sep = "")) 
 # Load site occupancy covariates
 site.occ <- read.csv(paste("Results/", bin.type, "/", bin, "/", res, "/", 
                            "site_occupancy_covs.csv", sep = ""))
@@ -38,10 +47,13 @@ site.covs <- cbind(site.occ[,2:ncol(site.occ)], site.det[,3:ncol(site.det)])
 
 # Check covariates for missing data and remove cells from both datasets (not needed)
 nrow(as.data.frame(unique(which(is.na(site.covs), arr.ind=TRUE))))
-#frame <- as.data.frame(unique(which(is.na(site.covs), arr.ind=TRUE)))
-#frame <- unique(na.omit(frame$row))
-#site.covs <- site.covs[!(row.names(site.covs) %in% frame),]
-#data <- data[!(row.names(data) %in% frame),]
+frame <- as.data.frame(unique(which(is.na(site.covs), arr.ind=TRUE)))
+frame <- unique(na.omit(frame$row))
+site.covs <- site.covs[!(row.names(site.covs) %in% frame),]
+data <- data[!(row.names(data) %in% frame),]
+
+# Standard error function
+standard_error <- function(x) sd(x) / sqrt(length(x))
 
 #===== Setup data for modelling =====
 # Turn into matrix
@@ -53,7 +65,7 @@ RAIN.orig <- site.covs[,"mean_prec"]
 TEMP.orig <- site.covs[,"mean_temp"]
 MGVF.orig <- site.covs[,"mean_MGVF"]
 RELI.orig <- site.covs[,"relief"]
-OUTs.orig <- site.covs[,"Maas_all_outcrop"]
+OUTs.orig <- site.covs[,paste(stage,"_all_outcrop", sep = "")]
 OUTa.orig <- site.covs[,"Cret_outcrop"]
 COLL.orig <- site.covs[,"counting_colls.Coll_count"]
 
@@ -64,14 +76,14 @@ Ppre.orig <- site.covs[,"mean_max_pprec"]
 PDEM.orig <- site.covs[,"mean_PDEM"]
 
 #==== Overview of Covariates =====
-covs <- cbind(DEMs.orig, RAIN.orig, TEMP.orig, MGVF.orig, RELI.orig, OUTs.orig, 
-              OUTa.orig, Plat.orig, Ptem.orig, Ppre.orig, PDEM.orig)
-par(mfrow = c(1,1))
-for(i in 1:ncol(covs)){
-  hist(covs[,i], breaks = 50, col = "grey", main = colnames(covs)[i])
-}
-pairs(cbind(DEMs.orig, RAIN.orig, TEMP.orig, MGVF.orig, RELI.orig, OUTs.orig, 
-            OUTa.orig, Plat.orig, Ptem.orig, Ppre.orig, PDEM.orig))
+#covs <- cbind(DEMs.orig, RAIN.orig, TEMP.orig, MGVF.orig, RELI.orig, OUTs.orig, 
+#              OUTa.orig, Plat.orig, Ptem.orig, Ppre.orig, PDEM.orig)
+#par(mfrow = c(1,1))
+#for(i in 1:ncol(covs)){
+#  hist(covs[,i], breaks = 50, col = "grey", main = colnames(covs)[i])
+#}
+#pairs(cbind(DEMs.orig, RAIN.orig, TEMP.orig, MGVF.orig, RELI.orig, OUTs.orig, 
+#            OUTa.orig, Plat.orig, Ptem.orig, Ppre.orig, PDEM.orig))
 
 #===== Scaling and Mode Setup =====
 siteCovs <- data.frame(DEMs = DEMs.orig, OUTs = OUTs.orig,
@@ -116,8 +128,6 @@ umf@siteCovs$Plat <- scale(umf@siteCovs$Plat)
 #Ppre <- (Ppre.orig - means[10]) / sds[10]
 #PDEM <- (PDEM.orig - means[11]) / sds[11]
 
-
-
 #============================ OCCUPANCY MODELLING ==============================
 
 #===== Simple quick test =====
@@ -142,10 +152,6 @@ full <- occu(formula =  ~ OUTa +  MGVF + TEMP + RELI + RAIN + COLL
                         ~ Ppre + Ptem + Plat + PDEM,
              data = umf)
 
-# Run MacKenzie and Bailey Goodnes-of-fit test (WARNING: MIGHT TAKE A WHILE)
-system.time(occ_gof <- mb.gof.test(full, nsim = 1000, plot.hist = FALSE))
-print(occ_gof)
-
 # Use dredge to automatically carry out model selection
 (modelList <- dredge(full, rank = "AIC")) 
 
@@ -156,27 +162,33 @@ oc_avg <- model.avg(occu_dredge_95, fit = TRUE)
 # Report best model and top 5 models
 best.model <- occu_dredge_95[[1]]
 top.5 <- occu_dredge_95[1:5]
+best.model
 
 # Run MacKenzie and Bailey Goodnes-of-fit test (WARNING: MIGHT TAKE A WHILE)
-system.time(occ_gof <- mb.gof.test(best.model, nsim = 500, plot.hist = FALSE))
-occ_gof$p.value
+#system.time(occ_gof <- mb.gof.test(best.model, nsim = 500, plot.hist = FALSE))
+#occ_gof$p.value
 
 # Examine the effect of covariates from averaged model
-coef(oc_avg)  
-temp.model.res <- coef(oc_avg) %>% 
-  enframe() 
+(temp.model.res <- coef(oc_avg) %>% 
+  enframe())
 
 #===== Model Stats =====
 # Proportion of area occupied
 re <- ranef(best.model)
 EBUP <- bup(re, stat="mean")
 CI <- confint(re, level=0.9)
-PAO <- rbind(PAO = c(Estimate = sum(EBUP), colSums(CI)) / nrow(y))
+SE <- standard_error(re@post)
+(PAO <- rbind(PAO = c(Estimate = sum(EBUP), colSums(CI)) / nrow(y)))
 
 # Estimate of Detection Prob. per site
-det.prob <- predict(best.model, type="det")
-det.prob <- det.prob[seq(1, nrow(det.prob), (ncol(data)-1)), ]
-det.prob <- rbind(Det.prob = c(Estimate = mean(det.prob$Predicted), SD = sd(det.prob$Predicted)))
+det.prob <- predict(best.model, type="det") # Predict detection for sites/vists
+det.prob <- det.prob[seq(1, nrow(det.prob), (ncol(data)-1)), ] # Remove duplicate vists to only get prediction per site
+(det.prob <- rbind(Det.prob = c(Estimate = mean(det.prob$Predicted), SE = mean(det.prob$SE))))
+
+# Estimate of Detection Prob. per site
+occ.prob <- predict(best.model, type="state") # Predict detection for sites/vists
+occ.prob <- occ.prob[seq(1, nrow(occ.prob), (ncol(data)-1)), ] # Remove duplicate vists to only get prediction per site
+(occ.prob <- rbind(occ.prob = c(Estimate = mean(occ.prob$Predicted), SE = mean(occ.prob$SE))))
 
 # Combine results
 comb <- merge(det.prob, PAO, all = T)
@@ -192,10 +204,10 @@ dir.create(paste0("Results/", bin.type, "/", bin, "/", res, "/", "Model_results/
 combined.res <- merge(null.res, comb, all = T, sort = F)
 combined.res$Bin <- bin
 rownames(combined.res) <- c("null.occ.prob", "null.det.prob", "PAO", "mean.det.prob")
-write.csv(combined.res, paste0("Results/", bin.type, "/", bin, "/", res, "/", "Model_results/", target, ".combined.res.csv", sep =""))
+write.csv(combined.res, paste0("Results/", bin.type, "/", bin, "/", res, "/", "Model_results/", target, ".combined.results.SS", ss, ".csv", sep =""))
 
 # Average model table
-write.csv(temp.model.res, paste0("Results/", bin.type, "/", bin, "/", res, "/", "Model_results/", target, ".model.res.csv", sep =""))
+write.csv(temp.model.res, paste0("Results/", bin.type, "/", bin, "/", res, "/", "Model_results/", target, ".model.results.SS", ss ,".csv", sep =""))
 
 #===== Old manual model selection =====
 #### DETECTION ###
