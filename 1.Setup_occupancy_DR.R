@@ -1,25 +1,25 @@
-#==============================================================================#
-#============= OCCUPANCY OF LATE CRETACEOUS NORTH AMERICAN DINOSAURS ==========#
-#==============================================================================#
+################################################################################
+############# OCCUPANCY OF LATE CRETACEOUS NORTH AMERICAN DINOSAURS ############
+################################################################################
 
 # Christopher D. Dean, Lewis A. Jones, Alfio A. Chiarenza, Sinéad Lyster, 
 # Alex Farnsworth, Philip D. Mannion, Richard J. Butler.
 # 2019
 # Script written by Christopher D. Dean and Lewis A. Jones
 
-#==============================================================================#
+################################################################################
 #============== FILE 1: SETTING UP FILES FOR OCCUPANCY MODELLING ===============
-#==============================================================================#
+################################################################################
 
-#============================ INITIAL SETUP ====================================
+################################################################################
+# 1. INITIAL SETUP
+################################################################################
 
-# Broad PBDB download
-# http://paleobiodb.org/data1.2/occs/list.csv?datainfo&rowcount&base_name=Tetrapoda&interval=Campanian,Maastrichtian&cc=NOA,^MX&envtype=terr&show=full,strat,lith,env,timebins,timecompare,ref
+##### If first time using: #####
 
 # Set working directory
-setwd(dirname(rstudioapi::getActiveDocumentContext()$path)) # Set your working directory
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path)) 
 
-#==== If first time using: ====
 # Make vector of package names
 packages <- c("beepr", "raster", "dplyr", "lattice", "rasterVis", "sp", "maps", 
               "maptools", "parallel") #list your packages here
@@ -50,6 +50,10 @@ library(palaeoverse)
 source("0.Functions_DR.R") # Import functions from other R file (must be in same working directory)
 
 #==== Load master spreadsheets and organise ====
+
+# Broad PBDB download
+# http://paleobiodb.org/data1.2/occs/list.csv?datainfo&rowcount&base_name=Tetrapoda&interval=Campanian,Maastrichtian&cc=NOA,^MX&envtype=terr&show=full,strat,lith,env,timebins,timecompare,ref
+
 # Load main dataset
 master.occs <- read.csv("Data/Occurrences/occs_all_stages_tetrapoda_28_06_2022.csv", skip = 20)
 # Load formations
@@ -91,6 +95,7 @@ master.occs <- master.occs %>%
 # Get information on ICS based intervals, then trim to fit relevant time frame. 
 data(stages)
 stages <- stages[80:81,] # Set stages to range from Campanian to Maastrichtian
+stages[2,8] <- 66 # Set bin to stop messing up later binning
 
 # Attach new age constraints from formations data and setup for binning
 master.occs$old_max_ma <- master.occs$max_ma # Move old values to legacy
@@ -104,7 +109,7 @@ master.occs <- master.occs[,1:140] # Remove extra columns from final dataset.
 master.occs <- master.occs %>% 
   filter(is.na(max_ma) == F)# %>% # Remove occurrences without a max age (occurrences which can't be matched to a formation)
 master.occs$max_ma[master.occs$max_ma > 83.59] <- 83.59
-master.occs$min_ma[master.occs$min_m < 66] <- 66 # If using majority method, all occurrences with minimum age of <66 Ma must be capped to 66 Ma, otherwise bin_time() breaks.
+master.occs$min_ma[master.occs$min_m < 66] <- 66.001 # If using majority method, all occurrences with minimum age of <66 Ma must be capped to 66 Ma, otherwise bin_time() breaks.
 
 #==== STAGE ====
 bins <- stages
@@ -143,9 +148,9 @@ bins[1,2] <- 66 # Cap youngest bin at 66 Ma.
 master.occs.binned <- bin_time(master.occs, bins, method = 'majority') # Bin occurrences
 bin.type <- "formation"
 
- #===================== VISUALISATION AND TESTING ==============================
+#===================== VISUALISATION AND TESTING ==============================
 
-#==== Visualise grid cells for collections and occurrences ====
+#==== Visualise grid cells for collections and occurrences
 bin.colls <- master.occs %>% # Make unique collections for visualisation
   dplyr::select(collection_no, lat, lng, formation, max_ma, min_ma) %>%
   dplyr::distinct()
@@ -156,16 +161,15 @@ bin.dino.coll <- master.occs %>%
   distinct()
 
 get_grid_im(master.occs, res, "Occurrences", ext = e)
-get_grid_im(bin.dinos, res, "Dinosaur Occurrences", ext = e)
-get_grid_im(bin.dino.coll, res, "dinosaur collections", ext = e)
+get_grid_im(bin.dino.coll, res, "Dinosaur Collections", ext = e)
 
-#==== Testing Targets ====
+#==== Testing Targets
 target_maker(bin.occs, "family", "Ceratopsidae")
 Ceratops <- bin.occs.targeted %>%
    filter(Target == "Ceratopsidae")
 get_grid_im(Ceratops, 1, "Ceratopsidae Occurrences")
 
-#===== Testing reduction of naive occupancy with subsampling =====
+#===== Testing reduction of naive occupancy with subsampling
 stri <- c()
 for (t in 1:50){
   all_results_for_unmarked(data = bin.occs.targeted, name = bin.name, res = res, 
@@ -174,7 +178,7 @@ for (t in 1:50){
   stri <- c(stri, comp_num)
 } # Mean score of 2.68 occupied sites dropped.
 
-#===== Testing matchup of cells =====
+#===== Testing matchup of cells
 # Independently find all Hadrosaur occurrences and visualise.
 Hadro <- Final %>%
   filter(family == "Hadrosauridae")# %>%
@@ -214,6 +218,11 @@ interColl <- interColl %>% # Select just relevant things for merging datasets
 master.occs.binned.targeted <- merge(x=master.occs.binned.targeted,y=interColl, 
                                      by="collection_no",all.x=TRUE) # Merge new co-ordinates with full dataset. 
 
+
+
+test1 <- get_grid(master.occs.binned.targeted, res, e)
+
+
 #===== Get all data necessary for running occupancy models ====
 # For each time bin - 
 for(t in 1:length(bins$bin)){ 
@@ -239,8 +248,10 @@ for(t in 1:length(bins$bin)){
   
   # Prepare data for unmarked
   all_results_for_unmarked(data = bin.occs, name = bin.name, res = res, ext = e, 
-                           target = target, subsamp = TRUE, sampval = sampval, 
-                           single = FALSE, formCells = "Y")
+                           target = target, single = TRUE, formCells = "Y", 
+                           max_val_on = TRUE, max_val = 10)
+
+  
   write.csv(Final, file.path(paste("Results/", bin.type, "/", bin.name, "/", res,
                                    "/", bin.name, "_dataset.csv", sep = "")))
   
