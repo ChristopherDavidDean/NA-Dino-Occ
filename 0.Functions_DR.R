@@ -1,6 +1,6 @@
-#==============================================================================#
-#====================== FUNCTIONS FOR OCCUPANCY MODELLING =====================#
-#==============================================================================#
+################################################################################
+#                       FUNCTIONS FOR OCCUPANCY MODELLING                      #
+################################################################################
 #                                                                              #
 #  PRIMARY AUTHOR: CHRISTOPHER D. DEAN                                         #
 #  CO-AUTHOR: LEWIS A. JONES                                                   #
@@ -11,7 +11,7 @@
 #  grid cell so it fits the format of the package unmarked. Information        #
 #  regarding each function can be found in the seperate sections below.        #
 #                                                                              #
-#===============================================================================
+################################################################################
 
 #======================= iPAK AND REQUIRED PACKAGES ============================
 
@@ -1432,7 +1432,7 @@ occurrence.plot <- function(data, target){
     scale_color_viridis(discrete=TRUE) 
 }
 
-if(max_val_on = TRUE){
+if(max_val_on == TRUE){
   test2 <- sample_for_unmarked(test2, max_val)
 }
 
