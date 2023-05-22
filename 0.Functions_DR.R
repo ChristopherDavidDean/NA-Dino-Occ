@@ -284,7 +284,7 @@ get_cov_from_stack <- function(data, res){
 # from original hi-resolution rasters. Covariate values are created from the mean 
 # value of collections within larger grid cells of chosen resolution. 
 
-alt_cov_grab <- function(data, res, out = T){
+alt_cov_grab <- function(data, res, out = T, formCells = formCells){
   # ADD INFO HERE
   
   wc <- list.files("Data/Covariate_Data/Formatted_For_Precise/")
@@ -293,8 +293,10 @@ alt_cov_grab <- function(data, res, out = T){
   projection(wc) <- "+proj=laea +lat_0=45 +lon_0=-100 +x_0=0 +y_0=0 +a=6370997 +b=6370997 +units=m +no_defs" 
   xy <- SpatialPointsDataFrame(cbind.data.frame(data$lng, data$lat), data, 
                                proj4string = CRS("+proj=laea +lat_0=45 +lon_0=-100 +x_0=0 +y_0=0 +a=6370997 +b=6370997 +units=m +no_defs"))
-  hires_cov_dat <- raster::extract(wc, xy, sp = TRUE, cellnumbers = TRUE)
+  hires_cov_dat <- raster::extract(wc, xy, sp = TRUE, cellnumbers = FALSE)
   hires_cov_dat <- as.data.frame(hires_cov_dat)
+  hires_cov_dat <- get_grid(hires_cov_dat, res, e = e, formCells = formCells)
+  
   counting_colls <- hires_cov_dat %>%
     dplyr::select(cells, collection_no) %>%
     dplyr::distinct() %>%
@@ -347,7 +349,7 @@ alt_cov_grab <- function(data, res, out = T){
   }
   hires_cov_dat <<- hires_cov_dat
   write.csv(hires_cov_dat, 
-            file.path(paste("Results/", bin.type, "/", bin.name, "/", res, 
+            file.path(paste("Prepped_data/", bin.type, "/", bin.name, "/", res, 
                             "/site_detection_covs.csv", sep="")))
 }
 
@@ -629,8 +631,6 @@ sample_for_unmarked <- function(for_unmarked, max_val){
     }
   }
   up_for_unmarked <- list(up_dframe, up_colframe)
-  temp_name <- paste("up_unmarked_", target, sep = "")
-  assign(temp_name, up_for_unmarked, envir = .GlobalEnv)
 }
 
 #===== ALL_RESULTS_FOR_UNMARKED =====
@@ -661,10 +661,10 @@ all_results_for_unmarked <- function(data, res, target, ext, name, single = TRUE
         }
       }
       # Create folders, remove warning if they already exist.
-      dir.create(paste0("Results/", bin.type, "/", sep = ""), showWarnings = FALSE) 
-      dir.create(paste0("Results/", bin.type, "/", bin.name, "/", sep =""), 
+      dir.create(paste0("Prepped_data/", bin.type, "/", sep = ""), showWarnings = FALSE) 
+      dir.create(paste0("Prepped_data/", bin.type, "/", bin.name, "/", sep =""), 
                  showWarnings = FALSE) 
-      dir.create(paste0("Results/", bin.type, "/", bin.name, "/", res, "/", 
+      dir.create(paste0("Prepped_data/", bin.type, "/", bin.name, "/", res, "/", 
                         sep = ""), showWarnings = FALSE) 
 
       if(max_val_on == TRUE){
@@ -675,14 +675,15 @@ all_results_for_unmarked <- function(data, res, target, ext, name, single = TRUE
         temp_name_2 <- paste(name, ".", res[r], ".", target[q], ".colframe", sep = "")
       }
       
-      write.csv(test2[[1]], file.path(paste("Results/", bin.type, "/", bin.name, "/", 
+      write.csv(test2[[1]], file.path(paste("Prepped_data/", bin.type, "/", bin.name, "/", 
                                         res, "/", temp_name_1, ".csv", sep="")))
-      write.csv(test2[[2]], file.path(paste("Results/", bin.type, "/", bin.name, "/", 
+      write.csv(test2[[2]], file.path(paste("Prepped_data/", bin.type, "/", bin.name, "/", 
                                        res, "/", temp_name_2, ".csv", sep="")))
     }
     proc.time() - ptm
   }
   beepr::beep(sound = 3)
+  
 }
 
 #=========================PREPARE_FOR_MULTISPECIES =============================
@@ -774,8 +775,8 @@ prepare_for_multispecies <- function(data, res, ext, level = "genus", target,
   # Save information to folders and global environment
   temp_name <- paste(deparse(substitute(data)), ".", res, ".", level, 
                      ".multispecies", sep = "")
-  dir.create(paste0("Results/", res, sep =""), showWarnings = FALSE)
-  write.csv(species.site.final, file.path(paste("Results/", res, "/", temp_name, 
+  dir.create(paste0("Prepped_data/", res, sep =""), showWarnings = FALSE)
+  write.csv(species.site.final, file.path(paste("Prepped_data/", res, "/", temp_name, 
                                                 ".csv", sep="")))
   species.site.final <<- species.site.final
   target.cov <<- target_keep$Code
@@ -1432,10 +1433,6 @@ occurrence.plot <- function(data, target){
     scale_color_viridis(discrete=TRUE) 
 }
 
-if(max_val_on == TRUE){
-  test2 <- sample_for_unmarked(test2, max_val)
-}
-
 ################################################################################
 ################################################################################
 ################################################################################
@@ -1527,3 +1524,8 @@ SubSamp_for_unmarked <- function(data, target, sampval = 10, trials = 100){
   temp_name <- paste("SS_unmarked_", target, sep = "")
   assign(temp_name, new_dframe_for_unmarked, envir = .GlobalEnv)
 }
+
+
+
+
+

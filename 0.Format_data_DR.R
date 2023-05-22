@@ -21,7 +21,6 @@ setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 # Load necessary packages
 library(raster)
 library(ncdf4)
-library(rgdal) # DEPRECIATED - SWAP OVER
 library(sf)
 library(terra)
 library(dplyr)
@@ -31,26 +30,27 @@ library(beepr)
 source("0.Functions_DR.R")
 
 # Set values
-res <- 0.5
+res <- 0.1
 e <- extent(-155, -72, 22.5, 73)
 
 # Setup Folders
-dir.create(paste0("Data/Covariate_Data/Formatted", sep =""), showWarnings = FALSE)
-dir.create(paste0("Data/Covariate_Data/Formatted/All_data", sep =""), showWarnings = FALSE)
-dir.create(paste0("Data/Covariate_Data/Formatted/All_data/0.1deg", sep =""), showWarnings = FALSE)
-dir.create(paste0("Data/Covariate_Data/Formatted/All_data/0.5deg", sep =""), showWarnings = FALSE)
-dir.create(paste0("Data/Covariate_Data/Formatted/All_data/1deg", sep =""), showWarnings = FALSE)
-dir.create(paste0("Data/Covariate_Data/Formatted/All_data/0.1deg/PalaeoClimate", sep =""), showWarnings = FALSE)
-dir.create(paste0("Data/Covariate_Data/Formatted/All_data/0.5deg/PalaeoClimate", sep =""), showWarnings = FALSE)
-dir.create(paste0("Data/Covariate_Data/Formatted/All_data/1deg/PalaeoClimate", sep =""), showWarnings = FALSE)
-dir.create(paste0("Data/Covariate_Data/Formatted/Elevation_GRID", sep =""), showWarnings = FALSE)
-dir.create(paste0("Data/Covariate_Data/Formatted/landcvi0201", sep =""), showWarnings = FALSE)
-dir.create(paste0("Data/Covariate_Data/Formatted/MGVF", sep =""), showWarnings = FALSE)
-dir.create(paste0("Data/Covariate_Data/Formatted/Outcrop", sep =""), showWarnings = FALSE)
-dir.create(paste0("Data/Covariate_Data/Formatted/Worldclim", sep =""), showWarnings = FALSE)
-dir.create(paste0("Data/Covariate_Data/Formatted/PalaeoClimate", sep =""), showWarnings = FALSE)
-dir.create(paste0("Data/Covariate_Data/Formatted/Relief", sep =""), showWarnings = FALSE)
-dir.create(paste0("Data/Covariate_Data/Formatted/SedFlux", sep =""), showWarnings = FALSE)
+dir.create(paste0("Prepped_data", sep =""))
+dir.create(paste0("Prepped_data/Covariate_Data", sep =""), showWarnings = FALSE)
+dir.create(paste0("Prepped_data/Covariate_Data/All_data", sep =""), showWarnings = FALSE)
+dir.create(paste0("Prepped_data/Covariate_Data/All_data/0.1deg", sep =""), showWarnings = FALSE)
+dir.create(paste0("Prepped_data/Covariate_Data/All_data/0.5deg", sep =""), showWarnings = FALSE)
+dir.create(paste0("Prepped_data/Covariate_Data/All_data/1deg", sep =""), showWarnings = FALSE)
+dir.create(paste0("Prepped_data/Covariate_Data/All_data/0.1deg/Palaeo", sep =""), showWarnings = FALSE)
+dir.create(paste0("Prepped_data/Covariate_Data/All_data/0.5deg/Palaeo", sep =""), showWarnings = FALSE)
+dir.create(paste0("Prepped_data/Covariate_Data/All_data/1deg/Palaeo", sep =""), showWarnings = FALSE)
+dir.create(paste0("Prepped_data/Covariate_Data/DEM", sep =""), showWarnings = FALSE)
+dir.create(paste0("Prepped_data/Covariate_Data/landcvi0201", sep =""), showWarnings = FALSE)
+dir.create(paste0("Prepped_data/Covariate_Data/MGVF", sep =""), showWarnings = FALSE)
+dir.create(paste0("Prepped_data/Covariate_Data/Outcrop", sep =""), showWarnings = FALSE)
+dir.create(paste0("Prepped_data/Covariate_Data/Worldclim", sep =""), showWarnings = FALSE)
+dir.create(paste0("Prepped_data/Covariate_Data/PalaeoClimate", sep =""), showWarnings = FALSE)
+dir.create(paste0("Prepped_data/Covariate_Data/Relief", sep =""), showWarnings = FALSE)
+dir.create(paste0("Prepped_data/Covariate_Data/SedFlux", sep =""), showWarnings = FALSE)
 
 ################################################################################
 # 2. FORMAT DEM
@@ -61,8 +61,8 @@ dem <- raster("Data/Covariate_Data/Elevation_GRID/NA_Elevation.asc")
 
 # Check projection and update. Follow:
 # https://gis.stackexchange.com/questions/291256/reprojecting-raster-between-laea-and-lon-lat-alignment-issues
-projection(dem) 
-projection(dem) <- "+proj=laea +lat_0=45 +lon_0=-100 +x_0=0 +y_0=0 +a=6370997 +b=6370997 +units=m +no_defs" 
+raster::projection(dem) 
+raster::projection(dem) <- "+proj=laea +lat_0=45 +lon_0=-100 +x_0=0 +y_0=0 +a=6370997 +b=6370997 +units=m +no_defs" 
 plot(dem)
 
 # Create raster for projecting raster, then project and crop to extent
@@ -74,20 +74,18 @@ newData <- crop(newData, e)
 plot(newData) 
 
 # Save
-writeRaster(newData, paste("Data/Covariate_Data/Formatted/Elevation_GRID/DEM_", 
+writeRaster(newData, paste("Prepped_data/Covariate_Data/DEM/DEM_", 
                            res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE) 
-writeRaster(newData, paste("Data/Covariate_Data/Formatted/All_data/", 
+writeRaster(newData, paste("Prepped_data/Covariate_Data/All_data/", 
                            res, "deg/DEM_", res, ".asc", sep = ""), 
-            pattern = "ascii", overwrite = TRUE)
-writeRaster(newData, "Data/Covariate_Data/Formatted_For_Precise/DEM.asc", 
             pattern = "ascii", overwrite = TRUE)
 
 # Add Slope and save
 newData <- raster::terrain(newData, opt='slope', unit='degrees', neighbors=8)
 plot(newData)
-writeRaster(newData, paste("Data/Covariate_Data/Formatted/Elevation_GRID/SLOPE_", 
+writeRaster(newData, paste("Prepped_data/Covariate_Data/DEM/SLOPE_", 
                            res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE) 
-writeRaster(newData, paste("Data/Covariate_Data/Formatted/All_data/", res, "deg/SLOPE_", 
+writeRaster(newData, paste("Prepped_data/Covariate_Data/All_data/", res, "deg/SLOPE_", 
                            res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE) 
 
 # Add Relief
@@ -99,9 +97,9 @@ test2 <- aggregate(newData, 10, fun = min)
 Relief <- (test1 - test2)
 Relief <- crop(Relief, e)
 plot(Relief)
-writeRaster(Relief, paste("Data/Covariate_Data/Formatted/Relief/Relief_", 
+writeRaster(Relief, paste("Prepped_data/Covariate_Data/Relief/Relief_", 
                           res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE) 
-writeRaster(Relief, paste("Data/Covariate_Data/Formatted/All_data/", 
+writeRaster(Relief, paste("Prepped_data/Covariate_Data/All_data/", 
                           res, "deg/Relief_", res,".asc", sep = ""), pattern = "ascii", 
             overwrite = TRUE) 
 
@@ -109,12 +107,15 @@ writeRaster(Relief, paste("Data/Covariate_Data/Formatted/All_data/",
 # 3. FORMAT LANDCVI
 ################################################################################
 
+##########################
+##### TWO CATEGORIES #####
+##########################
+
 # Load raster
 landcvi <- raster::raster("Data/Covariate_Data/landcvi0201/landcvi0201.tif")
 
 # Make vector of unwanted landuses
 unwanted <- c(1, 2, 3, 4, 5, 6, 11, 12, 13, 14, 15, 16, 17, 18, 20, 21, 22, 24, 255)
-
 for (i in 1:length(unwanted)){
   landcvi[landcvi == unwanted[i]] <- NA
 }
@@ -124,21 +125,54 @@ landcvi[landcvi == 9] <- 1
 landcvi[landcvi == 19] <- 1
 landcvi[landcvi == 10] <- 1
 plot(landcvi)
-writeRaster(landcvi, paste("Data/Covariate_Data/landcvi0201/LANDCVI_test", res, 
-                           ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
-
-landcvi <- raster("Data/Covariate_Data/landcvi0201/LANDCVI_test1.asc")
-projection(landcvi)
-projection(landcvi) <- "+proj=laea +lat_0=45 +lon_0=-100 +x_0=0 +y_0=0 +a=6370997 +b=6370997 +units=m +no_defs" 
-r2 <- raster(res = res)#create raster for projecting raster
-test1 <- aggregate(landcvi, 100, fun = 'sum')
-newData <- projectRaster(test1, r2) #project raster
+raster::projection(landcvi)
+raster::projection(landcvi) <- "+proj=laea +lat_0=45 +lon_0=-100 +x_0=0 +y_0=0 +a=6370997 +b=6370997 +units=m +no_defs" 
+r1 <- raster(res = res) 
+newData <- raster::projectRaster(landcvi, r1) #project raster
 newData <- crop(newData, e) #crop data to extent object
 plot(newData) #plot data
-writeRaster(newData, paste("Data/Covariate_Data/Formatted/landcvi0201/LANDCVI_selected_", 
+writeRaster(newData, paste("Prepped_data/Covariate_Data/landcvi0201/LANDCVI_binary_", 
                            res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
-writeRaster(newData, paste("Data/Covariate_Data/Formatted/All_data/", res, 
-                           "deg/LANDCVI_selected_", res, ".asc", sep = ""), 
+writeRaster(newData, paste("Prepped_data/Covariate_Data/All_data/", res, 
+                           "deg/LANDCVI_binary_", res, ".asc", sep = ""), 
+            pattern = "ascii", overwrite = TRUE) 
+
+###############################
+##### MULTIPLE CATEGORIES #####
+###############################
+
+# Load raster
+landcvi <- raster::raster("Data/Covariate_Data/landcvi0201/landcvi0201.tif")
+
+# Make vectors of landuses
+human_altered <- c(1, 2, 3, 4, 5, 6)
+open_terrain <- c(7, 8, 9, 10, 19, 17, 20, 23)
+forest <- c(11, 12, 13, 14, 15, 18, 21)
+other <- c(16, 24, 255, 22)
+
+for (i in 1:length(human_altered)){
+  landcvi[landcvi == human_altered[i]] <- 1
+}
+for (i in 1:length(open_terrain)){
+  landcvi[landcvi == open_terrain[i]] <- 2
+}
+for (i in 1:length(forest)){
+  landcvi[landcvi == forest[i]] <- 3
+}
+for (i in 1:length(other)){
+  landcvi[landcvi == other[i]] <- 4
+}
+
+plot(landcvi)
+raster::projection(landcvi) <-"+proj=laea +lat_0=45 +lon_0=-100 +x_0=0 +y_0=0 +a=6370997 +b=6370997 +units=m +no_defs" 
+newData <- raster::projectRaster(landcvi, r1, method="ngb") 
+newData <- crop(newData, e) 
+plot(newData)
+
+writeRaster(newData, paste("Prepped_data/Covariate_Data/landcvi0201/LANDCVI_multiple_", 
+                           res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
+writeRaster(newData, paste("Prepped_data/Covariate_Data/All_data/", res, 
+                           "deg/LANDCVI_multiple_", res, ".asc", sep = ""), 
             pattern = "ascii", overwrite = TRUE) 
 
 ################################################################################
@@ -148,17 +182,14 @@ writeRaster(newData, paste("Data/Covariate_Data/Formatted/All_data/", res,
 MGVF <- raster("Data/Covariate_Data/MGVF/Average MGVF.tif")
 plot(MGVF)
 raster::projection(MGVF) #no projection alteration needed
-r3 <- raster(res = res) #create raster for projecting raster
-newData <- raster::projectRaster(MGVF, r3) #project raster
+newData <- raster::projectRaster(MGVF, r1) #project raster
 newData <- raster::crop(newData, e) #crop data to extent object
 plot(newData) #plot data
-writeRaster(newData, paste("Data/Covariate_Data/Formatted/MGVF/MGVF_", 
+writeRaster(newData, paste("Prepped_data/Covariate_Data/MGVF/MGVF_", 
                            res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
-writeRaster(newData, paste("Data/Covariate_Data/Formatted/All_data/",
+writeRaster(newData, paste("Prepped_data/Covariate_Data/All_data/",
                            res, "deg/MGVF_", res, ".asc", sep = ""), pattern = "ascii", 
             overwrite = TRUE) 
-writeRaster(newData, "Data/Covariate_Data/Formatted_For_Precise/MGVF.asc", 
-            pattern = "ascii", overwrite = TRUE)
 
 ################################################################################
 # 5. FORMAT WORLDCLIM
@@ -169,20 +200,18 @@ setwd("Data/Covariate_Data/Worldclim/wc2.0_30s_prec/")
 wc <- list.files("./")
 wc <- stack(wc)
 wc <- crop(wc, e) #crop data to extent object
-wc2 <- aggregate(wc, fact = 120, fun = mean)
+wc2 <- aggregate(wc, fact = 12, fun = mean)
 #wc <- resample(wc, r)
 #wc <- crop(wc, e)
 newData <- wc2
 newData <- mean(newData)
 plot(newData)
-setwd("C:/Users/deancd/Documents/RESEARCH/PROJECTS/DINO_RANGE/NA-Dino-Occ/")
-writeRaster(newData, filename = (paste("Data/Covariate_Data/Formatted/Worldclim/WC_Prec_",
+setwd("/Users/christopherdean/MEGA/Research/PROJECTS/DINO_RANGE/Fresh Setup/Code Data and Github/NA-Dino-Occ/NA-Dino-Occ/")
+writeRaster(newData, filename = (paste("Prepped_data/Covariate_Data/Worldclim/WC_Prec_",
                                        res, ".asc", sep = "")), pattern = "ascii",
             overwrite = TRUE)
-writeRaster(newData, paste("Data/Covariate_Data/Formatted/All_data/", res, 
+writeRaster(newData, paste("Prepped_data/Covariate_Data/All_data/", res, 
                            "deg/WC_Prec_", res, ".asc", sep = ""), 
-            pattern = "ascii", overwrite = TRUE)
-writeRaster(newData, "Data/Covariate_Data/Formatted_For_Precise/prec.asc", 
             pattern = "ascii", overwrite = TRUE)
 
 ##### Temperature ######
@@ -190,19 +219,17 @@ setwd("Data/Covariate_Data/Worldclim/wc2.0_30s_tavg/")
 wc <- list.files("./")
 wc <- stack(wc)
 wc <- crop(wc, e) #crop data to extent object
-wc2 <- aggregate(wc, fact = 120, fun = mean)
+wc2 <- aggregate(wc, fact = 12, fun = mean)
 #wc <- resample(wc, r)
 #wc <- crop(wc, e)
 newData <- mean(wc2)
 plot(newData)
-setwd("C:/Users/deancd/Documents/RESEARCH/PROJECTS/DINO_RANGE/NA-Dino-Occ/")
-writeRaster(newData, paste("Data/Covariate_Data/Formatted/Worldclim/WC_Temp_", 
+setwd("/Users/christopherdean/MEGA/Research/PROJECTS/DINO_RANGE/Fresh Setup/Code Data and Github/NA-Dino-Occ/NA-Dino-Occ/")
+writeRaster(newData, paste("Prepped_data/Covariate_Data/Worldclim/WC_Temp_", 
                            res, ".asc", sep = ""), pattern = "ascii", 
             overwrite = TRUE)
-writeRaster(newData, paste("Data/Covariate_Data/Formatted/All_data/", res, 
+writeRaster(newData, paste("Prepped_data/Covariate_Data/All_data/", res, 
                            "deg/WC_Temp_", res, ".asc", sep = ""), 
-            pattern = "ascii", overwrite = TRUE)
-writeRaster(newData, "Data/Covariate_Data/Formatted_For_Precise/temp.asc", 
             pattern = "ascii", overwrite = TRUE)
 
 ################################################################################
@@ -452,46 +479,57 @@ writeRaster(teyeo_temp, paste("Data/Covariate_Data/Formatted/ScotesePalaeoTemp/t
 ##### SEDIMENT FLUX #####
 #########################
 
+new_extent <- extent(-180, 180, 0, 90)
+
 ##### CAMPANIAN #####
 # teyep #
-teyep_sed <- sf::st_read("Data/Covariate_Data/catchment_data_080223/tfkep",
+teyep_sed <- sf::st_read("Data/Covariate_Data/catchment_data_080223/teyep/",
                        layer = "m18_watersheds")
 teyep_sed <- teyep_sed %>%
   select(qs_m3yr) 
 sf::st_crs(teyep_sed) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
 r1 <- raster(res = res)
 teyep_sed <- rasterize(teyep_sed, r1)
-writeRaster(teyep_sed, paste("Data/Covariate_Data/Formatted_For_Precise/teyep_sed_",
-                            res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
+teyep_sed <- crop(teyep_sed, new_extent)
+writeRaster(teyep_sed, paste("Data/Covariate_Data/Formatted/SedFlux/",
+                             res, "/teyep_sed_", res, ".asc", sep = ""), 
+            pattern = "ascii", overwrite = TRUE)
 # teyeq #
-teyeq_sed <- sf::st_read("Data/Covariate_Data/catchment_data_080223/tfkeq",
+teyeq_sed <- sf::st_read("Data/Covariate_Data/catchment_data_080223/teyeq",
                          layer = "m19_watersheds")
 teyeq_sed <- teyeq_sed %>%
   select(qs_m3yr) 
 sf::st_crs(teyeq_sed) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
 r1 <- raster(res = res)
 teyeq_sed <- rasterize(teyeq_sed, r1)
-writeRaster(teyeq_sed, paste("Data/Covariate_Data/Formatted_For_Precise/teyeq_sed_",
-                             res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
+teyeq_sed <- crop(teyep_sed, new_extent)
+writeRaster(teyeq_sed, paste("Data/Covariate_Data/Formatted/SedFlux/",
+                             res, "/teyeq_sed_", res, ".asc", sep = ""), 
+            pattern = "ascii", overwrite = TRUE)
 ##### MAASTRICHTIAN #####
 # teyen #
-teyen_sed <- sf::st_read("Data/Covariate_Data/catchment_data_080223/tfken",
+teyen_sed <- sf::st_read("Data/Covariate_Data/catchment_data_080223/teyen",
                          layer = "m16_watersheds")
 teyen_sed <- teyen_sed %>%
   select(qs_m3yr) 
 sf::st_crs(teyen_sed) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
 r1 <- raster(res = res)
 teyen_sed <- rasterize(teyen_sed, r1)
-writeRaster(teyen_sed, paste("Data/Covariate_Data/Formatted_For_Precise/teyen_sed_",
-                             res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
+teyen_sed <- crop(teyen_sed, new_extent)
+writeRaster(teyen_sed, paste("Data/Covariate_Data/Formatted/SedFlux/",
+                             res, "/teyen_sed_", res, ".asc", sep = ""), 
+            pattern = "ascii", overwrite = TRUE)
 # teyeo #
-teyeo_sed <- sf::st_read("Data/Covariate_Data/catchment_data_080223/tfkeo",
+teyeo_sed <- sf::st_read("Data/Covariate_Data/catchment_data_080223/teyeo",
                          layer = "m17_watersheds")
 teyeo_sed <- teyeo_sed %>%
   select(qs_m3yr) 
 sf::st_crs(teyeo_sed) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
 r1 <- raster(res = res)
 teyeo_sed <- rasterize(teyeo_sed, r1)
-writeRaster(teyeo_sed, paste("Data/Covariate_Data/Formatted_For_Precise/teyeo_sed_",
-                             res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
+extent(teyeo_sed)
+teyeo_sed <- crop(teyeo_sed, new_extent)
+writeRaster(teyeo_sed, paste("Data/Covariate_Data/Formatted/SedFlux/",
+                             res, "/teyeo_sed_", res, ".asc", sep = ""), 
+            pattern = "ascii", overwrite = TRUE)
 beepr::beep(sound = 3)

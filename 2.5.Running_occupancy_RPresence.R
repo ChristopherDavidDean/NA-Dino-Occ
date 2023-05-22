@@ -1,5 +1,5 @@
 ################################################################################
-############# OCCUPANCY OF LATE CRETACEOUS NORTH AMERICAN DINOSAURS ############
+############ OCCUPANCY OF LATE CRETACEOUS NORTH AMERICAN DINOSAURS #############
 ################################################################################
 
 # Christopher D. Dean, Lewis A. Jones, Alfio A. Chiarenza, Sinéad Lyster, 
@@ -8,7 +8,7 @@
 # Script written by Christopher D. Dean
 
 ################################################################################
-################ FILE 2.5: RUNNING OCCUPANCY MODELS IN RPRESENCE ###############
+#               FILE 2.5: RUNNING OCCUPANCY MODELS IN RPRESENCE                #
 ################################################################################
 
 ################################################################################
