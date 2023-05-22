@@ -30,12 +30,16 @@ library(beepr)
 source("0.Functions_DR.R")
 
 # Set values
-res <- 0.1
+res <- 1
 e <- extent(-155, -72, 22.5, 73)
 
 # Setup Folders
 dir.create(paste0("Prepped_data", sep =""))
 dir.create(paste0("Prepped_data/Covariate_Data", sep =""), showWarnings = FALSE)
+dir.create(paste0("Prepped_data/Covariate_Data/PalaeoPrecip", sep =""), showWarnings = FALSE)
+dir.create(paste0("Prepped_data/Covariate_Data/PalaeoTemp", sep =""), showWarnings = FALSE)
+dir.create(paste0("Prepped_data/Covariate_Data/PalaeoDEM", sep =""), showWarnings = FALSE)
+dir.create(paste0("Prepped_data/Covariate_Data/PalaeoSed", sep =""), showWarnings = FALSE)
 dir.create(paste0("Prepped_data/Covariate_Data/All_data", sep =""), showWarnings = FALSE)
 dir.create(paste0("Prepped_data/Covariate_Data/All_data/0.1deg", sep =""), showWarnings = FALSE)
 dir.create(paste0("Prepped_data/Covariate_Data/All_data/0.5deg", sep =""), showWarnings = FALSE)
@@ -182,8 +186,9 @@ writeRaster(newData, paste("Prepped_data/Covariate_Data/All_data/", res,
 MGVF <- raster("Data/Covariate_Data/MGVF/Average MGVF.tif")
 plot(MGVF)
 raster::projection(MGVF) #no projection alteration needed
-newData <- raster::projectRaster(MGVF, r1) #project raster
-newData <- raster::crop(newData, e) #crop data to extent object
+newData <- raster::crop(MGVF, e) #crop data to extent object
+r1 <- raster(res = res, ext = e) 
+newData <- raster::projectRaster(newData, r1) #project raster
 plot(newData) #plot data
 writeRaster(newData, paste("Prepped_data/Covariate_Data/MGVF/MGVF_", 
                            res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
@@ -236,7 +241,11 @@ writeRaster(newData, paste("Prepped_data/Covariate_Data/All_data/", res,
 # 6. FORMAT OUTCROP AREA
 ################################################################################
 
-###### Campanian ######
+#####################
+##### CAMPANIAN #####
+#####################
+
+##### TERRESTRIAL #####
 CampMix <- sf::st_read("Data/Covariate_Data/Outcrop/Updated_shapefiles",
                     layer = "Campanian_Mixed")
 CampTer <- sf::st_read("Data/Covariate_Data/Outcrop/Updated_shapefiles",
@@ -244,40 +253,66 @@ CampTer <- sf::st_read("Data/Covariate_Data/Outcrop/Updated_shapefiles",
 CampOut <- rbind(CampMix, CampTer)
 sf::st_crs(CampOut) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
 r1 <- raster(ext = e, res = res)
-CampOut2 <- raster::rasterize(CampOut, r1, getCover = TRUE, progress = "window")
-writeRaster(CampOut2, paste("Data/Covariate_Data/Formatted_For_Precise/COut_", 
-                            res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
+newData <- raster::rasterize(CampOut, r1, getCover = TRUE, progress = "window")
+writeRaster(newData, paste("Prepped_data/Covariate_Data/Outcrop/COut_", 
+                           res, ".asc", sep = ""), pattern = "ascii", 
+            overwrite = TRUE)
+writeRaster(newData, paste("Prepped_data/Covariate_Data/All_data/", res, 
+                           "deg/COut_", res, ".asc", sep = ""), 
+            pattern = "ascii", overwrite = TRUE)
 
 CampAll <- sf::st_read("Data/Covariate_Data/Outcrop/Updated_shapefiles",
                        layer = "Campanian_All")
+
+##### ALL #####
 sf::st_crs(CampAll) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
 r1 <- raster(ext = e, res = res)
-CampAll2 <- rasterize(CampAll, r1, getCover = TRUE, progress = "window")
-plot(CampAll2)
-writeRaster(CampAll2, paste("Data/Covariate_Data/Formatted_For_Precise/COut_all_",
-                            res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
+newData <- rasterize(CampAll, r1, getCover = TRUE, progress = "window")
+plot(newData)
+writeRaster(newData, paste("Prepped_data/Covariate_Data/Outcrop/COut_all_", 
+                           res, ".asc", sep = ""), pattern = "ascii", 
+            overwrite = TRUE)
+writeRaster(newData, paste("Prepped_data/Covariate_Data/All_data/", res, 
+                           "deg/COut_all_", res, ".asc", sep = ""), 
+            pattern = "ascii", overwrite = TRUE)
 
-##### Maastrichtian #####
+#########################
+##### MAASTRICHTIAN #####
+#########################
+
+##### TERRESTRIAL #####
 MaasMix <- sf::st_read("Data/Covariate_Data/Outcrop/Updated_shapefiles",
                        layer = "Maastrichtian_Mixed")
 MaasTer <- sf::st_read("Data/Covariate_Data/Outcrop/Updated_shapefiles",
-                       layer = "Maaztrichtian_Terrestrial")
+                       layer = "Maastrichtian_Terrestrial")
 MaasOut <- rbind(MaasMix, MaasTer)
 sf::st_crs(MaasOut) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
 r1 <- raster(ext = e, res = res)
-MaasOut2 <- raster::rasterize(MaasOut, r1, getCover = TRUE, progress = "window")
-writeRaster(MaasOut2, paste("Data/Covariate_Data/Formatted_For_Precise/MOut_", 
-                            res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
+newData <- raster::rasterize(MaasOut, r1, getCover = TRUE, progress = "window")
+writeRaster(newData, paste("Prepped_data/Covariate_Data/Outcrop/MOut_", 
+                           res, ".asc", sep = ""), pattern = "ascii", 
+            overwrite = TRUE)
+writeRaster(newData, paste("Prepped_data/Covariate_Data/All_data/", res, 
+                           "deg/MOut_", res, ".asc", sep = ""), 
+            pattern = "ascii", overwrite = TRUE)
 
+##### ALL #####
 MaasAll <- sf::st_read("Data/Covariate_Data/Outcrop/Updated_shapefiles",
                        layer = "Maastrichtian_All")
 sf::st_crs(MaasAll) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
 r1 <- raster(ext = e, res = res)
-MaasAll2 <- rasterize(MaasAll, r1, getCover = TRUE, progress = "window")
-writeRaster(MaasAll2, paste("Data/Covariate_Data/Formatted_For_Precise/MOut_all_",
-                            res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
+newData <- rasterize(MaasAll, r1, getCover = TRUE, progress = "window")
+writeRaster(newData, paste("Prepped_data/Covariate_Data/Outcrop/MOut_all_", 
+                           res, ".asc", sep = ""), pattern = "ascii", 
+            overwrite = TRUE)
+writeRaster(newData, paste("Prepped_data/Covariate_Data/All_data/", res, 
+                           "deg/MOut_all_", res, ".asc", sep = ""), 
+            pattern = "ascii", overwrite = TRUE)
 
-##### ALL ######
+#######################
+##### ALL OUTCROP #####
+#######################
+
 CampAll <- sf::st_read("Data/Covariate_Data/Outcrop/Updated_shapefiles",
                        layer = "Campanian_All")
 MaasAll <- sf::st_read("Data/Covariate_Data/Outcrop/Updated_shapefiles",
@@ -285,12 +320,229 @@ MaasAll <- sf::st_read("Data/Covariate_Data/Outcrop/Updated_shapefiles",
 CretAll <- rbind(CampAll, MaasAll)
 sf::st_crs(CretAll) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
 r1 <- raster(ext = e, res = res)
-CretAll2 <- rasterize(CretAll, r1, getCover = TRUE, progress = "window")
-writeRaster(CretAll2, paste("Data/Covariate_Data/Formatted_For_Precise/Out_all_", 
-                            res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
+newData <- rasterize(CretAll, r1, getCover = TRUE, progress = "window")
+plot(newData)
+writeRaster(newData, paste("Prepped_data/Covariate_Data/Outcrop/AllOut_", 
+                           res, ".asc", sep = ""), pattern = "ascii", 
+            overwrite = TRUE)
+writeRaster(newData, paste("Prepped_data/Covariate_Data/All_data/", res, 
+                           "deg/AllOut_", res, ".asc", sep = ""), 
+            pattern = "ascii", overwrite = TRUE)
 
 ################################################################################
-# 6. FORMAT GETECH PALAEO DATA (PRECIP, TEMP)
+# 6. FORMAT SCOTESE PALAEO DATA (DEM, PRECIP, TEMP, SEDFLUX)
+################################################################################
+
+###############
+##### DEM #####
+###############
+
+##### CAMPANIAN #####
+# teyep #
+teyep_DEM <- raster("Data/Covariate_Data/Scotese_Wright_2018_Maps_1-88_6minX6min_PaleoDEMS_nc/Map18_PALEOMAP_6min_Late_Cretaceous_75Ma.nc",
+            varname = "z")
+crs(teyep_DEM) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
+r <- raster(res = res) #create raster for projecting raster
+teyep_DEM <- raster::projectRaster(teyep_DEM, r) #project raster
+plot(teyep_DEM)
+writeRaster(teyep_DEM, paste("Prepped_data/Covariate_Data/PalaeoDEM/teyep_DEM_", 
+                            res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
+writeRaster(teyep_DEM, paste("Prepped_data/Covariate_Data/All_data/", res, "deg/Palaeo/teyep_DEM_", 
+                             res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
+# teyeq #
+teyeq_DEM <- raster("Data/Covariate_Data/Scotese_Wright_2018_Maps_1-88_6minX6min_PaleoDEMS_nc/Map19_PALEOMAP_6min_Late_Cretaceous_80Ma.nc",
+                    varname = "z")
+crs(teyeq_DEM) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
+r <- raster(res = res) #create raster for projecting raster
+teyeq_DEM <- raster::projectRaster(teyeq_DEM, r) #project raster
+plot(teyeq_DEM)
+writeRaster(teyeq_DEM, paste("Prepped_data/Covariate_Data/PalaeoDEM/teyeq_DEM_", 
+                             res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
+writeRaster(teyeq_DEM, paste("Prepped_data/Covariate_Data/All_data/", res, "deg/Palaeo/teyeq_DEM_", 
+                             res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
+##### MAASTRICHTIAN #####
+# teyen #
+teyen_DEM <- raster("Data/Covariate_Data/Scotese_Wright_2018_Maps_1-88_6minX6min_PaleoDEMS_nc/Map16_PALEOMAP_6min_KT_Boundary_65Ma.nc",
+                    varname = "z")
+crs(teyen_DEM) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
+r <- raster(res = res) #create raster for projecting raster
+teyen_DEM <- raster::projectRaster(teyen_DEM, r) #project raster
+plot(teyen_DEM)
+writeRaster(teyen_DEM, paste("Prepped_data/Covariate_Data/PalaeoDEM/teyen_DEM_", 
+                             res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
+writeRaster(teyen_DEM, paste("Prepped_data/Covariate_Data/All_data/", res, "deg/Palaeo/teyen_DEM_", 
+                             res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
+# teyeo #
+teyeo_DEM <- raster("Data/Covariate_Data/Scotese_Wright_2018_Maps_1-88_6minX6min_PaleoDEMS_nc/Map17_PALEOMAP_6min_Late_Cretaceous_70Ma.nc",
+                    varname = "z")
+crs(teyeo_DEM) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
+r <- raster(res = res) #create raster for projecting raster
+teyeo_DEM <- raster::projectRaster(teyeo_DEM, r) #project raster
+plot(teyeo_DEM)
+writeRaster(teyeo_DEM, paste("Prepped_data/Covariate_Data/PalaeoDEM/teyeo_DEM_", 
+                             res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
+writeRaster(teyeo_DEM, paste("Prepped_data/Covariate_Data/All_data/", res, "deg/Palaeo/teyeo_DEM_", 
+                             res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
+
+#########################
+##### PRECIPITATION #####
+#########################
+
+##### CAMPANIAN #####
+# teyep #
+teyep_precip <- raster("Data/Covariate_Data/Lewis_Climate/Results/Campanian/teyep/max_precip.grd")
+crs(teyep_precip) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
+r <- raster(res = res) #create raster for projecting raster
+teyep_precip <- raster::projectRaster(teyep_precip, r) #project raster
+plot(teyep_precip)
+writeRaster(teyep_precip, paste("Prepped_data/Covariate_Data/PalaeoPrecip/teyep_precip_", 
+                             res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
+writeRaster(teyep_precip, paste("Prepped_data/Covariate_Data/All_data/", res, "deg/Palaeo/teyep_precip_", 
+                             res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
+# teyeq #
+teyeq_precip <- raster("Data/Covariate_Data/Lewis_Climate/Results/Campanian/teyeq/max_precip.grd")
+crs(teyeq_precip) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
+r <- raster(res = res) #create raster for projecting raster
+teyeq_precip <- raster::projectRaster(teyeq_precip, r) #project raster
+plot(teyeq_precip)
+writeRaster(teyeq_precip, paste("Prepped_data/Covariate_Data/PalaeoPrecip/teyeq_precip_", 
+                                res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
+writeRaster(teyeq_precip, paste("Prepped_data/Covariate_Data/All_data/", res, "deg/Palaeo/teyeq_precip_", 
+                                res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
+
+##### MAASTRICHTIAN #####
+# teyen #
+teyen_precip <- raster("Data/Covariate_Data/Lewis_Climate/Results/Maastrichtian/teyen/max_precip.grd")
+crs(teyep_precip) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
+r <- raster(res = res) #create raster for projecting raster
+teyen_precip <- raster::projectRaster(teyen_precip, r) #project raster
+plot(teyen_precip)
+writeRaster(teyen_precip, paste("Prepped_data/Covariate_Data/PalaeoPrecip/teyen_precip_", 
+                                res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
+writeRaster(teyen_precip, paste("Prepped_data/Covariate_Data/All_data/", res, "deg/Palaeo/teyen_precip_", 
+                                res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
+# teyeo #
+teyeo_precip <- raster("Data/Covariate_Data/Lewis_Climate/Results/Maastrichtian/teyeo/max_precip.grd")
+crs(teyeo_precip) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
+r <- raster(res = res) #create raster for projecting raster
+teyeo_precip <- raster::projectRaster(teyeo_precip, r) #project raster
+plot(teyeo_precip)
+writeRaster(teyeo_precip, paste("Prepped_data/Covariate_Data/PalaeoPrecip/teyeo_precip_", 
+                                res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
+writeRaster(teyeo_precip, paste("Prepped_data/Covariate_Data/All_data/", res, "deg/Palaeo/teyeo_precip_", 
+                                res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
+#######################
+##### TEMPERATURE #####
+#######################
+
+##### CAMPANIAN #####
+# teyep #
+teyep_temp <- raster("Data/Covariate_Data/Lewis_Climate/Results/Campanian/teyep/max_temp.grd")
+crs(teyep_temp) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
+r <- raster(res = res) #create raster for projecting raster
+teyep_temp <- raster::projectRaster(teyep_temp, r) #project raster
+plot(teyep_temp)
+writeRaster(teyep_precip, paste("Prepped_data/Covariate_Data/PalaeoTemp/teyep_temp_", 
+                                res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
+writeRaster(teyep_precip, paste("Prepped_data/Covariate_Data/All_data/", res, "deg/Palaeo/teyep_temp_", 
+                                res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
+# teyeq #
+teyeq_temp <- raster("Data/Covariate_Data/Lewis_Climate/Results/Campanian/teyeq/max_temp.grd")
+crs(teyeq_temp) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
+r <- raster(res = res) #create raster for projecting raster
+teyeq_temp <- raster::projectRaster(teyeq_temp, r) #project raster
+plot(teyeq_temp)
+writeRaster(teyeq_precip, paste("Prepped_data/Covariate_Data/PalaeoTemp/teyeq_temp_", 
+                                res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
+writeRaster(teyeq_precip, paste("Prepped_data/Covariate_Data/All_data/", res, "deg/Palaeo/teyeq_temp_", 
+                                res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
+##### MAASTRICHTIAN #####
+# teyen #
+teyen_temp <- raster("Data/Covariate_Data/Lewis_Climate/Results/Maastrichtian/teyen/max_temp.grd")
+crs(teyep_temp) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
+r <- raster(res = res) #create raster for projecting raster
+teyen_temp <- raster::projectRaster(teyen_temp, r) #project raster
+plot(teyen_temp)
+writeRaster(teyen_precip, paste("Prepped_data/Covariate_Data/PalaeoTemp/teyen_temp_", 
+                                res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
+writeRaster(teyen_precip, paste("Prepped_data/Covariate_Data/All_data/", res, "deg/Palaeo/teyen_temp_", 
+                                res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
+# teyeo #
+teyeo_temp <- raster("Data/Covariate_Data/Lewis_Climate/Results/Maastrichtian/teyeo/max_temp.grd")
+crs(teyeo_temp) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
+r <- raster(res = res) #create raster for projecting raster
+teyeo_temp <- raster::projectRaster(teyeo_temp, r) #project raster
+plot(teyeo_temp)
+writeRaster(teyeo_precip, paste("Prepped_data/Covariate_Data/PalaeoTemp/teyeo_temp_", 
+                                res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
+writeRaster(teyeo_precip, paste("Prepped_data/Covariate_Data/All_data/", res, "deg/Palaeo/teyeo_temp_", 
+                                res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
+
+#########################
+##### SEDIMENT FLUX #####
+#########################
+
+new_extent <- extent(-180, 180, 0, 90)
+
+##### CAMPANIAN #####
+# teyep #
+teyep_sed <- sf::st_read("Data/Covariate_Data/catchment_data_080223/teyep/",
+                       layer = "m18_watersheds")
+teyep_sed <- teyep_sed %>%
+  select(qs_m3yr) 
+sf::st_crs(teyep_sed) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
+r1 <- raster(res = res)
+teyep_sed <- rasterize(teyep_sed, r1)
+teyep_sed <- crop(teyep_sed, new_extent)
+writeRaster(teyep_sed, paste("Prepped_data/Covariate_Data/PalaeoSed/teyep_sed_", 
+                                res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
+writeRaster(teyep_sed, paste("Prepped_data/Covariate_Data/All_data/", res, "deg/Palaeo/teyep_sed_", 
+                                res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
+# teyeq #
+teyeq_sed <- sf::st_read("Data/Covariate_Data/catchment_data_080223/teyeq",
+                         layer = "m19_watersheds")
+teyeq_sed <- teyeq_sed %>%
+  select(qs_m3yr) 
+sf::st_crs(teyeq_sed) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
+r1 <- raster(res = res)
+teyeq_sed <- rasterize(teyeq_sed, r1)
+teyeq_sed <- crop(teyep_sed, new_extent)
+writeRaster(teyeq_sed, paste("Prepped_data/Covariate_Data/PalaeoSed/teyeq_sed_", 
+                             res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
+writeRaster(teyeq_sed, paste("Prepped_data/Covariate_Data/All_data/", res, "deg/Palaeo/teyeq_sed_", 
+                             res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
+##### MAASTRICHTIAN #####
+# teyen #
+teyen_sed <- sf::st_read("Data/Covariate_Data/catchment_data_080223/teyen",
+                         layer = "m16_watersheds")
+teyen_sed <- teyen_sed %>%
+  select(qs_m3yr) 
+sf::st_crs(teyen_sed) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
+r1 <- raster(res = res)
+teyen_sed <- rasterize(teyen_sed, r1)
+teyen_sed <- crop(teyen_sed, new_extent)
+writeRaster(teyen_sed, paste("Prepped_data/Covariate_Data/PalaeoSed/teyen_sed_", 
+                             res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
+writeRaster(teyen_sed, paste("Prepped_data/Covariate_Data/All_data/", res, "deg/Palaeo/teyen_sed_", 
+                             res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
+# teyeo #
+teyeo_sed <- sf::st_read("Data/Covariate_Data/catchment_data_080223/teyeo",
+                         layer = "m17_watersheds")
+teyeo_sed <- teyeo_sed %>%
+  select(qs_m3yr) 
+sf::st_crs(teyeo_sed) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
+r1 <- raster(res = res)
+teyeo_sed <- rasterize(teyeo_sed, r1)
+extent(teyeo_sed)
+teyeo_sed <- crop(teyeo_sed, new_extent)
+writeRaster(teyeo_sed, paste("Prepped_data/Covariate_Data/PalaeoSed/teyeo_sed_", 
+                             res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
+writeRaster(teyeo_sed, paste("Prepped_data/Covariate_Data/All_data/", res, "deg/Palaeo/teyeo_sed_", 
+                             res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
+beepr::beep(sound = 3)
+
+################################################################################
+# A1. FORMAT GETECH PALAEO DATA (PRECIP, TEMP)
 ################################################################################
 
 #########################
@@ -350,186 +602,3 @@ writeRaster(MaasTemp, paste("Data/Covariate_Data/Formatted/PalaeoClimate/MaasTem
 writeRaster(MaasTemp, paste("Data/Covariate_Data/Formatted/All_data/", 
                             res, "deg/PalaeoClimate/MaasTemp_", res, ".asc", sep = ""), 
             pattern = "ascii", overwrite = TRUE)
-
-################################################################################
-# 7. FORMAT SCOTESE PALAEO DATA (DEM, PRECIP, TEMP, SEDFLUX)
-################################################################################
-
-###############
-##### DEM #####
-###############
-
-##### CAMPANIAN #####
-# teyep #
-teyep_DEM <- raster("Data/Covariate_Data/Scotese_Wright_2018_Maps_1-88_6minX6min_PaleoDEMS_nc/Map18_PALEOMAP_6min_Late_Cretaceous_75Ma.nc",
-            varname = "z")
-crs(teyep_DEM) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
-r <- raster(res = res) #create raster for projecting raster
-teyep_DEM <- raster::projectRaster(teyep_DEM, r) #project raster
-plot(teyep_DEM)
-writeRaster(teyep_DEM, paste("Data/Covariate_Data/Formatted/ScotesePalaeoDEM/teyep_", 
-                            res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
-# teyeq #
-teyeq_DEM <- raster("Data/Covariate_Data/Scotese_Wright_2018_Maps_1-88_6minX6min_PaleoDEMS_nc/Map19_PALEOMAP_6min_Late_Cretaceous_80Ma.nc",
-                    varname = "z")
-crs(teyeq_DEM) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
-r <- raster(res = res) #create raster for projecting raster
-teyeq_DEM <- raster::projectRaster(teyeq_DEM, r) #project raster
-plot(teyeq_DEM)
-writeRaster(teyeq_DEM, paste("Data/Covariate_Data/Formatted/ScotesePalaeoDEM/teyeq_", 
-                             res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
-##### MAASTRICHTIAN #####
-# teyen #
-teyen_DEM <- raster("Data/Covariate_Data/Scotese_Wright_2018_Maps_1-88_6minX6min_PaleoDEMS_nc/Map16_PALEOMAP_6min_KT_Boundary_65Ma.nc",
-                    varname = "z")
-crs(teyen_DEM) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
-r <- raster(res = res) #create raster for projecting raster
-teyen_DEM <- raster::projectRaster(teyen_DEM, r) #project raster
-plot(teyen_DEM)
-writeRaster(teyen_DEM, paste("Data/Covariate_Data/Formatted/ScotesePalaeoDEM/teyen_", 
-                             res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
-# teyeo #
-teyeo_DEM <- raster("Data/Covariate_Data/Scotese_Wright_2018_Maps_1-88_6minX6min_PaleoDEMS_nc/Map17_PALEOMAP_6min_Late_Cretaceous_70Ma.nc",
-                    varname = "z")
-crs(teyeo_DEM) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
-r <- raster(res = res) #create raster for projecting raster
-teyeo_DEM <- raster::projectRaster(teyeo_DEM, r) #project raster
-plot(teyeo_DEM)
-writeRaster(teyeo_DEM, paste("Data/Covariate_Data/Formatted/ScotesePalaeoDEM/teyeo_", 
-                             res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
-
-#########################
-##### PRECIPITATION #####
-#########################
-
-##### CAMPANIAN #####
-# teyep #
-teyep_precip <- raster("Data/Covariate_Data/Lewis_Climate/Results/Campanian/teyep/max_precip.grd")
-crs(teyep_precip) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
-r <- raster(res = res) #create raster for projecting raster
-teyep_precip <- raster::projectRaster(teyep_precip, r) #project raster
-plot(teyep_precip)
-writeRaster(teyep_precip, paste("Data/Covariate_Data/Formatted/ScotesePalaeoPrecip/teyep_", 
-                             res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
-# teyeq #
-teyeq_precip <- raster("Data/Covariate_Data/Lewis_Climate/Results/Campanian/teyeq/max_precip.grd")
-crs(teyeq_precip) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
-r <- raster(res = res) #create raster for projecting raster
-teyeq_precip <- raster::projectRaster(teyeq_precip, r) #project raster
-plot(teyeq_precip)
-writeRaster(teyeq_precip, paste("Data/Covariate_Data/Formatted/ScotesePalaeoPrecip/teyeq_", 
-                                res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
-##### MAASTRICHTIAN #####
-# teyen #
-teyen_precip <- raster("Data/Covariate_Data/Lewis_Climate/Results/Maastrichtian/teyen/max_precip.grd")
-crs(teyep_precip) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
-r <- raster(res = res) #create raster for projecting raster
-teyen_precip <- raster::projectRaster(teyen_precip, r) #project raster
-plot(teyen_precip)
-writeRaster(teyen_precip, paste("Data/Covariate_Data/Formatted/ScotesePalaeoPrecip/teyen_", 
-                                res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
-# teyeo #
-teyeo_precip <- raster("Data/Covariate_Data/Lewis_Climate/Results/Maastrichtian/teyeo/max_precip.grd")
-crs(teyeo_precip) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
-r <- raster(res = res) #create raster for projecting raster
-teyeo_precip <- raster::projectRaster(teyeo_precip, r) #project raster
-plot(teyeo_precip)
-writeRaster(teyeo_precip, paste("Data/Covariate_Data/Formatted/ScotesePalaeoPrecip/teyeo_", 
-                                res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
-#######################
-##### TEMPERATURE #####
-#######################
-
-##### CAMPANIAN #####
-# teyep #
-teyep_temp <- raster("Data/Covariate_Data/Lewis_Climate/Results/Campanian/teyep/max_temp.grd")
-crs(teyep_temp) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
-r <- raster(res = res) #create raster for projecting raster
-teyep_temp <- raster::projectRaster(teyep_temp, r) #project raster
-plot(teyep_temp)
-writeRaster(teyep_temp, paste("Data/Covariate_Data/Formatted/ScotesePalaeoTemp/teyep_", 
-                                res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
-# teyeq #
-teyeq_temp <- raster("Data/Covariate_Data/Lewis_Climate/Results/Campanian/teyeq/max_temp.grd")
-crs(teyeq_temp) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
-r <- raster(res = res) #create raster for projecting raster
-teyeq_temp <- raster::projectRaster(teyeq_temp, r) #project raster
-plot(teyeq_temp)
-writeRaster(teyeq_temp, paste("Data/Covariate_Data/Formatted/ScotesePalaeoTemp/teyeq_", 
-                                res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
-##### MAASTRICHTIAN #####
-# teyen #
-teyen_temp <- raster("Data/Covariate_Data/Lewis_Climate/Results/Maastrichtian/teyen/max_temp.grd")
-crs(teyep_temp) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
-r <- raster(res = res) #create raster for projecting raster
-teyen_temp <- raster::projectRaster(teyen_temp, r) #project raster
-plot(teyen_temp)
-writeRaster(teyen_temp, paste("Data/Covariate_Data/Formatted/ScotesePalaeoTemp/teyen_", 
-                                res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
-# teyeo #
-teyeo_temp <- raster("Data/Covariate_Data/Lewis_Climate/Results/Maastrichtian/teyeo/max_temp.grd")
-crs(teyeo_temp) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
-r <- raster(res = res) #create raster for projecting raster
-teyeo_temp <- raster::projectRaster(teyeo_temp, r) #project raster
-plot(teyeo_temp)
-writeRaster(teyeo_temp, paste("Data/Covariate_Data/Formatted/ScotesePalaeoTemp/teyeo_", 
-                                res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
-
-#########################
-##### SEDIMENT FLUX #####
-#########################
-
-new_extent <- extent(-180, 180, 0, 90)
-
-##### CAMPANIAN #####
-# teyep #
-teyep_sed <- sf::st_read("Data/Covariate_Data/catchment_data_080223/teyep/",
-                       layer = "m18_watersheds")
-teyep_sed <- teyep_sed %>%
-  select(qs_m3yr) 
-sf::st_crs(teyep_sed) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
-r1 <- raster(res = res)
-teyep_sed <- rasterize(teyep_sed, r1)
-teyep_sed <- crop(teyep_sed, new_extent)
-writeRaster(teyep_sed, paste("Data/Covariate_Data/Formatted/SedFlux/",
-                             res, "/teyep_sed_", res, ".asc", sep = ""), 
-            pattern = "ascii", overwrite = TRUE)
-# teyeq #
-teyeq_sed <- sf::st_read("Data/Covariate_Data/catchment_data_080223/teyeq",
-                         layer = "m19_watersheds")
-teyeq_sed <- teyeq_sed %>%
-  select(qs_m3yr) 
-sf::st_crs(teyeq_sed) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
-r1 <- raster(res = res)
-teyeq_sed <- rasterize(teyeq_sed, r1)
-teyeq_sed <- crop(teyep_sed, new_extent)
-writeRaster(teyeq_sed, paste("Data/Covariate_Data/Formatted/SedFlux/",
-                             res, "/teyeq_sed_", res, ".asc", sep = ""), 
-            pattern = "ascii", overwrite = TRUE)
-##### MAASTRICHTIAN #####
-# teyen #
-teyen_sed <- sf::st_read("Data/Covariate_Data/catchment_data_080223/teyen",
-                         layer = "m16_watersheds")
-teyen_sed <- teyen_sed %>%
-  select(qs_m3yr) 
-sf::st_crs(teyen_sed) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
-r1 <- raster(res = res)
-teyen_sed <- rasterize(teyen_sed, r1)
-teyen_sed <- crop(teyen_sed, new_extent)
-writeRaster(teyen_sed, paste("Data/Covariate_Data/Formatted/SedFlux/",
-                             res, "/teyen_sed_", res, ".asc", sep = ""), 
-            pattern = "ascii", overwrite = TRUE)
-# teyeo #
-teyeo_sed <- sf::st_read("Data/Covariate_Data/catchment_data_080223/teyeo",
-                         layer = "m17_watersheds")
-teyeo_sed <- teyeo_sed %>%
-  select(qs_m3yr) 
-sf::st_crs(teyeo_sed) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
-r1 <- raster(res = res)
-teyeo_sed <- rasterize(teyeo_sed, r1)
-extent(teyeo_sed)
-teyeo_sed <- crop(teyeo_sed, new_extent)
-writeRaster(teyeo_sed, paste("Data/Covariate_Data/Formatted/SedFlux/",
-                             res, "/teyeo_sed_", res, ".asc", sep = ""), 
-            pattern = "ascii", overwrite = TRUE)
-beepr::beep(sound = 3)
