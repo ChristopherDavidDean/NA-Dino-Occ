@@ -37,7 +37,6 @@ library(dplyr)
 library(lattice)
 library(rasterVis)
 library(sp)
-library(rgdal)
 library(maps)
 library(maptools)
 library(parallel)
@@ -233,12 +232,12 @@ find_collections <- function(data, single = FALSE){
   # later functions)
   
   Collections_per_cell <- data %>% # Counting collections per cell
-    dplyr::select(collection_no, cells) %>%
+    dplyr::select(collection_no, siteID) %>%
     dplyr::distinct() %>%
-    dplyr::group_by(cells) %>%
+    dplyr::group_by(siteID) %>%
     dplyr::summarize(colls_per_cell = n())
   if(single == TRUE){
-    # Removing any cells with < 1 collection
+    # Removing any cells with 1 collection
     Collections_per_cell <- Collections_per_cell[!Collections_per_cell$colls_per_cell == 1,] 
   }
   Collections_per_cell <<- Collections_per_cell
@@ -253,104 +252,76 @@ get_cov <- function(data, raster){
   # can be a raster stack. 
   
   xy <- SpatialPointsDataFrame(cbind.data.frame(data$lng, data$lat), data)
-  cov_dat <- raster::extract(raster, xy, sp = TRUE, cellnumbers = TRUE)
+  cov_dat <- raster::extract(raster, xy, sp = TRUE, cellnumbers = FALSE)
   cov_dat <- as.data.frame(cov_dat)
   colls <- find_collections(data)
-  colnames(colls)[1] <- "cells.1"
-  cov_dat <<- merge(cov_dat, colls, by = "cells.1")
+  cov_dat <- merge(cov_dat, colls, by = "siteID")
 }
 
-#===== GET_COV_FROM_STACK =====
+#===== GET_P_COV =====
 
-# Creates a raster stack of chosen resolution from previously stored raster files, 
-# and attaches associated grid cell IDs to occurrences/collections. 
+# Attaches grid cell IDs from an inputted raster to occurrences/collections.
 
-get_cov_from_stack <- function(data, res){ 
-  # data is first output from combine_data (fossil.colls) and chosen resolution. 
-  
-  # Find rasters of appropriate resolution
-  grids <- list.files(paste("Data/Covariate_Data/Formatted/All_data/", 
-                            res, "deg/", sep = ""), pattern = "asc") 
-  # stack those rasters
-  raster <- raster::stack(paste0("Data/Covariate_Data/Formatted/All_data/", 
-                                 res, "deg/", grids)) 
-  get_cov(data, raster)
-  CovStack <<- raster
+get_p_cov <- function(data, raster){
+  # data is first output from get_grid. Raster is a chosen raster file, which 
+  # can be a raster stack. 
+  xy <- SpatialPointsDataFrame(cbind.data.frame(data$plng, data$plat), data)
+  cov_dat <- raster::extract(raster, xy, sp = TRUE, cellnumbers = FALSE)
+  cov_dat <- as.data.frame(cov_dat)
+  colls <- find_collections(data)
+  p_cov_dat <- merge(cov_dat, colls, by = "siteID")
 }
 
-#===== HIRES_COV_DAT =====
+#===== PRECISE_COV =====
 
 # Creates dataframe of covariate data associated with relevant grid cells, taken
 # from original hi-resolution rasters. Covariate values are created from the mean 
 # value of collections within larger grid cells of chosen resolution. 
 
-alt_cov_grab <- function(data, res, out = T, formCells = formCells){
+precise_cov <- function(data, samp.data){
   # ADD INFO HERE
   
-  wc <- list.files("Data/Covariate_Data/Formatted_For_Precise/")
+  wc <- list.files("Prepped_data/Covariate_Data/Precise/")
   wc <- wc[!grepl('0.*', wc)] # Remove folders based on resolution
   wc <- stack(paste0("Data/Covariate_Data/Formatted_For_Precise/", wc, sep = ""))
   projection(wc) <- "+proj=laea +lat_0=45 +lon_0=-100 +x_0=0 +y_0=0 +a=6370997 +b=6370997 +units=m +no_defs" 
   xy <- SpatialPointsDataFrame(cbind.data.frame(data$lng, data$lat), data, 
                                proj4string = CRS("+proj=laea +lat_0=45 +lon_0=-100 +x_0=0 +y_0=0 +a=6370997 +b=6370997 +units=m +no_defs"))
   hires_cov_dat <- raster::extract(wc, xy, sp = TRUE, cellnumbers = FALSE)
-  hires_cov_dat <- as.data.frame(hires_cov_dat)
-  hires_cov_dat <- get_grid(hires_cov_dat, res, e = e, formCells = formCells)
+  data <- as.data.frame(hires_cov_dat)
   
-  counting_colls <- hires_cov_dat %>%
-    dplyr::select(cells, collection_no) %>%
+  counting_colls <- data %>%
+    dplyr::select(siteID, collection_no) %>%
     dplyr::distinct() %>%
-    dplyr::group_by(cells) %>%
+    dplyr::group_by(siteID) %>%
     dplyr::summarize(Coll_count = n())
-  hires_cov_dat <- hires_cov_dat %>%
-    dplyr::group_by(cells) %>%
+  hires_cov_dat <- data %>%
+    dplyr::group_by(siteID) %>%
     dplyr::summarize(mean_DEM = mean(DEM, na.rm = TRUE), 
-              mean_MGVF = mean(MGVF, na.rm = TRUE),
-              mean_prec = mean(prec, na.rm = TRUE),
-              mean_temp = mean(temp, na.rm = TRUE),
-              max_DEM = max(DEM, na.rm = TRUE),
-              min_DEM = min(DEM, na.rm = TRUE),
-              relief = (max(DEM, na.rm = TRUE) - min(DEM, na.rm = TRUE)))
+                     mean_prec = mean(prec, na.rm = TRUE),
+                     mean_temp = mean(temp, na.rm = TRUE))
   hires_cov_dat <- cbind(hires_cov_dat, counting_colls$Coll_count)
-
-  if (out == T){
-    if(bin.type == "formation"){
-      stop("Formation bins unsuitable with outcrop covariates. Please set 'out' argument of alt_cov_grab() to F.")
-    }
-    wc <- list.files(paste0("Data/Covariate_Data/Formatted_For_Precise/", res, sep = ""))
-    wc <- stack(paste0("Data/Covariate_Data/Formatted_For_Precise/", res, "/", wc, sep = ""))
-    projection(wc) <- "+proj=laea +lat_0=45 +lon_0=-100 +x_0=0 +y_0=0 +a=6370997 +b=6370997 +units=m +no_defs" 
-    xy <- SpatialPointsDataFrame(cbind.data.frame(data$lng, data$lat), data, 
-                                 proj4string = CRS("+proj=laea +lat_0=45 +lon_0=-100 +x_0=0 +y_0=0 +a=6370997 +b=6370997 +units=m +no_defs"))
-    out_dat <- raster::extract(wc, xy, sp = TRUE, cellnumbers = TRUE)
-    out_dat <- as.data.frame(out_dat)
-    colnames(out_dat) <- sub("_0.*", "", colnames(out_dat))
-    if(bin.type == "stage" | bin.type == "subtage" | bin.type == "scotese"){
-      if(bins$stage[t] == "Maastrichtian"){
-        out_dat <- out_dat %>%
-          dplyr::group_by(cells) %>%
-          dplyr::summarize(Maas_terr_outcrop = mean(MOut, na.rm = TRUE), 
-                           Maas_all_outcrop = mean(MOut_all, na.rm = TRUE), 
-                           Cret_outcrop = mean(Out_all, na.rm = TRUE))
-        hires_cov_dat <- cbind(hires_cov_dat, out_dat[,2:4])
-      }
-      if(bins$stage[t] == "Campanian"){
-        out_dat <- out_dat %>%
-          dplyr::group_by(cells) %>%
-          dplyr::summarize(Camp_terr_outcrop = mean(COut, na.rm = TRUE), 
-                           Camp_all_outcrop = mean(COut_all, na.rm = TRUE), 
-                           Cret_outcrop = mean(Out_all, na.rm = TRUE))
-        hires_cov_dat <- cbind(hires_cov_dat, out_dat[,2:4])
-      }
-      if(bin.type == "subtage" | bin.type == "scotese"){
-        warning(paste("Outcrop covariate produced at stage level. Please bear in mind for further analysis."))
-      }
+  
+  surv.data <- data.frame(siteID = rep(rownames(samp.data), each = 10),
+             colls = matrix(t(samp.data), ncol=1, nrow=ncol(samp.data)*nrow(samp.data), byrow=F))
+  
+  for(r in 1:nrow(surv.data)){
+    tem <- which(surv.data$colls[r] == data$collection_no)
+    if(length(tem) == 0){
+      surv.data$temp[r] <- NA
+      surv.data$prec[r] <- NA
+      surv.data$DEM[r] <- NA
+    }else{
+      tem
+      surv.data$temp[r] <- data$temp[[tem[1]]]
+      surv.data$prec[r] <- data$prec[[tem[1]]]
+      surv.data$DEM[r] <- data$DEM[[tem[1]]]
     }
   }
-  hires_cov_dat <<- hires_cov_dat
-  write.csv(hires_cov_dat, 
-            file.path(paste("Prepped_data/", bin.type, "/", bin.name, "/", res, 
-                            "/site_detection_covs.csv", sep="")))
+  write.csv(hires_cov_dat, file.path(paste("Prepped_data/Occurrence_Data/", bin.type, "/", bin.name, "/", 
+                                        res, "/precise_mean_covs.csv", sep="")))
+  write.csv(surv.data, file.path(paste("Prepped_data/Occurrence_Data/", bin.type, "/", bin.name, "/", 
+                                        res, "/surv_covs.csv", sep="")))
 }
 
 #============================== GET_GRID_IM ====================================
@@ -616,7 +587,7 @@ sample_for_unmarked <- function(for_unmarked, max_val){
   up_colframe <- colframe[,1:max_val]
   up_dframe <- dframe[,1:max_val]
   for(n in 1:nrow(dframe)){ # For each row (site)
-    if(any(is.na(colframe[n,])) == FALSE){
+    if(any(is.na(colframe[n,])) == FALSE){ #If there are no NAs (max no. of collections)
       samples <- sample(1:ncol(colframe), 10, replace=FALSE) # Sample 10 positions
       up_colframe[n,] <- colframe[n,samples] # Use those positions to subset columns
       up_dframe[n,] <- dframe[n,samples] # Use those positions to subset columns
@@ -647,24 +618,31 @@ all_results_for_unmarked <- function(data, res, target, ext, name, single = TRUE
   for (r in 1:length(res)){
     ptm <- proc.time()
     test1 <- get_grid(data, res[r], ext, formCells = formCells)
+    rand <- round(runif(1, min = 0, max = 999)) # Set random number for seed
     for (q in 1:length(target)){
       if(single == FALSE){
         test2 <- prepare_for_unmarked(test1, target[q], single = FALSE)
         if(max_val_on == TRUE){
+          set.seed(rand) # set seed to ensure all targets are have same sampling
           test2 <- sample_for_unmarked(test2, max_val)
+          temp_name <- paste("unmarked_", target[q], sep = "")
+          assign(temp_name, test2, envir = .GlobalEnv)
         }
       }
       else {
         test2 <- prepare_for_unmarked(test1, target[q])
         if(max_val_on == TRUE){
+          set.seed(rand) # set seed to ensure all targets are have same sampling
           test2 <- sample_for_unmarked(test2, max_val)
+          temp_name <- paste("unmarked_", target[q], sep = "")
+          assign(temp_name, test2, envir = .GlobalEnv)
         }
       }
       # Create folders, remove warning if they already exist.
-      dir.create(paste0("Prepped_data/", bin.type, "/", sep = ""), showWarnings = FALSE) 
-      dir.create(paste0("Prepped_data/", bin.type, "/", bin.name, "/", sep =""), 
+      dir.create(paste0("Prepped_data/Occurrence_Data/", bin.type, "/", sep = ""), showWarnings = FALSE) 
+      dir.create(paste0("Prepped_data/Occurrence_Data/", bin.type, "/", bin.name, "/", sep =""), 
                  showWarnings = FALSE) 
-      dir.create(paste0("Prepped_data/", bin.type, "/", bin.name, "/", res, "/", 
+      dir.create(paste0("Prepped_data/Occurrence_Data/", bin.type, "/", bin.name, "/", res, "/", 
                         sep = ""), showWarnings = FALSE) 
 
       if(max_val_on == TRUE){
@@ -675,15 +653,15 @@ all_results_for_unmarked <- function(data, res, target, ext, name, single = TRUE
         temp_name_2 <- paste(name, ".", res[r], ".", target[q], ".colframe", sep = "")
       }
       
-      write.csv(test2[[1]], file.path(paste("Prepped_data/", bin.type, "/", bin.name, "/", 
+      write.csv(test2[[1]], file.path(paste("Prepped_data/Occurrence_Data/", bin.type, "/", bin.name, "/", 
                                         res, "/", temp_name_1, ".csv", sep="")))
-      write.csv(test2[[2]], file.path(paste("Prepped_data/", bin.type, "/", bin.name, "/", 
+      write.csv(test2[[2]], file.path(paste("Prepped_data/Occurrence_Data/", bin.type, "/", bin.name, "/", 
                                        res, "/", temp_name_2, ".csv", sep="")))
     }
     proc.time() - ptm
+    assign("bin.occs", test1, envir = .GlobalEnv)
   }
   beepr::beep(sound = 3)
-  
 }
 
 #=========================PREPARE_FOR_MULTISPECIES =============================
