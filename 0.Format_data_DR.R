@@ -31,7 +31,8 @@ source("0.Functions_DR.R")
 
 # Set values
 res <- 1
-e <- extent(-155, -72, 22.5, 73)
+e <- extent(-155, -72, 22.5, 73) # For 0.5 and 0.1 degree
+e <- extent(-155, -72, 23, 73) # For 1 degree
 
 # Setup Folders
 dir.create(paste0("Prepped_data", sep =""))
@@ -205,7 +206,8 @@ setwd("Data/Covariate_Data/Worldclim/wc2.0_30s_prec/")
 wc <- list.files("./")
 wc <- stack(wc)
 wc <- crop(wc, e) #crop data to extent object
-wc2 <- aggregate(wc, fact = 12, fun = mean)
+fact <- res * 120
+wc2 <- aggregate(wc, fact = fact, fun = mean)
 #wc <- resample(wc, r)
 #wc <- crop(wc, e)
 newData <- wc2
@@ -224,7 +226,8 @@ setwd("Data/Covariate_Data/Worldclim/wc2.0_30s_tavg/")
 wc <- list.files("./")
 wc <- stack(wc)
 wc <- crop(wc, e) #crop data to extent object
-wc2 <- aggregate(wc, fact = 12, fun = mean)
+fact <- res * 120
+wc2 <- aggregate(wc, fact = fact, fun = mean)
 #wc <- resample(wc, r)
 #wc <- crop(wc, e)
 newData <- mean(wc2)
@@ -442,9 +445,9 @@ crs(teyep_temp) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,
 r <- raster(res = res) #create raster for projecting raster
 teyep_temp <- raster::projectRaster(teyep_temp, r) #project raster
 plot(teyep_temp)
-writeRaster(teyep_precip, paste("Prepped_data/Covariate_Data/PalaeoTemp/teyep_temp_", 
+writeRaster(teyep_temp, paste("Prepped_data/Covariate_Data/PalaeoTemp/teyep_temp_", 
                                 res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
-writeRaster(teyep_precip, paste("Prepped_data/Covariate_Data/All_data/", res, "deg/Palaeo/teyep_temp_", 
+writeRaster(teyep_temp, paste("Prepped_data/Covariate_Data/All_data/", res, "deg/Palaeo/teyep_temp_", 
                                 res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
 # teyeq #
 teyeq_temp <- raster("Data/Covariate_Data/Lewis_Climate/Results/Campanian/teyeq/max_temp.grd")
@@ -452,9 +455,9 @@ crs(teyeq_temp) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,
 r <- raster(res = res) #create raster for projecting raster
 teyeq_temp <- raster::projectRaster(teyeq_temp, r) #project raster
 plot(teyeq_temp)
-writeRaster(teyeq_precip, paste("Prepped_data/Covariate_Data/PalaeoTemp/teyeq_temp_", 
+writeRaster(teyeq_temp, paste("Prepped_data/Covariate_Data/PalaeoTemp/teyeq_temp_", 
                                 res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
-writeRaster(teyeq_precip, paste("Prepped_data/Covariate_Data/All_data/", res, "deg/Palaeo/teyeq_temp_", 
+writeRaster(teyeq_temp, paste("Prepped_data/Covariate_Data/All_data/", res, "deg/Palaeo/teyeq_temp_", 
                                 res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
 ##### MAASTRICHTIAN #####
 # teyen #
@@ -463,9 +466,9 @@ crs(teyep_temp) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,
 r <- raster(res = res) #create raster for projecting raster
 teyen_temp <- raster::projectRaster(teyen_temp, r) #project raster
 plot(teyen_temp)
-writeRaster(teyen_precip, paste("Prepped_data/Covariate_Data/PalaeoTemp/teyen_temp_", 
+writeRaster(teyen_temp, paste("Prepped_data/Covariate_Data/PalaeoTemp/teyen_temp_", 
                                 res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
-writeRaster(teyen_precip, paste("Prepped_data/Covariate_Data/All_data/", res, "deg/Palaeo/teyen_temp_", 
+writeRaster(teyen_temp, paste("Prepped_data/Covariate_Data/All_data/", res, "deg/Palaeo/teyen_temp_", 
                                 res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
 # teyeo #
 teyeo_temp <- raster("Data/Covariate_Data/Lewis_Climate/Results/Maastrichtian/teyeo/max_temp.grd")
@@ -473,16 +476,16 @@ crs(teyeo_temp) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,
 r <- raster(res = res) #create raster for projecting raster
 teyeo_temp <- raster::projectRaster(teyeo_temp, r) #project raster
 plot(teyeo_temp)
-writeRaster(teyeo_precip, paste("Prepped_data/Covariate_Data/PalaeoTemp/teyeo_temp_", 
+writeRaster(teyeo_temp, paste("Prepped_data/Covariate_Data/PalaeoTemp/teyeo_temp_", 
                                 res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
-writeRaster(teyeo_precip, paste("Prepped_data/Covariate_Data/All_data/", res, "deg/Palaeo/teyeo_temp_", 
+writeRaster(teyeo_temp, paste("Prepped_data/Covariate_Data/All_data/", res, "deg/Palaeo/teyeo_temp_", 
                                 res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
 
 #########################
 ##### SEDIMENT FLUX #####
 #########################
 
-new_extent <- extent(-180, 180, 0, 90)
+new_extent <- extent(-180, 180, -90, 90)
 
 ##### CAMPANIAN #####
 # teyep #
