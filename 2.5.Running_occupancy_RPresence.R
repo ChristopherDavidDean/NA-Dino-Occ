@@ -4,7 +4,7 @@
 
 # Christopher D. Dean, Lewis A. Jones, Alfio A. Chiarenza, Sinéad Lyster, 
 # Alex Farnsworth, Philip D. Mannion, Richard J. Butler.
-# 2019
+# 2023
 # Script written by Christopher D. Dean
 
 ################################################################################
@@ -118,24 +118,194 @@ pao <- createPao(data = eh,
 # 2. RUNNING MODELS
 ################################################################################
 
-##### Model Setup #####
-test <- occMod(
+##### Goodness of Fit Test on full model #####
+full.mod <- occMod(
   data = pao, model = list(
     psi ~ mean_ptemp + mean_pprec + mean_pDEM, 
-    p ~ mean_psed + LANDCVI_multiple + AllOut + MGVF + WC_Prec), 
+    p ~ mean_psed + LANDCVI_multiple + AllOut + MGVF + WC_Prec + WC_Temp + mean_prec +
+      mean_temp + mean_DEM + MOut + temp + prec), 
+  modfitboot = 5000,
+  type = 'so'
+)
+full.mod$gof
+
+###########################
+##### MODEL SELECTION #####
+###########################
+
+##### OCCUPANCY #####
+m0 <- occMod(
+  data = pao, model = list(
+    psi ~ 1, 
+    p ~ 1), 
+  type = 'so'
+)
+m1 <- occMod(
+  data = pao, model = list(
+    psi ~ mean_ptemp, 
+    p ~ 1), 
+  type = 'so'
+)
+m2 <- occMod(
+  data = pao, model = list(
+    psi ~ mean_pprec, 
+    p ~ 1), 
+  type = 'so'
+)
+m3 <- occMod(
+  data = pao, model = list(
+    psi ~ mean_pDEM, 
+    p ~ 1), 
+  type = 'so'
+)
+m4 <- occMod(
+  data = pao, model = list(
+    psi ~ mean_ptemp + mean_pprec, 
+    p ~ 1), 
+  type = 'so'
+)
+m5 <- occMod(
+  data = pao, model = list(
+    psi ~ mean_ptemp + mean_pDEM, 
+    p ~ 1), 
+  type = 'so'
+)
+m6 <- occMod(
+  data = pao, model = list(
+    psi ~ mean_pprec + mean_pDEM, 
+    p ~ 1), 
+  type = 'so'
+)
+m7 <- occMod(
+  data = pao, model = list(
+    psi ~ mean_ptemp + mean_pprec + mean_pDEM, 
+    p ~ 1), 
+  type = 'so'
+)
+m8 <- occMod(
+  data = pao, model = list(
+    psi ~ mean_pprec +  I(mean_pprec^2), 
+    p ~ 1), 
+  type = 'so'
+)
+m9 <- occMod(
+  data = pao, model = list(
+    psi ~ mean_ptemp +  I(mean_ptemp^2), 
+    p ~ 1), 
   type = 'so'
 )
 
-##### Goodness of Fit Test on full model #####
+# Make/show AICc table
+aic <- createAicTable(
+  list(m0, m1, m2, m3, m4, m5, m6, m7, m8, m9),
+  use.aicc = TRUE
+)
+aic$table
+
+# Best Model
+bm.o <- m2
+
+##### DETECTION #####
+
+m0 <- occMod(
+  data = pao, 
+  model = list(
+    psi ~ 1, 
+    p ~ 1),
+  type = 'so'
+)
+m1 <- occMod(
+  data = pao, 
+  model = list(
+    psi ~ mean_pprec, 
+    p ~ LANDCVI_multiple),
+  type = 'so'
+)
+m2 <- occMod(
+  data = pao, 
+  model = list(
+    psi ~ mean_pprec, 
+    p ~ AllOut),
+  type = 'so'
+)
+m3 <- occMod(
+  data = pao, 
+  model = list(
+    psi ~ mean_pprec, 
+    p ~ MGVF),
+  type = 'so'
+)
+m4 <- occMod(
+  data = pao, 
+  model = list(
+    psi ~ mean_pprec, 
+    p ~ WC_Prec),
+  type = 'so'
+)
+m5 <- occMod(
+  data = pao, 
+  model = list(
+    psi ~ mean_pprec, 
+    p ~ WC_Temp),
+  type = 'so'
+)
+m6 <- occMod(
+  data = pao, 
+  model = list(
+    psi ~ mean_pprec, 
+    p ~ mean_psed),
+  type = 'so'
+)
+m7 <- occMod(
+  data = pao, 
+  model = list(
+    psi ~ mean_pprec, 
+    p ~ LANDCVI_multiple + AllOut),
+  type = 'so'
+)
+m8 <- occMod(
+  data = pao, 
+  model = list(
+    psi ~ mean_pprec, 
+    p ~ AllOut + WC_Prec),
+  type = 'so'
+)
+m9 <- occMod(
+  data = pao, 
+  model = list(
+    psi ~ mean_pprec, 
+    p ~ mean_psed + AllOut),
+  type = 'so'
+)
+m10 <- occMod(
+  data = pao, 
+  model = list(
+    psi ~ 1, 
+    p ~ mean_psed + LANDCVI_multiple + mean_prec + mean_psed),
+  type = 'so'
+)
+
+
+m10
+
+# Make/show AICc table
+aic <- createAicTable(
+  list(m0, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10),
+  use.aicc = TRUE
+)
+aic$table
+
+# Best Model
+bm.od <- m10
 
 ##### Check optimisation #####
-summary(test)
+summary(bm.od)
 
 ##### Get beta coefficients #####
-coef(object = test, 
+coef(object = bm.od, 
      param = 'psi', 
      prob = 0.95)
-coef(object = test, 
+coef(object = bm.od, 
      param = 'p', 
      prob = 0.95)
 
