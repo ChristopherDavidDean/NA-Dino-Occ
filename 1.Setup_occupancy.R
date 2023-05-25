@@ -1,5 +1,5 @@
 ################################################################################
-############# OCCUPANCY OF LATE CRETACEOUS NORTH AMERICAN DINOSAURS ############
+############ OCCUPANCY OF LATE CRETACEOUS NORTH AMERICAN DINOSAURS #############
 ################################################################################
 
 # Christopher D. Dean, Lewis A. Jones, Alfio A. Chiarenza, Sinéad Lyster, 

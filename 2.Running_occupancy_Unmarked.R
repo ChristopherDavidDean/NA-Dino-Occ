@@ -20,7 +20,7 @@
 #######################################
 
 # Set working directory
-setwd(dirname(rstudioapi::getActiveDocumentContext()$path)) # Set your working directory
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 
 # Load Packages 
 library(unmarked)
