@@ -1123,7 +1123,7 @@ get_det <- function (model, min.yr = NULL, CI = 95){
 
 # WHAT DOES THIS FUNCTION DO???
 
-binning <- function(window){
+binning <- function(window, occdf){
 
   # WHAT DOES THIS FUNCTION NEED TO RUN?
   
@@ -1150,7 +1150,7 @@ binning <- function(window){
   bins[1,2] <- 66 
   
   # Bin occurrences using palaeoverse
-  master.occs.binned <- bin_time(master.occs, bins, method = 'majority') 
+  master.occs.binned <- bin_time(occdf, bins, method = 'majority') 
   bin.type <- "formation"
   
   # Adding midpoint
@@ -1196,9 +1196,9 @@ naive.res <- function(target, data){
     # Summarise data to establish occupied vs non-occupied grid cells per bin
     temp <- temp %>%
       dplyr::select(bin_midpoint, siteID, Target) %>%
-      distinct() %>%
-      group_by(bin_midpoint, siteID) %>%
-      summarise(sites = ceiling(mean(Target))) 
+      dplyr::distinct() %>%
+      dplyr::group_by(bin_midpoint, siteID) %>%
+      dplyr::summarise(sites = ceiling(mean(Target))) 
     
     # Make into dataframe and rearrange data
     temp <- as.data.frame(table(temp$bin_midpoint, temp$sites))
@@ -1264,11 +1264,11 @@ comb.res <- function(occ, det, naive, target){
   complete <-rbind(naive, det.res, occ.res)
   
   # Add midpoint
-  lookup <<- data.frame('currentbins' = sort(unique(master.occs.binned$bin_assignment)), 
+  lookup <<- data.frame('currentbins' = sort(unique(master.occs.grid$bin_assignment)), 
                        'newbins' = 
-                         seq(from = length(unique(master.occs.binned$bin_assignment)), 
+                         seq(from = length(unique(master.occs.grid$bin_assignment)), 
                              to = 1), 
-                       'bin_midpoint' = bins$mid_ma)
+                       'bin_midpoint' = sort(bins$bin_midpoint))
   
   inds <- match(complete$year, lookup$newbins)
   complete$new_bins <- lookup$bin_midpoint[inds]
@@ -1407,7 +1407,7 @@ occurrence.plot <- function(data, target){
   
   occ.comb <- data.frame(matrix(ncol = 0, nrow = 0))
   for(i in 1:length(target)){
-    temp <- master.occs.binned %>%
+    temp <- master.occs.grid %>%
       dplyr::filter(Target == target[i])
     temp <- as.data.frame(table(temp$bin_midpoint))
     temp$Var1 <- as.numeric(as.character(temp$Var1))
