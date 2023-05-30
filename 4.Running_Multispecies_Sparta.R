@@ -43,80 +43,39 @@ library(png)
 library(grid)
 library(viridis)
 
-# Get Functions
-source('0.Functions_DR.R')
+##### Load in Functions #####
+source("0.Functions.R") # Import functions from other R file (must be in same working directory)
 
-# Load data 
+# Set resolution
 res <- 0.5
-master.occs <- read.csv(paste("master.occs.", res, ".csv", sep = ""))
 
+# Set extent
+e <- extent(-155, -72, 22.5, 73)
+
+# Set bin type
+bin.type <- "scotese"
+
+# Load main dataset
+master.occs <- read.csv(paste("Prepped_data/Occurrence_Data/", bin.type, "/", 
+                              res, "_", bin.type, "_occurrence_dataset.csv", sep = ""))
 # Load formations
 formations <- read.csv("Data/Occurrences/Formations.csv") # Load formations
 
-# Get information on ICS based intervals, then trim to fit relevant time frame. 
-stages <- stage[80:81,] # Set stages to range from Campanian to Maastrichtian
+# Set bins 
+bins <- master.occs %>%
+  dplyr::select(bin_assignment, bin_midpoint) %>%
+  distinct()
 
-################################################################################
-# 2. TIME BINNING
-################################################################################
-
-#####################
-##### FORMATION #####
-#####################
-
-# Organise formations
-formations <- formations[,1:11] # Remove additional columns
-formations <- formations[order(formations$Formation),] # Reorganise formations
-formations$forbinning <- 1:nrow(formations) # Provide ID for formations
-formations$Range <- formations$max_age - formations$min_age # Calculate formation range
-formations$Diversity <- 0 # Add in dummy variables to ensure code works (sorry!)
-formations$Occurrences <- 0 # Add in dummy variables to ensure code works (sorry!)
-colnames(formations)[1] <- "formation" # Change to allow for further analysis
-
-# Run combined binning function, choosing adjustable window
-bin.res <- 2.5
-binning(bin.res)
-bin.type <- "formation"
-
-####################
-##### SUBSTAGE #####
-####################
-
-# Load bins, bin accordingly
-bins <- read.csv("Data/Occurrences/substages.csv")
-bins$bin <- c("SB.1","SB.2","SB.3","SB.4","SB.5")
-master.occs.binned <- bin_time(master.occs, bins, method = "all")
-bin.type <- "substage"
+get_grid(master.occs, res = res, e = e)
 
 # Adding midpoint
-master.occs.binned$mid_ma <- (master.occs.binned$max_ma + master.occs.binned$min_ma)/2
+master.occs.grid$mid_ma <- (master.occs.grid$max_ma + master.occs.grid$min_ma)/2
 
-# Reorder bins for later
-lookup <- data.frame('currentbins' = sort(unique(master.occs.binned$bin_assignment)), 
-                     'newbins' = seq(from = length(unique(master.occs.binned$bin_assignment)), 
+lookup <- data.frame('currentbins' = sort(unique(master.occs.grid$bin_assignment)), 
+                     'newbins' = seq(from = length(unique(master.occs.grid$bin_assignment)), 
                                      to = 1))
-inds <- match(master.occs.binned$bin_assignment, lookup$currentbins)
-master.occs.binned$new_bins[!is.na(inds)] <- lookup$newbins[na.omit(inds)]
-
-###################
-##### SCOTESE #####
-###################
-
-# Load bins, bin accordingly
-bins <- read.csv("Data/Occurrences/scotesebins.csv")
-bins$bin <- c("SC.1","SC.2","SC.3","SC.4")
-master.occs.binned <- bin_time(master.occs, bins, method = "majority")
-bin.type <- "scotese"
-
-# Adding midpoint
-master.occs.binned$mid_ma <- (master.occs.binned$max_ma + master.occs.binned$min_ma)/2
-
-# Reorder bins for later
-lookup <- data.frame('currentbins' = sort(unique(master.occs.binned$bin_assignment)), 
-                     'newbins' = seq(from = length(unique(master.occs.binned$bin_assignment)), 
-                                     to = 1))
-inds <- match(master.occs.binned$bin_assignment, lookup$currentbins)
-master.occs.binned$new_bins[!is.na(inds)] <- lookup$newbins[na.omit(inds)]
+inds <- match(master.occs.grid$bin_assignment, lookup$currentbins)
+master.occs.grid$new_bins[!is.na(inds)] <- lookup$newbins[na.omit(inds)]
 
 ################################################################################
 # 3. NAIVE OCCUPANCY
@@ -126,7 +85,7 @@ master.occs.binned$new_bins[!is.na(inds)] <- lookup$newbins[na.omit(inds)]
 target = c("Hadrosauridae", "Ceratopsidae", "Tyrannosauridae")
 
 # Make results table for naive occupancy
-naive.res(target, master.occs.binned)
+naive.res(target, master.occs.grid)
 
 ################################################################################
 # 4. RUNNING SPARTA
@@ -146,7 +105,7 @@ occ_mod_function <- function(taxa_name){
 } 
 
 # Run occupancy model and combine results
-run.model(master.occs.binned, target)
+run.model(master.occs.grid, target)
 
 ################################################################################
 # 5. PLOTTING/SAVING RESULTS
@@ -157,7 +116,7 @@ run.model(master.occs.binned, target)
 #################
 
 # Plotting number of occurrences
-occurrence.plot(master.occs.binned, target)
+occurrence.plot(master.occs.grid, target)
 
 # Plotting occupancy (naive and modelled)
 cera <- all.results %>%
