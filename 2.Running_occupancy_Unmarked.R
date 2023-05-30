@@ -33,7 +33,7 @@ library(tibble)
 bin.type <- "scotese"
 res <- 0.5
 bin <- "teyen"
-target <- "Ceratopsidae"
+target <- "Hadrosauridae"
 
 ###################################
 ##### LOAD AND SORT VARIABLES #####
@@ -194,6 +194,14 @@ umf@siteCovs$PDEM <- scale(umf@siteCovs$PDEM)
 # Get summary of overall occupancy model
 summary(umf) 
 
+# Get naive occupancy
+naive.occ <- y %>% 
+  as.data.frame() %>%
+  filter(if_any(where(is.numeric), ~ .x > 0)) %>%
+  nrow()
+naive.occ <- data.frame(Parameter = "Naive Occupancy", 
+                        Estimate = naive.occ/nrow(y))
+
 # Make model without covariates
 summary(fm1 <- occu(~1 ~1, data=umf))
 
@@ -202,11 +210,13 @@ print(occ.null <- backTransform(fm1, "state"))
 print(det.null <- backTransform(fm1, "det")) 
 
 # Compile results
-null.res <- rbind(Null.occ.prob = c(Estimate = mean(occ.null@estimate), 
-                                    confint(occ.null, level = 0.9)),
-                  Null.det.prob = c(Estimate = mean(det.null@estimate), 
-                                    confint(det.null, level = 0.9)))
-colnames(null.res) <- c("Estimate", "5%", "95%")
+null.res <- rbind(c(Estimate = mean(occ.null@estimate), 
+                                    confint(occ.null, level = 0.95)),
+                   c(Estimate = mean(det.null@estimate), 
+                                    confint(det.null, level = 0.95)))
+colnames(null.res) <- c("Estimate", "2.5%", "97.5%")
+null.res <- as.data.frame(null.res)
+null.res$Parameter <- c("Null.occ.prob", "Null.det.prob")
 
 ###############################################
 ##### COVARIATE MODEL AND MODEL SELECTION #####
@@ -214,7 +224,7 @@ colnames(null.res) <- c("Estimate", "5%", "95%")
 
 # Fit full model
 full <- occu(formula =  ~ OUTa + MGVF + TEMP + LAND + RAIN + SEDf # det
-                        ~ Ppre + Ptem +  PDEM, # occ
+                        ~ Ppre + Ptem + PDEM, # occ
              data = umf)
 
 # Use dredge to automatically carry out model selection
@@ -222,7 +232,7 @@ full <- occu(formula =  ~ OUTa + MGVF + TEMP + LAND + RAIN + SEDf # det
 
 # If no clear best fit model, combine models for averaged model
 occu_dredge_95 <- get.models(modelList, subset = cumsum(weight) <= 0.95)
-oc_avg <- model.avg(occu_dredge_95, fit = TRUE)
+mod.av <- model.avg(occu_dredge_95, fit = TRUE, rank = "AICc")
 
 # Report best model and top 5 models
 best.model <- occu_dredge_95[[1]]
@@ -231,12 +241,15 @@ top.5 <- occu_dredge_95[1:5]
 top.5
 
 # Run MacKenzie and Bailey Goodness-of-fit test (WARNING: MIGHT TAKE A WHILE)
-system.time(occ_gof <- mb.gof.test(best.model, nsim = 1000, plot.hist = FALSE))
+system.time(occ_gof <- mb.gof.test(full, nsim = 10000, plot.hist = FALSE))
 occ_gof$p.value
 
 # Examine the effect of covariates from averaged model
-(temp.model.res <- coef(oc_avg) %>% 
+(temp.model.res <- coef(mod.av) %>% 
   enframe())
+av.CI <- as.data.frame(confint(mod.av, type='det', method = 'normal'))
+av.CI$name <- rownames(av.CI)
+temp.model.res <- merge(temp.model.res, av.CI, by = "name")
 
 # Examine beta co-efficents for best model
 confint(best.model, type='det', method = 'normal')
@@ -246,26 +259,30 @@ confint(best.model, type='state', method = 'normal')
 # Proportion of area occupied
 re <- ranef(best.model)
 EBUP <- bup(re, stat="mean")
-CI <- confint(re, level=0.9)
+CI <- confint(re, level=0.95)
 SE <- standard_error(re@post)
 (PAO <- rbind(PAO = c(Estimate = sum(EBUP), colSums(CI)) / nrow(y)))
+PAO <- as.data.frame(PAO)
+PAO$Parameter <- "PAO"
 
-# Estimate of Detection Prob. per site
-det.prob <- predict(best.model, type="det") # Predict detection for sites/vists
-det.prob <- det.prob[seq(1, nrow(det.prob), (ncol(data)-1)), ] # Remove duplicate vists to only get prediction per site
-(det.prob <- rbind(Det.prob = c(Estimate = mean(det.prob$Predicted), 
-                                SE = mean(det.prob$SE))))
+# Estimate of Detection Prob. per site (model averaged)
+det.prob <- unmarked::predict(mod.av, type="det") # Predict detection for sites/vists
+(det.prob <- rbind(Det.prob = c(Estimate = mean(det.prob$fit), 
+                                SE = mean(det.prob$se.fit))))
+det.prob <- as.data.frame(det.prob)
+det.prob$Parameter <- "Det.prob"  
 
-# Estimate of Occupancy Prob. per site
-occ.prob <- predict(best.model, type="state") # Predict occupancy for sites/vists
-occ.prob <- occ.prob[seq(1, nrow(occ.prob), (ncol(data)-1)), ] # Remove duplicate vists to only get prediction per site
-(occ.prob <- rbind(occ.prob = c(Estimate = mean(occ.prob$Predicted), 
-                                SE = mean(occ.prob$SE))))
+# Estimate of Occupancy Prob. per site (model averaged)
+occ.prob <- unmarked::predict(mod.av, type="state") # Predict occupancy for sites/vists
+(occ.prob <- rbind(occ.prob = c(Estimate = mean(occ.prob$fit), 
+                                SE = mean(occ.prob$se.fit))))
+occ.prob <- as.data.frame(occ.prob)
+occ.prob$Parameter <- "Occ.prob"
+occ.det.prob <- merge(occ.prob, det.prob, all = T, sort = T)
 
 # Combine results
-comb <- merge(det.prob, PAO, all = T)
-comb <- comb[order(comb$'5%'),]
-rownames(comb) <- c("PAO", "Det.prob")
+comb <- merge(occ.det.prob, PAO, all = T, sort = F)
+comb <- comb[order(comb$'2.5%'),]
 
 ################################################################################
 # 3. SAVING RESULTS
@@ -280,17 +297,19 @@ dir.create(paste0("Results/Unmarked/", bin.type, "/", bin, "/", res, "/",
                   sep =""), showWarnings = FALSE)
 
 # Null results and model stats
+null.res <- merge(naive.occ, null.res, all = T, sort = F)
 combined.res <- merge(null.res, comb, all = T, sort = F)
 combined.res$Bin <- bin
-rownames(combined.res) <- c("null.occ.prob", "null.det.prob", "PAO", "mean.det.prob")
+combined.res$Target <- target
+combined.res$Res <- res
 write.csv(combined.res, paste0("Results/Unmarked/", bin.type, "/", bin, "/", res, "/", 
-                               target, ".combined.results.csv", sep =""))
+                               target, ".combined.results.", res, ".", bin, ".csv", sep =""))
 # Average model table
 write.csv(temp.model.res, paste0("Results/Unmarked/", bin.type, "/", bin, "/", res, "/", 
-                               target, ".model.avergaed.covariates.csv", sep =""))
+                               target, ".model.averaged.covs.betas.", res, ".", bin, ".csv", sep =""))
 # Full model list
 write.csv(modelList, paste0("Results/Unmarked/", bin.type, "/", bin, "/", res, "/", 
-                                 target, ".full.mod.table.csv", sep =""))
+                                 target, ".full.mod.table", res, ".", bin, ".csv", sep =""))
 
 ################################################################################
 # 4. PREDICTION
