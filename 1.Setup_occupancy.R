@@ -42,7 +42,7 @@ library(chronosphere)
 library(palaeoverse)
 
 ##### Load in Functions #####
-source("0.Functions_DR.R") # Import functions from other R file (must be in same working directory)
+source("0.Functions.R") # Import functions from other R file (must be in same working directory)
 
 ###############################
 ##### DATASETS AND VALUES #####
@@ -66,7 +66,7 @@ colnames(formations)[1] <- "formation" # Change to allow for further analysis
 
 ##### Set values #####
 # Set resolution
-res <- 1
+res <- 0.5
 # Set extent
 e <- extent(-155, -72, 22.5, 73)
 # Set max limit value
@@ -146,6 +146,15 @@ bins$bin <- bins$code
 master.occs.binned <- bin_time(master.occs, bins, method = "all")
 bin.type <- "scotese"
 
+#####################
+##### FORMATION #####
+#####################
+
+# Run combined binning function, choosing adjustable window
+bin.res <- 2.5
+binning(bin.res, master.occs)
+bin.type <- "formation"
+
 ################################################################################
 # 3. VISUALISATION AND TESTING
 ################################################################################
@@ -211,6 +220,10 @@ master.occs.binned.targeted <- palaeorotate(occdf = master.occs.binned.targeted,
                      model = c("PALEOMAP", "MERDITH2021"), 
                      uncertainty = TRUE
              )
+
+##### Save prepped occurrence data for other approaches #####
+write.csv(master.occs.binned.targeted, file.path(paste("Prepped_data/Occurrence_Data/", bin.type, 
+                                    "/", res, "_", bin.type, "_occurrence_dataset.csv", sep = "")))
 
 ######################################
 ##### DATA PREPPED FOR OCCUPANCY #####
