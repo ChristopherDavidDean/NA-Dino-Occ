@@ -38,13 +38,13 @@
 # 10. FORMATION BINNING
 # 11. GET_OCC
 # 12. GET_DET
-# 13. BINNING
-# 14. NAIVE.RES
-# 15. COMB.RES
-# 16. RUN.MODEL
-# 17. PLOT.OCC
-# 18. PLOT.NAIVE
-# 19. OCCURRENCE.PLOT
+# 13. NAIVE.RES
+# 14. COMB.RES
+# 15. RUN.MODEL
+# 16. PLOT.OCC & PLOT.OCC.UNMARKED
+# 17. PLOT.NAIVE & PLOT.NAIVE.UNMARKED
+# 18. OCCURRENCE.PLOT
+# 19. GET.RESULTS
 # 20. OLD FUNCTIONS
 
 ################################################################################
@@ -1031,6 +1031,57 @@ newBins <- function(score_grid, formations, bin_limits, allbins, stages,
   box(lwd=2)
 }
 
+###################
+##### BINNING #####
+###################
+
+# WHAT DOES THIS FUNCTION DO???
+
+binning <- function(window, occdf){
+  
+  # WHAT DOES THIS FUNCTION NEED TO RUN?
+  
+  # Set user defined bin size - change the first number to vary resolution in graphs.
+  bin_limits <- c(window, max(formations$max_age), 66) 
+  
+  # run score grid to work out appropriate bin points
+  Scoring_Grid_1(formations = formations, res = 0.01) 
+  #Scoring_Grid_2(formations = formations, res = 0.01)
+  
+  # Run new bins to generate bins
+  newBins(score_grid = score_grid, formations = formations, bin_limits = bin_limits, 
+          allbins = allbins, stages = stages, smallamalg = TRUE) 
+  
+  # Remove non-useful bins outside of range, add range for bins
+  bins <- binlist %>% 
+    filter(bottom < 84) %>%
+    mutate(range = top-bottom)
+  
+  # Rename bin names to match across
+  colnames(bins) <- c("bin", "min_ma", "max_ma", "mid_ma", "range") 
+  
+  # Cap youngest bin at 66 Ma. 
+  bins[1,2] <- 66 
+  
+  # Bin occurrences using palaeoverse
+  master.occs.binned <- bin_time(occdf, bins, method = 'majority') 
+  bin.type <- "formation"
+  
+  # Adding midpoint
+  master.occs.binned$mid_ma <- (master.occs.binned$max_ma + master.occs.binned$min_ma)/2
+  
+  # Reorder bins for later
+  lookup <- data.frame('currentbins' = sort(unique(master.occs.binned$bin_assignment)), 
+                       'newbins' = seq(from = length(unique(master.occs.binned$bin_assignment)), 
+                                       to = 1))
+  inds <- match(master.occs.binned$bin_assignment, lookup$currentbins)
+  master.occs.binned$new_bins[!is.na(inds)] <- lookup$newbins[na.omit(inds)]
+  master.occs.binned <<- master.occs.binned
+  
+  # Select only necessary bins
+  bins.present <- sort(unique(master.occs.binned$bin_assignment))
+  bins <<- subset(bins, bin %in% bins.present)
+}
 
 ################################################################################
 # 11. GET_OCC
@@ -1118,59 +1169,7 @@ get_det <- function (model, min.yr = NULL, CI = 95){
 }
 
 ################################################################################
-# 13. BINNING
-################################################################################
-
-# WHAT DOES THIS FUNCTION DO???
-
-binning <- function(window, occdf){
-
-  # WHAT DOES THIS FUNCTION NEED TO RUN?
-  
-  # Set user defined bin size - change the first number to vary resolution in graphs.
-  bin_limits <- c(window, max(formations$max_age), 66) 
-  
-  # run score grid to work out appropriate bin points
-  Scoring_Grid_1(formations = formations, res = 0.01) 
-  #Scoring_Grid_2(formations = formations, res = 0.01)
-  
-  # Run new bins to generate bins
-  newBins(score_grid = score_grid, formations = formations, bin_limits = bin_limits, 
-          allbins = allbins, stages = stages, smallamalg = TRUE) 
-  
-  # Remove non-useful bins outside of range, add range for bins
-  bins <- binlist %>% 
-    filter(bottom < 84) %>%
-    mutate(range = top-bottom)
-  
-  # Rename bin names to match across
-  colnames(bins) <- c("bin", "min_ma", "max_ma", "mid_ma", "range") 
-  
-  # Cap youngest bin at 66 Ma. 
-  bins[1,2] <- 66 
-  
-  # Bin occurrences using palaeoverse
-  master.occs.binned <- bin_time(occdf, bins, method = 'majority') 
-  bin.type <- "formation"
-  
-  # Adding midpoint
-  master.occs.binned$mid_ma <- (master.occs.binned$max_ma + master.occs.binned$min_ma)/2
-  
-  # Reorder bins for later
-  lookup <- data.frame('currentbins' = sort(unique(master.occs.binned$bin_assignment)), 
-                       'newbins' = seq(from = length(unique(master.occs.binned$bin_assignment)), 
-                                       to = 1))
-  inds <- match(master.occs.binned$bin_assignment, lookup$currentbins)
-  master.occs.binned$new_bins[!is.na(inds)] <- lookup$newbins[na.omit(inds)]
-  master.occs.binned <<- master.occs.binned
-  
-  # Select only necessary bins
-  bins.present <- sort(unique(master.occs.binned$bin_assignment))
-  bins <<- subset(bins, bin %in% bins.present)
-}
-
-################################################################################
-# 14. NAIVE.RES
+# 13. NAIVE.RES
 ################################################################################
 
 # WHAT DOES THIS FUNCTION DO?
@@ -1218,7 +1217,7 @@ naive.res <- function(target, data){
 
 
 ################################################################################
-# 15. COMB.RES
+# 14. COMB.RES
 ################################################################################
 
 # WHAT DOES THIS FUNCTION DO?
@@ -1277,7 +1276,7 @@ comb.res <- function(occ, det, naive, target){
 }
 
 ################################################################################
-# 16. RUN.MODEL
+# 15. RUN.MODEL
 ################################################################################
 
 # WHAT DOES THIS FUNCTION DO?
@@ -1334,8 +1333,12 @@ run.model <- function(data, target){
 }
 
 ################################################################################
-# 17. PLOT.OCC
+# 16. PLOT.OCC & PLOT.OCC.UNMARKED
 ################################################################################
+
+####################
+##### PLOT.OCC #####
+####################
 
 # WHAT DOES THIS FUNCTION DO?
 
@@ -1369,9 +1372,44 @@ plot.occ <- function(res.comb){
     theme_few()
 }
 
+#############################
+##### PLOT.OCC.UNMARKED #####
+#############################
+
+plot.occ.unmarked <- function(res.comb){
+  res.comb <- res.comb %>%
+    dplyr::filter(Data != "Null.occ.prob") %>%
+    dplyr::filter(Data != "Null.det.prob")
+  res.comb[res.comb$Data =="PAO",]["lower95CI"] <- NA
+  res.comb[res.comb$Data =="PAO",]["upper95CI"] <- NA
+  ggplot(data = subset(res.comb, Data == "Occupancy Probability" | Data == "Detection Probability"), aes(x = new_bins, 
+                                                                                                         y = value)) +
+    geom_blank(aes(color = Data), data = res.comb) +
+    geom_ribbon(data = res.comb, aes(x = new_bins, ymin = lower95CI, 
+                                     ymax = upper95CI, fill = Data), alpha = 0.2) +
+    ylab("Probability") + 
+    xlab("Time (Ma)") +
+    scale_x_reverse() +
+    coord_geo(dat = list("stages"), 
+              xlim = c((max(res.comb$new_bins)+1), (min(res.comb$new_bins-1))), 
+              ylim = c(0, 1)) +
+    geom_line(data = subset(res.comb, Data == "Occupancy Probability" | Data == "Detection Probability"), 
+              aes(x = new_bins, y = value, colour = Data)) +
+    scale_color_manual(breaks = c("Naive Occupancy", "PAO", "Occupancy Probability", "Detection Probability"),
+                       values=c("#252424", "#DE2D26", "#DE2D26", "#3182BD")) +
+    scale_fill_manual(breaks = c("Naive Occupancy", "PAO", "Occupancy Probability", "Detection Probability"), 
+                      values=c("#FFFFFF", "white","#DE2D26", "#3182BD")) +
+    # geom_smooth(method=lm) +
+    theme_few()
+}
+
 ################################################################################
-# 18. PLOT.NAIVE
+# 17. PLOT.NAIVE & PLOT.NAIVE.UNMARKED
 ################################################################################
+
+######################
+##### PLOT.NAIVE #####
+######################
 
 # WHAT DOES THIS FUNCTION DO?
 
@@ -1395,8 +1433,31 @@ plot.naive <- function(res.comb){
     theme(legend.position="none")
 }
 
+###############################
+##### PLOT.NAIVE.UNMARKED #####
+###############################
+
+plot.naive.unmarked <- function(res.comb){
+  naive <- res.comb %>%
+    filter(Data == "Naive Occupancy" | Data ==  "PAO")
+  ggplot(data = naive, aes(x = new_bins, y = value, color = Data)) +
+    ylab("Proportion of total sites") + 
+    xlab("Time (Ma)") +
+    scale_x_reverse() +
+    coord_geo(dat = list("stages"), 
+              xlim = c((max(res.comb$new_bins)+1), (min(res.comb$new_bins-1))), 
+              ylim = c(0, 1)) +
+    geom_smooth(method=lm, aes(group = Data), colour = "#3182BD", 
+                alpha = 0.2, linewidth = 0.75) +
+    geom_line(aes(x = new_bins, y = value, color = Data)) +
+    scale_color_manual(values=c("#252424", "#DE2D26")) +
+    scale_fill_manual(values=c("#252424", "#DE2D26"))  +
+    theme_few() +
+    theme(legend.position="none")
+}
+
 ################################################################################
-# 19. OCCURRENCE.PLOT
+# 18. OCCURRENCE.PLOT
 ################################################################################
 
 # WHAT DOES THIS FUNCTION DO?
@@ -1425,6 +1486,46 @@ occurrence.plot <- function(data, target){
     theme_few() +
     scale_color_viridis(discrete=TRUE) 
 }
+################################################################################
+# 19. GET.RESULTS
+################################################################################
+
+get.results <- function(target){
+  results.list <- c()
+  for(t in bins$Bin) {
+    if(file.exists(paste("Results/Unmarked/", bin.type, "/", t, "/", res, "/", 
+                         target, ".combined.results.", res, ".", t, ".csv", sep ="")) == T){
+      results.list <- c(results.list, paste("Results/Unmarked/", bin.type, "/", t, "/", res, "/", 
+                                            target, ".combined.results.", res, ".", t, ".csv", sep =""))
+    }
+  }
+  temp <- do.call(rbind,lapply(results.list,read.csv))
+  s.bins <- bins %>%
+    select(Bin, mid_ma)
+  temp <- merge(temp, s.bins)
+  temp <- temp %>%
+    select(-X)
+  
+  temp[temp$Parameter =="Occ.prob" | temp$Parameter == "Det.prob",]["X2.5."] <- 
+    temp[temp$Parameter =="Occ.prob"| temp$Parameter == "Det.prob",]["Estimate"]-
+    temp[temp$Parameter =="Occ.prob"| temp$Parameter == "Det.prob",]["SE"]*1.959964
+  temp[temp$Parameter =="Occ.prob" | temp$Parameter == "Det.prob",]["X97.5."] <- 
+    temp[temp$Parameter =="Occ.prob"| temp$Parameter == "Det.prob",]["Estimate"]+
+    temp[temp$Parameter =="Occ.prob"| temp$Parameter == "Det.prob",]["SE"]*1.959964
+  
+  temp[temp$Parameter =="Occ.prob",]["Parameter"] <- "Occupancy Probability"
+  temp[temp$Parameter =="Det.prob",]["Parameter"] <- "Detection Probability"
+  
+  names(temp)[names(temp) == "X2.5."] <- "lower95CI"
+  names(temp)[names(temp) == "X97.5."] <- "upper95CI"
+  names(temp)[names(temp) == "Parameter"] <- "Data"
+  names(temp)[names(temp) == "Estimate"] <- "value"
+  names(temp)[names(temp) == "mid_ma"] <- "new_bins"
+  assign(target, temp, envir = .GlobalEnv)
+}
+
+
+
 
 ################################################################################
 ################################################################################
