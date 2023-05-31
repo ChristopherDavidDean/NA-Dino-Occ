@@ -54,7 +54,9 @@ p <- ggarrange(a, c, e, b, d, f,
                                    'D', 'E', 'F'),
                legend = "bottom",
                common.legend = T)
-p
+# Saving
+pdf(paste("Results/Unmarked/", bin.type, "/Plot_", 
+          res, ".pdf", sep = ""), width = 11.458, height = 7.292)
 
 # Add phylopics
 cowplot::ggdraw() +  
@@ -65,3 +67,4 @@ cowplot::ggdraw() +
                       x = 0.09, y = -0.25, scale = 0.12) +
   cowplot::draw_image("https://images.phylopic.org/images/72be89b9-3f2b-4dc3-b485-e74a5f8b1fbc/raster/1536x512.png?build=140", 
                       x = -0.245, y = -0.25, scale = 0.1) 
+dev.off()
