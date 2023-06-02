@@ -31,9 +31,9 @@ library(tibble)
 
 # Quick filters for loading data
 bin.type <- "scotese"
-res <- 0.5
-bin <- "teyen"
-target <- "Hadrosauridae"
+res <- 1
+bin <- "teyeq"
+target <- "Tyrannosauridae"
 
 ###################################
 ##### LOAD AND SORT VARIABLES #####
@@ -257,7 +257,7 @@ confint(best.model, type='state', method = 'normal')
 
 ##### MODEL STATS #####
 # Proportion of area occupied
-re <- ranef(best.model)
+re <- unmarked::ranef(best.model)
 EBUP <- bup(re, stat="mean")
 CI <- confint(re, level=0.95)
 SE <- standard_error(re@post)

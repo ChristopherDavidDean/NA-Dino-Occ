@@ -1,0 +1,7 @@
+"","Parameter","Estimate","2.5%","97.5%","SE","Bin","Target","Res"
+"1","Naive Occupancy",0.52,NA,NA,NA,"teyep","Ceratopsidae",1
+"2","Null.occ.prob",0.747149462426563,0.516622733341102,0.89094379411007,NA,"teyep","Ceratopsidae",1
+"3","Null.det.prob",0.238122791685517,0.178299731062952,0.31043462467069,NA,"teyep","Ceratopsidae",1
+"4","PAO",0.840501376464162,0.84,0.84,NA,"teyep","Ceratopsidae",1
+"5","Det.prob",0.199322302342317,NA,NA,0.0685322685033496,"teyep","Ceratopsidae",1
+"6","Occ.prob",0.849644230501689,NA,NA,0.174496008088248,"teyep","Ceratopsidae",1

@@ -1,0 +1,7 @@
+"","Parameter","Estimate","2.5%","97.5%","SE","Bin","Target","Res"
+"1","Naive Occupancy",0.694444444444444,NA,NA,NA,"teyeq","Tyrannosauridae",1
+"2","Null.occ.prob",0.999832538513471,NA,NA,NA,"teyeq","Tyrannosauridae",1
+"3","Null.det.prob",0.224641226410021,0.175894632036048,0.282270021099683,NA,"teyeq","Tyrannosauridae",1
+"4","PAO",0.784895917008224,0.722222222222222,0.888888888888889,NA,"teyeq","Tyrannosauridae",1
+"5","Det.prob",0.306678665981022,NA,NA,0.100053249758536,"teyeq","Tyrannosauridae",1
+"6","Occ.prob",0.800456170895227,NA,NA,0.121431035363595,"teyeq","Tyrannosauridae",1

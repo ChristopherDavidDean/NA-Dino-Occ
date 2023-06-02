@@ -21,8 +21,11 @@ library(wesanderson)
 library(deeptime)
 library(dplyr)
 
+# Functions
+source("0.Functions.R")
+
 # Setup
-res <- 0.5
+res <- 0.1
 bin.type <- "scotese"
 
 # Load Bins
@@ -31,9 +34,9 @@ bins$Bin <- bins$code
 bins <- select(bins, Bin, max_ma, min_ma, mid_ma)
 
 # Load Results
-get.results(Ceratopsidae)
-get.results(Hadrosauridae)
-get.results(Tyrannosauridae)
+get.results("Ceratopsidae")
+get.results("Hadrosauridae")
+get.results("Tyrannosauridae")
 
 ################################################################################
 # 2. PLOTTING

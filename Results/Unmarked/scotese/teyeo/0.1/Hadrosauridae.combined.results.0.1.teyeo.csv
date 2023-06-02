@@ -1,0 +1,7 @@
+"","Parameter","Estimate","2.5%","97.5%","SE","Bin","Target","Res"
+"1","Naive Occupancy",0.550847457627119,NA,NA,NA,"teyeo","Hadrosauridae",0.1
+"2","Null.occ.prob",0.999999906937333,NA,NA,NA,"teyeo","Hadrosauridae",0.1
+"3","Null.det.prob",0.254697322572869,0.217676710060239,0.295634813036636,NA,"teyeo","Hadrosauridae",0.1
+"4","PAO",0.960224153957945,0.957627118644068,0.983050847457627,NA,"teyeo","Hadrosauridae",0.1
+"5","Det.prob",0.279165386603718,NA,NA,0.0545739444233783,"teyeo","Hadrosauridae",0.1
+"6","Occ.prob",0.907338188549961,NA,NA,0.131899611265136,"teyeo","Hadrosauridae",0.1
