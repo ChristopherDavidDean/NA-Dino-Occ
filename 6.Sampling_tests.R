@@ -16,19 +16,21 @@
 ################################################################################
 
 library(ggplot2)
+library(stringr)
+library(tidyverse)
 
 ##### Load in Functions #####
 source("0.Functions.R") # Import functions from other R file (must be in same working directory)
 
 # Set resolution
-res <- 0.5
+res <- 1
 
 # Set extent
 e <- extent(-155, -72, 22.5, 73)
 
-max_val <- 10
+max_val <- 20
 
-bin.name <- "teyen"
+bin.name <- "teyep"
 
 # Set bin type
 bin.type <- "scotese"
@@ -53,7 +55,7 @@ bin.occs <- master.occs %>%
   filter(bin_assignment == bin.name)
 
 # Set targets
-target <- "Hadrosauridae" 
+target <- "Ceratopsidae" 
 
 ################################################################################
 # 2. RUNNING TEST
@@ -77,6 +79,9 @@ temp.model.res.all <- data.frame(name = c(),
                              Rep = c())
 occ_gof_all <- c()
 
+# Standard error function
+standard_error <- function(x) sd(x) / sqrt(length(x))
+
 for(f in 1:reps){
   tryCatch({
     # Prepare data for unmarked
@@ -85,7 +90,7 @@ for(f in 1:reps){
                              target = target, single = TRUE, formCells = "N", 
                              max_val_on = TRUE, max_val = max_val)
     
-    data <- unmarked_Hadrosauridae[[1]]
+    data <- unmarked_Ceratopsidae[[1]]
     # Get covariates
     get.all.covs(data.grid)
     
@@ -93,9 +98,6 @@ for(f in 1:reps){
   
     # Turn into matrix
     y <- as.matrix(data)
-    
-    # Standard error function
-    standard_error <- function(x) sd(x) / sqrt(length(x))
     
     ####################################
     ##### SETUP DATA FOR MODELLING #####
@@ -249,25 +251,69 @@ for(f in 1:reps){
   }, error=function(e){cat("ERROR :",conditionMessage(e), "\n")})
 }
 
-temp.model.res.all %>%
-  filter(`2.5 %` < 0 ) %>%
-  filter(`97.5 %` > 0 )
-
-ggplot(combined.res.all, aes(x=Parameter, y=Estimate)) + 
-  geom_boxplot()
-
-temp.model.res.all %>%
-  filter(name != "psi(Int)") %>%
-  filter(name != "psi(PDEM)") %>%
-  filter(name != "psi(PPre)") %>%
-  filter(name != "psi(PTem)") %>%
-  ggplot(aes(x=name, y=value)) + 
-  geom_boxplot()
-
 write.csv(temp.model.res.all, paste("Tests/", res, "/", bin.name, ".", target, 
                          ".", max_val, ".param.csv", sep = ""))
 write.csv(combined.res.all, paste("Tests/", res, "/", bin.name, ".", target, 
                                     ".", max_val, ".ests.csv", sep = ""))
+
+################################################################################
+# 3. ANALYSIS
+################################################################################
+
+#################
+##### SETUP #####
+#################
+
+# Select resolution and bin.name
+res <- 1
+bin.name <- "teyen"
+
+# Load comparative data and rename
+temp <- list.files(path = paste("Tests/", res, sep = ""), pattern=paste("^", bin.name, sep = ""), full.names =  TRUE)
+Tests <- lapply(temp, read.csv)
+names(Tests) <- gsub(paste("Tests/", res, "/", bin.name, ".", sep = ""), "", temp)
+names(Tests) <- gsub("\\.csv$", "", names(Tests))
+
+# Subset types of test and add sample value to new column
+Ests <- Tests[grep('ests', names(Tests))]
+Param <- Tests[grep('param', names(Tests))]
+Ests <- map2(Ests, names(Ests), ~ mutate(.x, Samp = gsub(".*?([0-9]+).*", "\\1", .y)))
+Param <- map2(Param, names(Param), ~ mutate(.x, Samp = gsub(".*?([0-9]+).*", "\\1", .y)))
+
+# Combine into dataframe for analysis
+Ests <- do.call("rbind", Ests)
+Param <- do.call("rbind", Param)
+
+#####################
+##### ESTIMATES #####
+#####################
+
+# Reorder factors
+Ests$Samp <- factor(Ests$Samp, levels = c("5", "10", "20"))
+
+# Plot results
+ggplot(Ests, aes(x=Parameter, y=Estimate, fill = Samp)) + 
+  geom_boxplot()
+
+######################
+##### PARAMETERS #####
+######################
+
+# Reorder factors
+Param$Samp <- factor(Param$Samp, levels = c("5", "10", "20"))
+
+# Visual assessment
+Param %>%
+  ggplot(aes(x=name, y=value, fill = Samp)) + 
+  geom_boxplot()
+
+# Identify parameters which were statistically significant
+Param <- Param %>% 
+  rowwise() %>% 
+  mutate(Signif = as.numeric(!between(0,X2.5..,X97.5..))) 
+
+# Generate table of answers
+table(Param$Signif, Param$Samp)
 
 ################################################################################
 # A1. EDITS TO FUNCTIONS
@@ -424,3 +470,4 @@ all_results_for_unmarked <- function(data, res, target, ext, name, single = TRUE
     proc.time() - ptm
   }
 }
+
