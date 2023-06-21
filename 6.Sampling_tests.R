@@ -23,14 +23,14 @@ library(tidyverse)
 source("0.Functions.R") # Import functions from other R file (must be in same working directory)
 
 # Set resolution
-res <- 1
+res <- 0.5
 
 # Set extent
 e <- extent(-155, -72, 22.5, 73)
 
-max_val <- 20
+max_val <- 30
 
-bin.name <- "teyep"
+bin.name <- "teyen"
 
 # Set bin type
 bin.type <- "scotese"
@@ -257,7 +257,7 @@ write.csv(combined.res.all, paste("Tests/", res, "/", bin.name, ".", target,
                                     ".", max_val, ".ests.csv", sep = ""))
 
 ################################################################################
-# 3. ANALYSIS
+# 3. INDIVIDUAL ANALYSIS
 ################################################################################
 
 #################
@@ -265,7 +265,7 @@ write.csv(combined.res.all, paste("Tests/", res, "/", bin.name, ".", target,
 #################
 
 # Select resolution and bin.name
-res <- 1
+res <- 0.5
 bin.name <- "teyen"
 
 # Load comparative data and rename
@@ -289,7 +289,7 @@ Param <- do.call("rbind", Param)
 #####################
 
 # Reorder factors
-Ests$Samp <- factor(Ests$Samp, levels = c("5", "10", "20"))
+Ests$Samp <- factor(Ests$Samp, levels = c("5", "10", "20", "30"))
 
 # Plot results
 ggplot(Ests, aes(x=Parameter, y=Estimate, fill = Samp)) + 
@@ -300,7 +300,7 @@ ggplot(Ests, aes(x=Parameter, y=Estimate, fill = Samp)) +
 ######################
 
 # Reorder factors
-Param$Samp <- factor(Param$Samp, levels = c("5", "10", "20"))
+Param$Samp <- factor(Param$Samp, levels = c("5", "10", "20", "30"))
 
 # Visual assessment
 Param %>%
@@ -314,6 +314,95 @@ Param <- Param %>%
 
 # Generate table of answers
 table(Param$Signif, Param$Samp)
+
+################################################################################
+# 3. COMBINED ANALYSIS
+################################################################################
+
+#################
+##### SETUP #####
+#################
+
+# Select resolution and bin.name
+bin.name <- "teyen"
+
+# Load comparative data and rename
+temp <- list.files(path = "Tests/0.5", pattern=paste("^", bin.name, sep = ""), full.names =  TRUE)
+Tests <- lapply(temp, read.csv)
+names(Tests) <- gsub(paste("Tests/0.5/", bin.name, ".", sep = ""), "", temp)
+names(Tests) <- gsub("\\.csv$", "", names(Tests))
+
+# Subset types of test and add sample value to new column
+Ests <- Tests[grep('ests', names(Tests))]
+Param <- Tests[grep('param', names(Tests))]
+Ests <- map2(Ests, names(Ests), ~ mutate(.x, Samp = gsub(".*?([0-9]+).*", "\\1", .y)))
+Param <- map2(Param, names(Param), ~ mutate(.x, Samp = gsub(".*?([0-9]+).*", "\\1", .y)))
+
+# Combine into dataframe for analysis
+Ests <- do.call("rbind", Ests)
+Param <- do.call("rbind", Param)
+
+Ests$Res <- 0.5
+Param$Res <- 0.5
+
+# Load comparative data and rename
+temp <- list.files(path = "Tests/1", pattern=paste("^", bin.name, sep = ""), full.names =  TRUE)
+Tests <- lapply(temp, read.csv)
+names(Tests) <- gsub(paste("Tests/1/", bin.name, ".", sep = ""), "", temp)
+names(Tests) <- gsub("\\.csv$", "", names(Tests))
+
+# Subset types of test and add sample value to new column
+Ests2 <- Tests[grep('ests', names(Tests))]
+Param2 <- Tests[grep('param', names(Tests))]
+Ests2 <- map2(Ests2, names(Ests2), ~ mutate(.x, Samp = gsub(".*?([0-9]+).*", "\\1", .y)))
+Param2 <- map2(Param2, names(Param2), ~ mutate(.x, Samp = gsub(".*?([0-9]+).*", "\\1", .y)))
+
+# Combine into dataframe for analysis
+Ests2 <- do.call("rbind", Ests2)
+Param2 <- do.call("rbind", Param2)
+
+Ests2$Res <- 1
+Param2$Res <- 1
+
+# Combine all
+Ests <- rbind(Ests, Ests2)
+Param <- rbind(Param, Param2)
+
+#####################
+##### ESTIMATES #####
+#####################
+
+# Reorder factors
+Ests$Res <- factor(Ests$Res, levels = c("0.5", "1"))
+
+# Plot results
+ggplot(Ests, aes(x=Parameter, y=Estimate, fill = Res)) + 
+  geom_boxplot()
+
+Ests %>%
+  ggplot(aes(x=Parameter, y=Estimate, fill = Res)) +
+  geom_boxplot() +
+  facet_wrap(~Samp, scales = 'free')
+
+######################
+##### PARAMETERS #####
+######################
+
+# Reorder factors
+Param$Res <- factor(Param$Res, levels = c("0.5", "1"))
+
+# Visual assessment
+Param %>%
+  ggplot(aes(x=name, y=value, fill = Res)) + 
+  geom_boxplot()
+
+# Identify parameters which were statistically significant
+Param <- Param %>% 
+  rowwise() %>% 
+  mutate(Signif = as.numeric(!between(0,X2.5..,X97.5..))) 
+
+# Generate table of answers
+table(Param$Signif, Param$Res, Param$Samp)
 
 ################################################################################
 # A1. EDITS TO FUNCTIONS
