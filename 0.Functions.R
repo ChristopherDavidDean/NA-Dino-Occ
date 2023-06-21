@@ -669,12 +669,12 @@ sample_for_unmarked <- function(for_unmarked, max_val){
   up_dframe <- dframe[,1:max_val]
   for(n in 1:nrow(dframe)){ # For each row (site)
     if(any(is.na(colframe[n,])) == FALSE){ #If there are no NAs (max no. of collections)
-      samples <- sample(1:ncol(colframe), 10, replace=FALSE) # Sample 10 positions
+      samples <- sample(1:ncol(colframe), max_val, replace=FALSE) # Sample 10 positions
       up_colframe[n,] <- colframe[n,samples] # Use those positions to subset columns
       up_dframe[n,] <- dframe[n,samples] # Use those positions to subset columns
     }
     else if(which(is.na(colframe[n,]))[1] > (max_val + 1)){ # If it has more collections than max_val
-      samples <- sample(1:(which(is.na(colframe[n,]))[1]-1), 10, replace=FALSE) # Sample 10 positions
+      samples <- sample(1:(which(is.na(colframe[n,]))[1]-1), max_val, replace=FALSE) # Sample 10 positions
       up_colframe[n,] <- colframe[n,samples] # Use those positions to subset columns
       up_dframe[n,] <- dframe[n,samples] # Use those positions to subset columns
     }else{
