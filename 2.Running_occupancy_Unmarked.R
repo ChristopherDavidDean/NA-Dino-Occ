@@ -24,38 +24,60 @@ setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 
 # Load Packages 
 library(unmarked)
+library(corrplot)
 library(MuMIn)
 library(dplyr)
 library(AICcmodavg)
 library(tibble)
+library(car)
 
 # Quick filters for loading data
 bin.type <- "scotese"
-res <- 1
-bin <- "teyeq"
-target <- "Tyrannosauridae"
+res <- 0.5
+bin <- "teyen"
+target <- "Ceratopsidae"
+samp_val <- 30
 
 ###################################
 ##### LOAD AND SORT VARIABLES #####
 ###################################
 
 ##### OCCUPANCY DATA #####
-# Load data
-data <- read.csv(paste("Prepped_data/Occurrence_Data/", bin.type, "/", bin, "/", 
-                       res, "/", bin, ".", res, ".", target, ".dframe.10.csv", 
-                       sep = "")) 
+# Load data 
+if(is.numeric(samp_val) == T){
+  data <- read.csv(paste("Prepped_data/Occurrence_Data/", bin.type, "/", bin, "/", 
+                         res, "/", bin, ".", res, ".", target, ".dframe.", samp_val,
+                         ".csv", sep = "")) 
+}else{
+  data <- read.csv(paste("Prepped_data/Occurrence_Data/", bin.type, "/", bin, "/", 
+                         res, "/", bin, ".", res, ".", target, ".dframe.csv", sep = "")) 
+}
+
 # Setup check
 data.check <- data %>%
   select(X) %>%
   distinct()
 
 ##### SITE COVARIATES #####
-# Load site covariates
-sitecov <- read.csv(paste("Prepped_data/Occurrence_Data/", bin.type, "/", bin, 
-                          "/", res, "/site_occupancy_covs.csv", sep = "")) 
-# Load precise site covariates
-precise.sitecov <- read.csv(paste("Prepped_data/Occurrence_Data/", bin.type, "/", bin, 
-                                  "/", res, "/precise_mean_covs.csv", sep = "")) 
+if(is.numeric(samp_val) == T){
+  # Load site covariates
+  sitecov <- read.csv(paste("Prepped_data/Occurrence_Data/", bin.type, "/", bin, 
+                            "/", res, "/site_occupancy_covs_", samp_val, ".csv", 
+                            sep = "")) 
+  # Load precise site covariates
+  precise.sitecov <- read.csv(paste("Prepped_data/Occurrence_Data/", bin.type, 
+                                    "/", bin, "/", res, "/precise_mean_covs_", 
+                                    samp_val, ".csv", sep = "")) 
+}else{
+    # Load site covariates
+    sitecov <- read.csv(paste("Prepped_data/Occurrence_Data/", bin.type, "/", bin, 
+                              "/", res, "/site_occupancy_covs_none.csv", sep = "")) 
+    # Load precise site covariates
+    precise.sitecov <- read.csv(paste("Prepped_data/Occurrence_Data/", bin.type, 
+                                      "/", bin, "/", res, "/precise_mean_covs_none.csv", 
+                                      sep = "")) 
+}
+
 precise.sitecov <- precise.sitecov %>% 
   filter(counting_colls.Coll_count > 1)
 
@@ -69,8 +91,13 @@ precise.check <- precise.sitecov %>%
 
 ##### SURVEY COVARIATES #####
 # Load survey covariates
-survcov <- read.csv(paste("Prepped_data/Occurrence_Data/", bin.type, "/", bin, 
-                          "/", res, "/surv_covs.csv", sep = "")) 
+if(is.numeric(samp_val) == T){
+  survcov <- read.csv(paste("Prepped_data/Occurrence_Data/", bin.type, "/", bin, 
+                            "/", res, "/surv_covs_", samp_val, ".csv", sep = ""))
+}else{
+  survcov <- read.csv(paste("Prepped_data/Occurrence_Data/", bin.type, "/", bin, 
+                            "/", res, "/surv_covs_none.csv", sep = ""))
+}
 surv.check <- survcov %>%
   select(siteID) %>%
   distinct()
@@ -122,68 +149,61 @@ DEMs.orig <- sitecov[,"mean_DEM"]
 RAIN.orig <- sitecov[,"mean_prec"]
 TEMP.orig <- sitecov[,"mean_temp"]
 MGVF.orig <- sitecov[,"MGVF"]
-OUTs.orig <- sitecov[,"MOut"]
+OUTm.orig <- sitecov[,"MOut"]
+OUTc.orig <- sitecov[,"COut"]
 OUTa.orig <- sitecov[,"AllOut"]
 LAND.orig <- sitecov[,"LANDCVI_multiple"]
 SEDf.orig <- sitecov[,"mean_psed"]
+COLL.orig <- sitecov[,"colls"]
+COLC.orig <- sitecov[,"collCat"]
 
 # Occupancy
 Ptem.orig <- sitecov[,"mean_ptemp"]
 Ppre.orig <- sitecov[,"mean_pprec"]
 PDEM.orig <- sitecov[,"mean_pDEM"]
 
-##### Overview of Covariates #####
-#covs <- cbind(DEMs.orig, RAIN.orig, TEMP.orig, MGVF.orig, RELI.orig, OUTs.orig, 
-#              OUTa.orig, Plat.orig, Ptem.orig, Ppre.orig, PDEM.orig)
-#par(mfrow = c(1,1))
-#for(i in 1:ncol(covs)){
-#  hist(covs[,i], breaks = 50, col = "grey", main = colnames(covs)[i])
-#}
-#pairs(cbind(DEMs.orig, RAIN.orig, TEMP.orig, MGVF.orig, RELI.orig, OUTs.orig, 
-#            OUTa.orig, Plat.orig, Ptem.orig, Ppre.orig, PDEM.orig))
-
 ##### Scaling and Mode Setup #####
-siteCovs <- data.frame(DEMs = DEMs.orig, OUTs = OUTs.orig,
+siteCovs <- data.frame(DEMs = DEMs.orig, OUTc = OUTc.orig,
+                       COLL = COLL.orig, OUTm = OUTm.orig,
                        RAIN = RAIN.orig, MGVF = MGVF.orig, 
                        TEMP = TEMP.orig, LAND = LAND.orig, 
                        OUTa = OUTa.orig, SEDf = SEDf.orig,
                        Ppre = Ppre.orig, Ptem = Ptem.orig, 
-                       PDEM = PDEM.orig)
+                       PDEM = PDEM.orig, COLC = COLC.orig)
 
 # Make Model
 umf <- unmarkedFrameOccu(y = y, siteCovs = siteCovs)
 
 # Scale covariates within model
 umf@siteCovs$DEMs <- scale(umf@siteCovs$DEMs)
-umf@siteCovs$OUTs <- scale(umf@siteCovs$OUTs)
+umf@siteCovs$OUTc <- scale(umf@siteCovs$OUTm)
+umf@siteCovs$OUTm <- scale(umf@siteCovs$OUTc)
 umf@siteCovs$OUTa <- scale(umf@siteCovs$OUTa)
 umf@siteCovs$RAIN <- scale(umf@siteCovs$RAIN)
 umf@siteCovs$MGVF <- scale(umf@siteCovs$MGVF)
-umf@siteCovs$SEDf<- scale(umf@siteCovs$SEDf)
+umf@siteCovs$SEDf <- scale(umf@siteCovs$SEDf)
 umf@siteCovs$Ppre <- scale(umf@siteCovs$Ppre)
 umf@siteCovs$Ptem <- scale(umf@siteCovs$Ptem)
 umf@siteCovs$PDEM <- scale(umf@siteCovs$PDEM)
+umf@siteCovs$COLL <- scale(umf@siteCovs$COLL)
 
-##### Old scaling method #####
-## Compute means and standard deviations
-#(means <- c(apply(cbind(DEMs.orig, RAIN.orig, TEMP.orig, MGVF.orig, RELI.orig, 
-# OUTs.orig, OUTa.orig, Plat.orig, Ptem.orig, Ppre.orig, PDEM.orig), 2, mean, na.rm = TRUE)))
-#(sds <- c(apply(cbind(DEMs.orig, RAIN.orig, TEMP.orig, MGVF.orig, RELI.orig, 
-# OUTs.orig, OUTa.orig, Plat.orig, Ptem.orig, Ppre.orig, PDEM.orig), 2, sd, na.rm = TRUE)))
-#
-## Scale covariates
-#DEMs <- (DEMs.orig - means[1]) / sds[1] #
-#RAIN <- (RAIN.orig - means[2]) / sds[2] #
-#TEMP <- (TEMP.orig - means[3]) / sds[3]
-#MGVF <- (MGVF.orig - means[4]) / sds[4] #
-#RELI <- (RELI.orig - means[5]) / sds[5]
-#OUTs <- (OUTs.orig - means[6]) / sds[6]
-#OUTa <- (OUTa.orig - means[7]) / sds[7]
-#Plat <- (Plat.orig - means[8]) / sds[8]
-#Ptem <- (Ptem.orig - means[9]) / sds[9]
-#Ppre <- (Ppre.orig - means[10]) / sds[10]
-#PDEM <- (PDEM.orig - means[11]) / sds[11]
+################################
+##### ASSESSING COVARIATES #####
+################################
 
+# Histograms
+par(mfrow = c(1,1))
+for(i in 1:ncol(siteCovs[-c(8,14)])){
+  hist(siteCovs[-c(8,14)][,i], breaks = 50, col = "grey", main = colnames(siteCovs[-c(8,14)])[i])
+}
+
+# Correlation plot
+corrplot(cor(siteCovs[-c(8,14)]), method = "number")
+
+# Multicollinearity
+testmodel <- lm(Relief ~ mean_DEM + mean_prec + mean_temp + colls + AllOut + MGVF +
+                  MOut + COut + mean_ptemp + mean_pprec + mean_psed, data = sitecov)
+vif(testmodel) # Removing PDEM improves VIF results
 
 ################################################################################
 # 2. RUNNING MODELS
@@ -225,9 +245,15 @@ null.res$Parameter <- c("Null.occ.prob", "Null.det.prob")
 ###############################################
 
 # Fit full model
-full <- occu(formula =  ~ OUTa + MGVF + TEMP + LAND + RAIN + SEDf # det
-                        ~ Ppre + Ptem + PDEM, # occ
-             data = umf)
+if(bin == "teyen" | bin == "teyeo"){
+  full <- occu(formula =  ~ OUTa + OUTm + MGVF + TEMP + LAND + RAIN + SEDf + COLC # det
+               ~ Ppre + Ptem + PDEM, # occ
+               data = umf)
+} else{
+  full <- occu(formula =  ~ OUTa + OUTc + MGVF + TEMP + LAND + RAIN + SEDf + COLC # det
+               ~ Ppre + Ptem + PDEM, # occ
+               data = umf)
+}
 
 # Use dredge to automatically carry out model selection
 (modelList <- dredge(full, rank = "AIC")) 
