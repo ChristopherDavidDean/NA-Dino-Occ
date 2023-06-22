@@ -337,7 +337,7 @@ get_p_cov <- function(data, raster){
 # from original hi-resolution rasters. Covariate values are created from the mean 
 # value of collections within larger grid cells of chosen resolution. 
 
-precise_cov <- function(data, samp.data){
+precise_cov <- function(data, samp.data, max_val){
   # ADD INFO HERE
   
   wc <- list.files("Prepped_data/Covariate_Data/Precise/")
@@ -361,8 +361,13 @@ precise_cov <- function(data, samp.data){
                      mean_temp = mean(temp, na.rm = TRUE))
   hires_cov_dat <- cbind(hires_cov_dat, counting_colls$Coll_count)
   
-  surv.data <- data.frame(siteID = rep(rownames(samp.data), each = 10),
-             colls = matrix(t(samp.data), ncol=1, nrow=ncol(samp.data)*nrow(samp.data), byrow=F))
+  if(is.numeric(max_val) == T){
+    surv.data <- data.frame(siteID = rep(rownames(samp.data), each = max_val),
+                            colls = matrix(t(samp.data), ncol=1, nrow=ncol(samp.data)*nrow(samp.data), byrow=F))
+  }else{
+    surv.data <- data.frame(siteID = rep(rownames(samp.data), each = ncol(samp.data)),
+                            colls = matrix(t(samp.data), ncol=1, nrow=ncol(samp.data)*nrow(samp.data), byrow=F))
+  }
   
   for(r in 1:nrow(surv.data)){
     tem <- which(surv.data$colls[r] == data$collection_no)
@@ -378,9 +383,9 @@ precise_cov <- function(data, samp.data){
     }
   }
   write.csv(hires_cov_dat, file.path(paste("Prepped_data/Occurrence_Data/", bin.type, "/", bin.name, "/", 
-                                        res, "/precise_mean_covs.csv", sep="")))
+                                        res, "/precise_mean_covs_", max_val, ".csv", sep="")))
   write.csv(surv.data, file.path(paste("Prepped_data/Occurrence_Data/", bin.type, "/", bin.name, "/", 
-                                        res, "/surv_covs.csv", sep="")))
+                                        res, "/surv_covs_", max_val, ".csv", sep="")))
 }
 
 
