@@ -70,7 +70,8 @@ res <- 0.5
 # Set extent
 e <- extent(-155, -72, 22.5, 73)
 # Set max limit value
-max_val <- 10
+max_val <- "none"
+max_val_on <- FALSE
 
 ##### Remove occurrences outside bounds #####
 master.occs <- master.occs %>%
@@ -229,6 +230,10 @@ write.csv(master.occs.binned.targeted, file.path(paste("Prepped_data/Occurrence_
 ##### DATA PREPPED FOR OCCUPANCY #####
 ######################################
 
+# Load dataset
+master.occs.binned.targeted <- read.csv(paste("Prepped_data/Occurrence_Data/", bin.type, 
+                                              "/", res, "_", bin.type, "_occurrence_dataset.csv", sep = ""))
+
 # For each time bin - 
 for(t in 1:length(bins$bin)){ 
   
@@ -253,11 +258,11 @@ for(t in 1:length(bins$bin)){
   # Prepare data for unmarked
   all_results_for_unmarked(data = bin.occs, name = bin.name, res = res, ext = e, 
                            target = target, single = TRUE, formCells = "N", 
-                           max_val_on = TRUE, max_val = max_val)
+                           max_val_on = max_val_on, max_val = max_val) 
   
   ##### PRECISE AND SURVEY COVARIATE DATA #####
   # Grab hi resolution covariates (taken directly from collection co-ordinates)
-  precise_cov(bin.occs, unmarked_Ceratopsidae[[2]])
+  precise_cov(bin.occs, unmarked_Ceratopsidae[[2]], max_val)
   
   ##### SITE COVARIATE DATA: MODERN #####
 
@@ -312,7 +317,7 @@ for(t in 1:length(bins$bin)){
   ##### SAVING FILES #####
   write.csv(site.covs, file.path(paste("Prepped_data/Occurrence_Data/", bin.type, 
                                        "/", bin.name, "/", res, "/", 
-                                       "site_occupancy_covs.csv", 
+                                       "site_occupancy_covs_", max_val, ".csv", 
                                        sep = "")))
   write.csv(bin.occs, file.path(paste("Prepped_data/Occurrence_Data/", bin.type, 
                                       "/", bin.name, "/", res,
