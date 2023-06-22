@@ -95,8 +95,9 @@ survcov <- survcov %>%
 names(survcov)[names(survcov) == "DEM"] <- "DEM_surv"
 
 # Setup site covariates
+names(precise.sitecov)[names(precise.sitecov) == "counting_colls.Coll_count"] <- "colls"
 precise.sitecov <- precise.sitecov %>%
-  select(siteID, mean_DEM, mean_prec, mean_temp)
+  select(siteID, mean_DEM, mean_prec, mean_temp, colls)
 sitecov <- merge(precise.sitecov, sitecov, by = "siteID")
 sitecov <- select(sitecov, -c(siteID, X))
 
@@ -106,6 +107,7 @@ colnames(sitecov) <- sub("_\\d.*", "", colnames(sitecov))
 # Set categorical variables
 sitecov$LANDCVI_multiple <- as.character(sitecov$LANDCVI_multiple)
 sitecov$LANDCVI_binary <- as.character(sitecov$LANDCVI_binary)
+sitecov$collCat <- as.character(findInterval(sitecov$colls, c(2, 5, 10, 20)))
 
 # Standard error function
 standard_error <- function(x) sd(x) / sqrt(length(x))
