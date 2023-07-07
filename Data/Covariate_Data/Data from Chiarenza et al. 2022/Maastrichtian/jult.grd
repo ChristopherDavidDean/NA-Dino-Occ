@@ -1,0 +1,26 @@
+[general]
+creator=R package 'raster'
+created=2019-10-05 18:05:40
+[georeference]
+nrows=73
+ncols=96
+xmin=-181.875
+ymin=-91.25
+xmax=178.125
+ymax=91.25
+projection=NA
+[data]
+datatype=FLT4S
+byteorder=little
+nbands=1
+bandorder=BIL
+categorical=FALSE
+minvalue=-37.9351501464844
+maxvalue=46.8998413085938
+nodatavalue=-3.4e+38
+[legend]
+legendtype=
+values=
+color=
+[description]
+layername=July....2.metre.Temperatures....in.C.

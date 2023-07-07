@@ -25,13 +25,14 @@ library(dplyr)
 source("0.Functions.R")
 
 # Setup
-res <- 0.1
+res <- 1
 bin.type <- "scotese"
+samp_val <- "none"
 
 # Load Bins
 bins <- read.csv("Data/Occurrences/scotesebins.csv")
 bins$Bin <- bins$code 
-bins <- select(bins, Bin, max_ma, min_ma, mid_ma)
+bins <- dplyr::select(bins, Bin, max_ma, min_ma, mid_ma)
 
 # Load Results
 get.results("Ceratopsidae")
@@ -71,3 +72,4 @@ cowplot::ggdraw() +
   cowplot::draw_image("https://images.phylopic.org/images/72be89b9-3f2b-4dc3-b485-e74a5f8b1fbc/raster/1536x512.png?build=140", 
                       x = -0.245, y = -0.25, scale = 0.1) 
 dev.off()
+

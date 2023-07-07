@@ -70,8 +70,8 @@ res <- 0.5
 # Set extent
 e <- extent(-155, -72, 22.5, 73)
 # Set max limit value
-max_val <- "none"
-max_val_on <- FALSE
+max_val <- 30
+max_val_on <- TRUE
 
 ##### Remove occurrences outside bounds #####
 master.occs <- master.occs %>%

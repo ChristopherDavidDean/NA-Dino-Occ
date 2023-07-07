@@ -35,7 +35,7 @@ library(car)
 bin.type <- "scotese"
 res <- 0.5
 bin <- "teyen"
-target <- "Ceratopsidae"
+target <- "Hadrosauridae"
 samp_val <- 30
 
 ###################################
@@ -55,7 +55,7 @@ if(is.numeric(samp_val) == T){
 
 # Setup check
 data.check <- data %>%
-  select(X) %>%
+  dplyr::select(X) %>%
   distinct()
 
 ##### SITE COVARIATES #####
@@ -79,14 +79,14 @@ if(is.numeric(samp_val) == T){
 }
 
 precise.sitecov <- precise.sitecov %>% 
-  filter(counting_colls.Coll_count > 1)
+  dplyr::filter(counting_colls.Coll_count > 1)
 
 # Setup checks
 site.check <- sitecov %>%
-  select(siteID) %>%
+  dplyr::select(siteID) %>%
   distinct()
 precise.check <- precise.sitecov %>%
-  select(siteID) %>%
+  dplyr::select(siteID) %>%
   distinct()
 
 ##### SURVEY COVARIATES #####
@@ -99,7 +99,7 @@ if(is.numeric(samp_val) == T){
                             "/", res, "/surv_covs_none.csv", sep = ""))
 }
 surv.check <- survcov %>%
-  select(siteID) %>%
+  dplyr::select(siteID) %>%
   distinct()
 
 ##### QUICK CHECKS #####
@@ -112,21 +112,21 @@ identical(data.check$X, precise.check$siteID)
 # Setup Encounter histories for RPresence
 y <- data %>%
   `rownames<-`(.[,1]) %>% 
-  select(-X)
+  dplyr::select(-X)
 # Turn into matrix
 y <- as.matrix(y)
 
 # Setup survey covariates
 survcov <- survcov %>%
-  select(colls, temp, prec, DEM)
+  dplyr::select(colls, temp, prec, DEM)
 names(survcov)[names(survcov) == "DEM"] <- "DEM_surv"
 
 # Setup site covariates
 names(precise.sitecov)[names(precise.sitecov) == "counting_colls.Coll_count"] <- "colls"
 precise.sitecov <- precise.sitecov %>%
-  select(siteID, mean_DEM, mean_prec, mean_temp, colls)
+  dplyr::select(siteID, mean_DEM, mean_prec, mean_temp, colls)
 sitecov <- merge(precise.sitecov, sitecov, by = "siteID")
-sitecov <- select(sitecov, -c(siteID, X))
+sitecov <- dplyr::select(sitecov, -c(siteID, X))
 
 # Remove all digits at end of the column names
 colnames(sitecov) <- sub("_\\d.*", "", colnames(sitecov))
@@ -246,11 +246,11 @@ null.res$Parameter <- c("Null.occ.prob", "Null.det.prob")
 
 # Fit full model
 if(bin == "teyen" | bin == "teyeo"){
-  full <- occu(formula =  ~ OUTa + OUTm + MGVF + TEMP + LAND + RAIN + SEDf + COLC # det
+  full <- occu(formula =  ~ OUTa + OUTm + MGVF + TEMP + RAIN + SEDf + COLC + LAND # det
                ~ Ppre + Ptem + PDEM, # occ
                data = umf)
 } else{
-  full <- occu(formula =  ~ OUTa + OUTc + MGVF + TEMP + LAND + RAIN + SEDf + COLC # det
+  full <- occu(formula =  ~ OUTa + OUTc + MGVF + TEMP + RAIN + SEDf + COLC + LAND  # det
                ~ Ppre + Ptem + PDEM, # occ
                data = umf)
 }
@@ -269,7 +269,7 @@ top.5 <- occu_dredge_95[1:5]
 top.5
 
 # Run MacKenzie and Bailey Goodness-of-fit test (WARNING: MIGHT TAKE A WHILE)
-system.time(occ_gof <- mb.gof.test(full, nsim = 10000, plot.hist = FALSE))
+system.time(occ_gof <- mb.gof.test(full, nsim = 5000, plot.hist = FALSE))
 occ_gof$p.value
 
 # Examine the effect of covariates from averaged model
@@ -278,6 +278,7 @@ occ_gof$p.value
 av.CI <- as.data.frame(confint(mod.av, type='det', method = 'normal'))
 av.CI$name <- rownames(av.CI)
 temp.model.res <- merge(temp.model.res, av.CI, by = "name")
+temp.model.res
 
 # Examine beta co-efficents for best model
 confint(best.model, type='det', method = 'normal')
@@ -330,14 +331,17 @@ combined.res <- merge(null.res, comb, all = T, sort = F)
 combined.res$Bin <- bin
 combined.res$Target <- target
 combined.res$Res <- res
-write.csv(combined.res, paste0("Results/Unmarked/", bin.type, "/", bin, "/", res, "/", 
-                               target, ".combined.results.", res, ".", bin, ".csv", sep =""))
+write.csv(combined.res, paste0("Results/Unmarked/", bin.type, "/", bin, "/", res, 
+                               "/", target, ".combined.results.", res, ".", bin, 
+                               ".", samp_val, ".csv", sep =""))
 # Average model table
-write.csv(temp.model.res, paste0("Results/Unmarked/", bin.type, "/", bin, "/", res, "/", 
-                               target, ".model.averaged.covs.betas.", res, ".", bin, ".csv", sep =""))
+write.csv(temp.model.res, paste0("Results/Unmarked/", bin.type, "/", bin, "/", 
+                                 res, "/", target, ".model.averaged.covs.betas.", 
+                                 res, ".", bin, ".", samp_val, ".csv", sep =""))
 # Full model list
 write.csv(modelList, paste0("Results/Unmarked/", bin.type, "/", bin, "/", res, "/", 
-                                 target, ".full.mod.table", res, ".", bin, ".csv", sep =""))
+                                 target, ".full.mod.table", res, ".", bin, ".", 
+                                 samp_val, ".csv", sep =""))
 
 ################################################################################
 # 4. PREDICTION

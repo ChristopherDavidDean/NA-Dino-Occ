@@ -18,7 +18,7 @@
 #  of occupancy models. Functions range from those that visualise occurrences  #
 #  in terms of grid cells to those that reorder presence/absence data per      #
 #  grid cell so it fits the format of the package unmarked. Information        #
-#  regarding each function can be found in the seperate sections below.        #
+#  regarding each function can be found in the separate sections below.        #
 #                                                                              #
 ################################################################################
 
@@ -302,15 +302,19 @@ find_collections <- function(data, single = FALSE){
 
 # Attaches grid cell IDs from an inputted raster to occurrences/collections.
 
-get_cov <- function(data, raster){
+get_cov <- function(data, raster, colls = TRUE){
   # data is first output from get_grid. Raster is a chosen raster file, which 
   # can be a raster stack. 
   
   xy <- SpatialPointsDataFrame(cbind.data.frame(data$lng, data$lat), data)
   cov_dat <- raster::extract(raster, xy, sp = TRUE, cellnumbers = FALSE)
   cov_dat <- as.data.frame(cov_dat)
-  colls <- find_collections(data)
-  cov_dat <- merge(cov_dat, colls, by = "siteID")
+  if(colls == TRUE){
+    colls <- find_collections(data)
+    cov_dat <- merge(cov_dat, colls, by = "siteID")
+  }else{
+    cov_dat <- cov_dat
+  }
 }
 
 #####################
@@ -319,14 +323,18 @@ get_cov <- function(data, raster){
 
 # Attaches grid cell IDs from an inputted raster to occurrences/collections.
 
-get_p_cov <- function(data, raster){
+get_p_cov <- function(data, raster, colls = TRUE){
   # data is first output from get_grid. Raster is a chosen raster file, which 
   # can be a raster stack. 
   xy <- SpatialPointsDataFrame(cbind.data.frame(data$plng, data$plat), data)
   cov_dat <- raster::extract(raster, xy, sp = TRUE, cellnumbers = FALSE)
   cov_dat <- as.data.frame(cov_dat)
-  colls <- find_collections(data)
-  p_cov_dat <- merge(cov_dat, colls, by = "siteID")
+  if(colls == TRUE){
+    colls <- find_collections(data)
+    p_cov_dat <- merge(cov_dat, colls, by = "siteID")
+  }else{
+    p_cov_dat <- cov_dat
+  }
 }
 
 #######################
@@ -720,7 +728,7 @@ all_results_for_unmarked <- function(data, res, target, ext, name, single = TRUE
       else {
         test2 <- prepare_for_unmarked(test1, target[q])
         if(max_val_on == TRUE){
-          set.seed(rand) # set seed to ensure all targets are have same sampling
+          set.seed(rand) # set seed to ensure all targets have same sampling
           test2 <- sample_for_unmarked(test2, max_val)
           temp_name <- paste("unmarked_", target[q], sep = "")
           assign(temp_name, test2, envir = .GlobalEnv)
@@ -1499,17 +1507,17 @@ get.results <- function(target){
   results.list <- c()
   for(t in bins$Bin) {
     if(file.exists(paste("Results/Unmarked/", bin.type, "/", t, "/", res, "/", 
-                         target, ".combined.results.", res, ".", t, ".csv", sep ="")) == T){
+                         target, ".combined.results.", res, ".", t, ".", samp_val,".csv", sep ="")) == T){
       results.list <- c(results.list, paste("Results/Unmarked/", bin.type, "/", t, "/", res, "/", 
-                                            target, ".combined.results.", res, ".", t, ".csv", sep =""))
+                                            target, ".combined.results.", res, ".", t,".", samp_val, ".csv", sep =""))
     }
   }
   temp <- do.call(rbind,lapply(results.list,read.csv))
   s.bins <- bins %>%
-    select(Bin, mid_ma)
+    dplyr::select(Bin, mid_ma)
   temp <- merge(temp, s.bins)
   temp <- temp %>%
-    select(-X)
+    dplyr::select(-X)
   
   temp[temp$Parameter =="Occ.prob" | temp$Parameter == "Det.prob",]["X2.5."] <- 
     temp[temp$Parameter =="Occ.prob"| temp$Parameter == "Det.prob",]["Estimate"]-

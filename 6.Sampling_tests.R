@@ -17,20 +17,20 @@
 
 library(ggplot2)
 library(stringr)
-library(tidyverse)
+library(purrr)
 
 ##### Load in Functions #####
 source("0.Functions.R") # Import functions from other R file (must be in same working directory)
 
 # Set resolution
-res <- 0.5
+res <- 1
 
 # Set extent
 e <- extent(-155, -72, 22.5, 73)
 
 max_val <- 30
 
-bin.name <- "teyen"
+bin.name <- "teyep"
 
 # Set bin type
 bin.type <- "scotese"
@@ -82,6 +82,7 @@ occ_gof_all <- c()
 # Standard error function
 standard_error <- function(x) sd(x) / sqrt(length(x))
 
+# Generate results
 for(f in 1:reps){
   tryCatch({
     # Prepare data for unmarked
@@ -266,7 +267,7 @@ write.csv(combined.res.all, paste("Tests/", res, "/", bin.name, ".", target,
 
 # Select resolution and bin.name
 res <- 0.5
-bin.name <- "teyen"
+bin.name <- "teyep"
 
 # Load comparative data and rename
 temp <- list.files(path = paste("Tests/", res, sep = ""), pattern=paste("^", bin.name, sep = ""), full.names =  TRUE)
@@ -324,7 +325,7 @@ table(Param$Signif, Param$Samp)
 #################
 
 # Select resolution and bin.name
-bin.name <- "teyen"
+bin.name <- "teyep"
 
 # Load comparative data and rename
 temp <- list.files(path = "Tests/0.5", pattern=paste("^", bin.name, sep = ""), full.names =  TRUE)

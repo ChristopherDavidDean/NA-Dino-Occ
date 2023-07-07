@@ -47,7 +47,7 @@ library(viridis)
 source("0.Functions.R") # Import functions from other R file (must be in same working directory)
 
 # Set resolution
-res <- 0.5
+res <- 0.1
 
 # Set extent
 e <- extent(-155, -72, 22.5, 73)
