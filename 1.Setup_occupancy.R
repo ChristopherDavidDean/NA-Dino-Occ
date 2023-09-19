@@ -66,12 +66,12 @@ colnames(formations)[1] <- "formation" # Change to allow for further analysis
 
 ##### Set values #####
 # Set resolution
-res <- 0.5
+res <- 1
 # Set extent
 e <- extent(-155, -72, 22.5, 73)
 # Set max limit value
-max_val <- 30
-max_val_on <- TRUE
+max_val <- "none"
+max_val_on <- FALSE
 
 ##### Remove occurrences outside bounds #####
 master.occs <- master.occs %>%
@@ -144,7 +144,7 @@ bin.type <- "substage"
 
 bins <- read.csv("Data/Occurrences/scotesebins.csv")
 bins$bin <- bins$code
-master.occs.binned <- bin_time(master.occs, bins, method = "all")
+master.occs.binned <- bin_time(master.occs, bins, method = "majority")
 bin.type <- "scotese"
 
 #####################
@@ -295,8 +295,8 @@ for(t in 1:length(bins$bin)){
     names(bin.occs)[names(bin.occs) == "p_lat_PALEOMAP"] <- "plat"
 
     bin.occs <- get_p_cov(bin.occs, stacked)
-    
-    pcovs <- unlist(strsplit(wc, ".asc"))
+  
+    pcovs <- c("dry_mean.1", "col_mean.1", "wet_mean.1", "hot_mean.1", "ann_sd.1", paste(bin.name, "_sed_", res, sep = ""))
     
     p.site.covs <- bin.occs %>%
       dplyr::select(siteID, any_of(pcovs), Coll_count) %>%
@@ -305,10 +305,12 @@ for(t in 1:length(bins$bin)){
       dplyr::rename_with(~gsub("\\d+", "", .)) %>%
       dplyr:: rename_with(~gsub("\\.", "", .)) %>%
       dplyr::group_by(siteID) %>%
-      dplyr:: summarise(mean_ptemp = mean(p_temp_, na.rm = TRUE), 
-               mean_pprec = mean(p_precip_, na.rm = TRUE),
-               mean_pDEM = mean(p_DEM_, na.rm = TRUE),
-               mean_psed = mean(p_sed_, na.rm = TRUE)
+      dplyr:: summarise(dry_mean = mean(dry_mean, na.rm = TRUE), 
+                        wet_mean = mean(wet_mean, na.rm = TRUE),
+                        col_mean = mean(col_mean, na.rm = TRUE),
+                        hot_mean = mean(hot_mean, na.rm = TRUE), 
+                        ann_sd = mean(ann_sd, na.rm = TRUE),
+                        mean_psed = mean(p_sed_, na.rm = TRUE)
       )
     site.covs <- merge(site.covs, p.site.covs, by = "siteID")
     site.covs <- site.covs %>% select(-Coll_count)

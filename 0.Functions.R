@@ -1367,7 +1367,7 @@ plot.occ <- function(res.comb){
     ylab("Probability") + 
     xlab("Time (Ma)") +
     scale_x_reverse() +
-    coord_geo(dat = list("stages"), 
+    deeptime::coord_geo(dat = list("stages"), 
               xlim = c((max(res.comb$new_bins)+1), (min(res.comb$new_bins-1))), 
               ylim = c(0, 1)) +
     geom_line(data = subset(res.comb, Data != "Naive occupancy"), 
@@ -1403,7 +1403,7 @@ plot.occ.unmarked <- function(res.comb){
     ylab("Probability") + 
     xlab("Time (Ma)") +
     scale_x_reverse() +
-    coord_geo(dat = list("stages"), 
+    deeptime::coord_geo(dat = list("stages"), 
               xlim = c((max(res.comb$new_bins)+1), (min(res.comb$new_bins-1))), 
               ylim = c(0, 1)) +
     geom_line(data = subset(res.comb, Data == "Occupancy Probability" | Data == "Detection Probability"), 
@@ -1436,7 +1436,7 @@ plot.naive <- function(res.comb){
     ylab("Proportion of total sites") + 
     xlab("Time (Ma)") +
     scale_x_reverse() +
-    coord_geo(dat = list("stages"), 
+    deeptime::coord_geo(dat = list("stages"), 
               xlim = c((max(res.comb$new_bins)+1), (min(res.comb$new_bins-1))), 
               ylim = c(0, 1)) +
     geom_line(aes(x = new_bins, y = value, color = Data)) +
@@ -1457,7 +1457,7 @@ plot.naive.unmarked <- function(res.comb){
     ylab("Proportion of total sites") + 
     xlab("Time (Ma)") +
     scale_x_reverse() +
-    coord_geo(dat = list("stages"), 
+    deeptime::coord_geo(dat = list("stages"), 
               xlim = c((max(res.comb$new_bins)+1), (min(res.comb$new_bins-1))), 
               ylim = c(0, 1)) +
     geom_smooth(method=lm, aes(group = Data), colour = "#3182BD", 
@@ -1492,7 +1492,7 @@ occurrence.plot <- function(data, target){
     ylab("No. of occurrences") + 
     xlab("Time (Ma)") +
     scale_x_reverse() +
-    coord_geo(dat = list("stages"), xlim = c((max(occ.comb$Var1)+1), 
+    deeptime::coord_geo(dat = list("stages"), xlim = c((max(occ.comb$Var1)+1), 
                                              (min(occ.comb$Var1-1))), 
               ylim = c(0, (max(occ.comb$Freq)+10))) +
     geom_line(aes(x = Var1, y = Freq)) +
@@ -1537,6 +1537,336 @@ get.results <- function(target){
   assign(target, temp, envir = .GlobalEnv)
 }
 
+
+
+
+
+p_rotate <- function(res, e, site_IDs, bins, bin = NA){
+  r <- raster(res = res, ext = e)
+  siteCoords <- as.data.frame(xyFromCell(r, site_IDs))
+  siteCoords$siteID <- site_IDs
+  colnames(siteCoords) <- c("lng", "lat", "siteID")
+  siteCoords <<- siteCoords
+  p_rotate_list <- list()
+  if(is.na(bin) == FALSE){
+    bins <- bins %>%
+      dplyr::filter(code == !!bin)
+  }
+    for(b in 1:nrow(bins)){
+      age <- bins$mid_ma[b]
+      temp_data <- cbind(siteCoords, age)
+      temp_data <- palaeorotate(occdf = temp_data, 
+                                age = "age",
+                                method = "point", 
+                                model = "PALEOMAP"
+      )
+      names(temp_data)[names(temp_data) == "p_lat"] <- "plat"
+      names(temp_data)[names(temp_data) == "p_lng"] <- "plng"
+      p_rotate_list[[b]] <- temp_data
+      names(p_rotate_list)[[b]] <- bins$code[b]
+    }
+  return(p_rotate_list)
+}
+
+format_occ_covs <- function(p_cov_list){
+  wet <- data.frame(siteNo = rep(1:nrow(p_cov_list[[1]])))
+  dry <- data.frame(siteNo = rep(1:nrow(p_cov_list[[1]])))
+  col <- data.frame(siteNo = rep(1:nrow(p_cov_list[[1]])))
+  hot <- data.frame(siteNo = rep(1:nrow(p_cov_list[[1]])))
+  ann <- data.frame(siteNo = rep(1:nrow(p_cov_list[[1]])))
+  
+  for(t in rev(names(p_cov_list))){
+    temp_ann_sd<- p_cov_list[[t]] %>%
+      dplyr::select(ann_sd.1)
+    colnames(temp_ann_sd) <- t
+    ann <- cbind(ann, temp_ann_sd)
+    
+    temp_wet <- p_cov_list[[t]] %>%
+      dplyr::select(wet_mean.1)
+    colnames(temp_wet) <- t
+    wet <- cbind(wet, temp_wet)
+    
+    temp_dry <- p_cov_list[[t]] %>%
+      dplyr::select(dry_mean.1)
+    colnames(temp_dry) <- t
+    dry <- cbind(dry, temp_dry)
+    
+    temp_col <- p_cov_list[[t]] %>%
+      dplyr::select(col_mean.1)
+    colnames(temp_col) <- t
+    col <- cbind(col, temp_col)
+    
+    temp_hot <- p_cov_list[[t]] %>%
+      dplyr::select(hot_mean.1)
+    colnames(temp_hot) <- t
+    hot <- cbind(hot, temp_hot)
+  }
+  hot <- hot %>%
+    dplyr::select(-siteNo)
+  col <- col %>%
+    dplyr::select(-siteNo)
+  wet <- wet %>%
+    dplyr::select(-siteNo)
+  dry <- dry %>%
+    dplyr::select(-siteNo)
+  ann <- ann %>%
+    dplyr::select(-siteNo)
+  
+  if(length(names(p_cov_list)) > 1){
+    Year <- data.frame(teyeq = rep(1, length(site_IDs)), 
+                       teyep = rep(2, length(site_IDs)), 
+                       teyeo = rep(3, length(site_IDs)),
+                       teyen = rep(4, length(site_IDs)))
+  }
+  site.effect <- c(1:length(site_IDs))
+  if(length(names(p_cov_list)) > 1){
+    occ_covs <- list(wet, dry, hot, col, ann, Year, site.effect)
+    names(occ_covs) <- c("wet", "dry", "hot", "col", "ann", "Year", "site.effect")
+  }else{
+    occ_covs <- list(wet, dry, hot, col, ann, site.effect)
+    names(occ_covs) <- c("wet", "dry", "hot", "col", "ann", "site.effect")
+  }
+  occ_covs <<- occ_covs
+}
+
+extract_p <- function(p_rotate_list){
+  full_p_covs <- list()
+  for(t in names(p_rotate_list)){
+    wc <- list.files(paste("Prepped_data/Covariate_Data/All_data/", 
+                           res, "deg/Palaeo/", sep = ""), 
+                     pattern=paste0("^", t, ".*", sep = ""))
+    stacked <- raster::stack(paste("Prepped_data/Covariate_Data/All_data/", 
+                                   res, "deg/Palaeo/", wc, 
+                                   sep =""))
+    full_p_covs[[which(!is.na(str_locate(bins$bin, t)), arr.ind=TRUE)[1,1]]] <- get_p_cov(p_rotate_list[[t]], stacked, colls = FALSE)
+    colnames(full_p_covs[[which(!is.na(str_locate(bins$bin, t)), arr.ind=TRUE)[1,1]]]) <- gsub(paste(t, "_", sep = ""), "", colnames(full_p_covs[[which(!is.na(str_locate(bins$bin, t)), arr.ind=TRUE)[1,1]]]))
+    names(full_p_covs)[[which(!is.na(str_locate(bins$bin, t)), arr.ind=TRUE)[1,1]]] <- t
+  }
+  full_p_covs <- full_p_covs[!sapply(full_p_covs, is.null)]
+  full_p_covs <- full_p_covs
+}
+
+
+
+
+prepare_for_spOcc <- function(data, single = TRUE, bin = NA){ 
+  # Select relevant info
+  rel_data <- data %>% 
+    dplyr::select(collection_no, siteID, Target, bin_assignment)
+  
+  if(is.na(bin) == F){
+    rel_data <- rel_data %>%
+      dplyr::filter(bin_assignment == bin)
+  }
+  
+  eh_list <- list()
+  
+  for(b in 1:length(unique(rel_data$bin_assignment))){
+    temp_rel_data <- rel_data %>%
+      filter(bin_assignment == rev(sort(unique(rel_data$bin_assignment)))[b])
+    
+    # Make target's a 1
+    temp_rel_data$Target[temp_rel_data$Target == target] <- 1 
+    temp_rel_data$Target[temp_rel_data$Target != 1] <- NA
+    
+    # Make anything that's not the target group a 0
+    temp_rel_data$Target[is.na(temp_rel_data$Target)] <- 0 
+    temp_rel_data$Target <- as.numeric(temp_rel_data$Target)
+    
+    # For all collections, give a mean score of presences and absences
+    temp_coll_data <- temp_rel_data %>% 
+      dplyr::group_by(collection_no) %>%
+      dplyr::summarize(mean(Target)) 
+    
+    # Anything above a 0 has presences, therefore can be counted as 1
+    temp_coll_data$`mean(Target)` <- ceiling(temp_coll_data$`mean(Target)`) 
+    
+    # Join with cell IDs, remove old target, clean column name
+    temp_joined_data <- dplyr::left_join(temp_coll_data, temp_rel_data) %>% 
+      dplyr::select(-Target, Pres.Abs = `mean(Target)`, collection_no) 
+    
+    # Remove duplicates of remaining collections, then create table for removing 
+    # singleton siteID (siteID with only one collection) and remove siteID with 
+    # only one collection
+    temp_joined_data <- temp_joined_data %>% 
+      dplyr::distinct() 
+    if(single == TRUE){
+      id.table <- table(temp_joined_data$siteID) 
+      temp_joined_data <- subset(temp_joined_data, siteID %in% names(id.table[id.table > 1])) 
+    }
+    
+    prestest<- temp_joined_data %>%  
+      dplyr::group_by(siteID) %>%
+      dplyr::summarize(ceiling(mean(Pres.Abs)))
+    
+    # Making dataframe for unmarked data
+    dframe_for_unmarked <- data.frame(matrix(ncol =  max(table(temp_joined_data$siteID)), 
+                                             nrow = length(unique(rel_data$siteID)))) 
+    
+    # Sort siteID so they match output of covariate data
+    temp_joined_data <- temp_joined_data %>% 
+      dplyr::arrange(siteID, collection_no) 
+    
+    colnames(dframe_for_unmarked) <- c(sprintf("y.%d", seq(1,max(table(temp_joined_data$siteID)))))
+    row.names(dframe_for_unmarked) <- sort(unique(rel_data$siteID))
+    colframe <- dframe_for_unmarked
+    for (g in 1:length(unique(rel_data$siteID))){
+      counter <- 1
+      for (r in 1:nrow(temp_joined_data)){
+        if (temp_joined_data[r,3] == sort(unique(rel_data$siteID))[g]){
+          dframe_for_unmarked[g, counter] <- as.numeric(temp_joined_data[r, 2])
+          colframe[g, counter] <- temp_joined_data[r,1]
+          counter <- counter + 1
+        }
+      }
+    }
+    combined_list <-list(dframe_for_unmarked, colframe)
+    eh_list[[b]] <- combined_list
+    names(eh_list)[[b]] <- rev(sort(unique(rel_data$bin_assignment)))[b]
+  }
+  
+  set.seed(rand)
+  
+  eh_list_samp <- list()
+  
+  for(s in 1:length(eh_list)){
+    eh_list_samp[[s]] <- sample_for_unmarked(eh_list[[s]], max_val = max_val)
+    names(eh_list_samp)[[s]] <- rev(sort(unique(rel_data$bin_assignment)))[s]
+  }
+  assign("eh_list", eh_list_samp, envir = .GlobalEnv)
+}  
+
+organise_det <- function(siteCoords, extracted_covs, occ_data, bin = NA){
+  # Modern det
+  wc <- list.files(paste("Prepped_data/Covariate_Data/All_data/", 
+                         res, "deg/", sep = ""), 
+                   pattern=".asc")
+  stacked <- raster::stack(paste("Prepped_data/Covariate_Data/All_data/", 
+                                 res, "deg/", wc, 
+                                 sep =""))
+  covs <- get_cov(siteCoords, stacked, colls = FALSE)
+  
+  names(covs) <- gsub(".[[:digit:]]", "", names(covs))
+  
+  # Outcrop
+  outcrop <- data.frame(teyeq = covs$COut_all, 
+                        teyep = covs$COut_all,
+                        teyeo = covs$MOut_all,
+                        teyen = covs$MOut_all
+  )
+  if(is.na(bin) == F){
+    outcrop <- as.vector(outcrop[bin])
+    outcrop <- outcrop[[1]]
+  }
+  
+  # Collections
+  coll <- occ_data %>% 
+    dplyr::select(collection_no, siteID, bin_assignment) %>%
+    dplyr::distinct() %>%
+    dplyr::group_by(siteID, bin_assignment) %>%
+    dplyr::summarise(colls = n())
+  coll <- pivot_wider(coll, names_from = bin_assignment, values_from = colls)
+  column_index <- c("teyeq", "teyep", "teyeo", "teyen")
+  coll <- as.data.frame(coll[, column_index])
+  if(is.na(bin) == F){
+    coll <- as.vector(coll[bin])
+    coll <- coll[[1]]
+    coll <- coll[!is.na(coll)]
+  }
+  
+  # Palaeo det
+  sed <- data.frame(siteNo = rep(1:length(site_IDs)))
+  
+  for(t in rev(names(extracted_covs))){
+    names(extracted_covs[[t]]) <- gsub(".[[:digit:]]", "", names(extracted_covs[[t]]))
+    temp_sed <- extracted_covs[[t]] %>%
+      dplyr::select(sed)
+    colnames(temp_sed) <- t
+    sed <- cbind(sed, temp_sed)
+  }
+  
+  sed <- sed %>%
+    dplyr::select(-siteNo)
+  
+  if(is.na(bin) == F){
+    sed <- sed[[1]]
+  }
+  
+  det_covs <- list(outcrop = outcrop, sedflux = sed, 
+                   land = as.factor(covs$LANDCVI_multiple), 
+                   MGVF = covs$MGVF, 
+                   rain = covs$WC_Prec, 
+                   temp = covs$WC_Temp, 
+                   coll = coll)
+}
+
+site_remove <- function(eh_list, occ_covs, det_covs, siteCoords, single = TRUE){
+  # Find all rows with NAs in occupancy covariates
+  removal <- sort(unique(c(which(is.na(occ_covs[[1]]), arr.ind=TRUE)[,1],
+                           which(is.na(occ_covs[[2]]), arr.ind=TRUE)[,1], 
+                           which(is.na(occ_covs[[3]]), arr.ind=TRUE)[,1], 
+                           which(is.na(occ_covs[[4]]), arr.ind=TRUE)[,1])))
+  if(length(removal) > 0){
+    # Remove those rows from other dataframes, arrange back into lists
+    occ_covs <- c(lapply(occ_covs[1:4], function(x) {x <- x[-removal, ]}),
+                  lapply(occ_covs[5], function(x) {x <- x[-removal]}))
+    eh_list <- lapply(eh_list, lapply, function(x) {x <- x[-removal, ]})
+    det_covs <- c(lapply(det_covs[c(1:2, 7)], function(x) {x <- x[-removal, ]}), 
+                  lapply(det_covs[3:6], function(x) {x <- x[-removal]}))
+    siteCoords <- siteCoords[-removal,]
+  }
+  if(single == TRUE){
+    # Now check for any sites without any history (e.g. due to single collection)
+    results <- data.frame(row = 1:nrow(eh_list[[1]][[1]]))
+    for(i in 1:length(eh_list)){
+      results[,i+1] <- apply(eh_list[[i]][[1]], 1, function(x) all(is.na(x)))
+    }
+    removal <- results %>%
+      filter(V2 == "TRUE" & V3 == "TRUE" & V4 == "TRUE" & V5 == "TRUE") %>%
+      .$row
+    # Remove those rows from other dataframes, arrange back into lists
+    occ_covs <<- c(lapply(occ_covs[1:4], function(x) {x <- x[-removal, ]}), 
+                   lapply(occ_covs[5], function(x) {x <- x[-removal]}))
+    eh_list <<- lapply(eh_list, lapply, function(x) {x <- x[-removal, ]})
+    det_covs <<- c(lapply(det_covs[c(1:2, 7)], function(x) {x <- x[-removal, ]}), 
+                   lapply(det_covs[3:6], function(x) {x <- x[-removal]}))
+    siteCoords <<- siteCoords[-removal,]
+  }else{
+    occ_covs <<- occ_covs
+    eh_list <<- eh_list
+    det_covs <<- det_covs
+    siteCoords <<- siteCoords
+  }
+}
+
+transpose_eh <- function(eh_list, target){
+  eh_list_adjusted <- list(eh_list[[1]][[1]], eh_list[[2]][[1]], 
+                           eh_list[[3]][[1]], eh_list[[4]][[1]])
+  testArray <- abind(eh_list_adjusted, along = 3)
+  newArray <- aperm(testArray, c(1,3,2))
+  assign(paste("EH_array_", target, sep = ""), newArray, envir = .GlobalEnv)
+}
+
+
+Array_prep <- function(data_suffix, sp = FALSE) {
+  # Create the full data frame name
+  data_name <- paste0("EH_array_", data_suffix)
+  
+  # Retrieve the data frame using get()
+  data <- get(data_name)
+  if(sp == FALSE){
+    # Perform operations on the data frame
+    revi.data <- list(y = data, 
+                      occ.covs = occ_covs, 
+                      det.covs = det_covs)
+  }else{
+    revi.data <- list(y = data, 
+                      occ.covs = occ_covs, 
+                      det.covs = det_covs,
+                      coords = coords)
+  }
+  revi.data <- revi.data
+}
 
 
 
