@@ -5,7 +5,7 @@
 # Christopher D. Dean, Lewis A. Jones, Alfio A. Chiarenza, Sinéad Lyster, 
 # Alex Farnsworth, Philip D. Mannion, Richard J. Butler.
 # 2023
-# Script written by Christopher D. Dean and Lewis A. Jones
+# Script written by Christopher D. Dean
 
 ################################################################################
 #               FILE 1: SETTING UP FILES FOR OCCUPANCY MODELLING               #
@@ -66,12 +66,12 @@ colnames(formations)[1] <- "formation" # Change to allow for further analysis
 
 ##### Set values #####
 # Set resolution
-res <- 1
+res <- 0.1
 # Set extent
 e <- extent(-155, -72, 22.5, 73)
 # Set max limit value
-max_val <- "none"
-max_val_on <- FALSE
+max_val <- 40
+max_val_on <- T
 
 ##### Remove occurrences outside bounds #####
 master.occs <- master.occs %>%
@@ -153,7 +153,11 @@ bin.type <- "scotese"
 
 # Run combined binning function, choosing adjustable window
 bin.res <- 2.5
-binning(bin.res, master.occs)
+bins <- binning(bin.res, master.occs)
+master.occs <- master.occs %>%
+  dplyr::filter(max_ma < bins$max_ma[6]) %>%
+  dplyr::filter(min_ma > bins$min_ma[1])
+master.occs.binned <- bin_time(master.occs, bins, method = "majority")
 bin.type <- "formation"
 
 ################################################################################
@@ -213,22 +217,28 @@ gen_raster(cells, values, res, ext = e)
 # Set Target taxa
 target = c("Ceratopsidae", "Tyrannosauridae", "Hadrosauridae") # set Targets
 target_maker(master.occs.binned, "family", target) # run target_maker
+master.occs.binned.targeted <- master.occs.binned.targeted %>%
+  dplyr::mutate(Rot_age = case_when(bin_midpoint == 66.75 ~ 65, 
+                                    bin_midpoint == 69.75 ~ 70,
+                                    bin_midpoint == 74.95 ~ 75,
+                                    bin_midpoint == 80.75 ~ 80))
 
 # Palaeo-rotate to get accurate palaeolat/long
-master.occs.binned.targeted <- palaeorotate(occdf = master.occs.binned.targeted, 
-                     age = "bin_midpoint",
-                     method = "point", 
-                     model = c("PALEOMAP", "MERDITH2021"), 
-                     uncertainty = TRUE
-             )
+master.occs.binned.targeted <- palaeorotate(occdf = master.occs.binned.targeted,
+                                            lat = "lat",
+                                            lng = "lng",
+                                            age = "Rot_age",
+                                            method = "point", 
+                                            model = c("PALEOMAP")
+                                            )
 
 ##### Save prepped occurrence data for other approaches #####
 write.csv(master.occs.binned.targeted, file.path(paste("Prepped_data/Occurrence_Data/", bin.type, 
                                     "/", res, "_", bin.type, "_occurrence_dataset.csv", sep = "")))
 
-######################################
-##### DATA PREPPED FOR OCCUPANCY #####
-######################################
+############################################################
+##### DATA PREPPED FOR OCCUPANCY IN SPARTA OR UNMARKED #####
+############################################################
 
 # Load dataset
 master.occs.binned.targeted <- read.csv(paste("Prepped_data/Occurrence_Data/", bin.type, 
@@ -291,8 +301,8 @@ for(t in 1:length(bins$bin)){
                                    res, "deg/Palaeo/", wc, 
                                    sep =""))
     # Set palaeo lat/long
-    names(bin.occs)[names(bin.occs) == "p_lng_PALEOMAP"] <- "plng"
-    names(bin.occs)[names(bin.occs) == "p_lat_PALEOMAP"] <- "plat"
+    names(bin.occs)[names(bin.occs) == "p_lng"] <- "plng"
+    names(bin.occs)[names(bin.occs) == "p_lat"] <- "plat"
 
     bin.occs <- get_p_cov(bin.occs, stacked)
   
@@ -325,107 +335,3 @@ for(t in 1:length(bins$bin)){
                                       "/", bin.name, "/", res,
                                       "/", bin.name, "_dataset.csv", sep = "")))
 }
-
-################################################################################
-# A1. OLD CODE
-################################################################################
-# WARNING - THIS SECTION IS TO BE REWORKED. CURRENTLY USING SCOTESE GENERATED MODELS.
-#
-##===== GETECH DATA =====
-## Data
-#CampPrecip <- raster("Data/Covariate_Data/Climate_Data/Camp_Precip.asc")
-#projection(CampPrecip) <- CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0")
-#CampTemp <- raster("Data/Covariate_Data/Climate_Data/Camp_Temp.asc")
-#projection(CampTemp) <- CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0")
-#
-## Camp Stack Extract
-#CampStack <- stack(CampPrecip, CampTemp)
-#
-#NAcells <- Final %>% # Clean for NA values in paleolat/lng - Record cells with NAs
-#  filter(is.na(paleolat)) %>%
-#  distinct(siteID) # Remove cells with NAs
-#Final2 <- Final %>%
-#  drop_na("paleolat", "paleolng")
-#
-#xy <- SpatialPointsDataFrame(cbind.data.frame(Final2$paleolng, Final2$paleolat), Final2) # Use palaeo lat/long to extract from palaeo GCMs
-#Camp_rain <- raster::extract(CampPrecip, xy, sp = TRUE, cellnumbers = TRUE)
-#Camp_rain <- as.data.frame(Camp_rain)
-#Camp_rain <- Camp_rain %>%
-#  dplyr::group_by(siteID) %>%
-#  dplyr::summarize(mean_Cpre = mean(Camp_Precip, na.rm = TRUE))
-#
-#Camp_temp <- raster::extract(CampTemp, xy, sp = TRUE, cellnumbers = TRUE) # Extract Palaeo Temp and Rainfall
-#Camp_temp <- as.data.frame(Camp_temp) # Conver to dataframe
-#Camp_temp <- Camp_temp %>%
-#  dplyr::group_by(siteID) %>%
-#  dplyr::summarize(mean_Ctemp = mean(Camp_Temp, na.rm = TRUE))
-#Camp_temp$mean_Ctemp <- Camp_temp$mean_Ctemp - 273.15 # Convert from Kelvin to degrees Celsius
-#Camp_Occ_Covs <- left_join(Camp_rain, Camp_temp, by = "cells")
-#
-## Visualise values on modern lat/long
-#gen_raster(Camp_Occ_Covs$siteID, Camp_Occ_Covs$mean_Ctemp, res, e)
-#gen_raster(Camp_Occ_Covs$siteID, Camp_Occ_Covs$mean_Cpre, res, e)
-#
-## Combine datasets
-#full_camp_covs <- full_join(hires_cov_dat, Camp_Occ_Covs, by = "siteID")
-#
-## Save covariates
-#write.csv(full_camp_covs, file.path(paste("Prepped_data/", res, "/CampanianHiResCovariates.csv", sep="")))
-#
-# Make Master Camp Spreadsheet
-#Camp_Cov_Master <- Camp_Covs
-#Camp_Cov_Master <- Camp_Cov_Master %>%
-#  select(collection_no, collection_name, accepted_name, identified_rank, family, genus, formation, member, 
-#         cells.1, Camp_out_1, DEM_1, LANDCVI_selected_1, MGVF_1, 
-#         SLOPE_1, WC_Prec_1, WC_Temp_1, cells.2, CampPrecip_1, CampTemp_1, colls_per_cell)
-
-#write.csv(Camp_Cov_Master, file.path(paste("Prepped_data/", res, "/CampanianMasterSheet.csv", sep="")))
-
-# Clean data to just gridcells and associated covariates
-#Camp_Covs <- Camp_Covs %>%
-#  select(cells.1, Camp_out_1, DEM_1, LANDCVI_selected_1, MGVF_1, 
-#  SLOPE_1, WC_Prec_1, WC_Temp_1, colls_per_cell) 
-#Camp_Covs <- Camp_Covs %>%
-#  distinct()
-#Camp_Covs <- aggregate(x = Camp_Covs, by = list(Camp_Covs$cells.1), FUN = "mean", na.rm = TRUE)
-#Camp_Covs$CampTemp <- Camp_Covs$CampTemp - 273.15 # Convert from Kelvin to degrees Celsius
-#write.csv(Camp_Covs, file.path(paste("Prepped_data/", res, "/CampanianCovariates.csv", sep="")))
-
-# OLD CODE FOR PALAEOROTATE - NOT WORKING DUE TO BUG
-
-# Palaeorotate binned and targetted data using chronosphere - WARNING: This step takes about 2:30 minutes run currently.
-#interColl <- master.occs.binned.targeted %>% # select distinct collections to speed up rotation process
-#  dplyr::select(collection_no, lng, lat, paleolat, paleolng, 
-#                bin_assignment, bin_midpoint) %>%
-#  distinct()
-#dems <- fetch(dat="paleomap", var="dem") # Fetch Scotese DEMs
-#demord <- matchtime(dems, interColl$bin_midpoint) # Match up Scotese DEMs with bin midpoints.
-#interColl$mapage <- names(demord) # Provide DEM names to allow for binned rotations.
-#newCoords <- reconstruct(interColl[, c("lng", "lat")], 
-#                         age=interColl[, "mapage"], enumerate=FALSE, 
-#                         model = "PALEOMAP", 
-#                         verbose=FALSE) # Palaeorotate collections. 
-#colnames(newCoords) <- c("plng", "plat") # Rename co-ordinates
-#interColl <- cbind(interColl,newCoords) # Attach p-coords back to collections dataset.
-#interColl <- interColl %>% # Select just relevant things for merging datasets
-#  dplyr::select(collection_no, plng, plat)
-#master.occs.binned.targeted <- merge(x=master.occs.binned.targeted,y=interColl, 
-#                                     by="collection_no",all.x=TRUE) # Merge new co-ordinates with full dataset. 
-
-#####################
-##### FORMATION #####
-#####################
-
-#bin_limits <- c(1, max(formations$max_age), 66) # Set user defined bin size - change the first number to vary resolution in graphs.
-#Scoring_Grid_1(formations = formations, res = 0.01) # run score grid to work out appropriate bin points
-##Scoring_Grid_2(formations = formations, res = 0.01)
-#newBins(score_grid = score_grid, formations = formations, bin_limits = bin_limits, 
-#        allbins = allbins, stages = stages, smallamalg = TRUE) # Run new bins to generate bins
-#bins <- binlist %>% # Remove non-useful bins outside of range, add range for bins
-#  filter(bottom < 84) %>%
-#  mutate(range = top-bottom)
-#colnames(bins) <- c("bin", "min_ma", "max_ma", "mid_ma", "range") # Rename bin names to match across
-#bins[1,2] <- 66 # Cap youngest bin at 66 Ma. 
-#master.occs.binned <- bin_time(master.occs, bins, method = 'majority') # Bin occurrences
-#bin.type <- "formation"
-#print(a)
