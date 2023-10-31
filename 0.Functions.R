@@ -1342,7 +1342,9 @@ run.model <- function(data, target){
     temp.comb$Target <- target[i]
     all.results <- rbind(all.results, temp.comb)
   }
-  all.results <<- all.results
+  
+  all.results <- list(all.results, para_out)
+  return(all.results)
 }
 
 ################################################################################
@@ -1408,9 +1410,9 @@ plot.occ.unmarked <- function(res.comb){
               ylim = c(0, 1)) +
     geom_line(data = subset(res.comb, Data == "Occupancy Probability" | Data == "Detection Probability"), 
               aes(x = new_bins, y = value, colour = Data)) +
-    scale_color_manual(breaks = c("Naive Occupancy", "PAO", "Occupancy Probability", "Detection Probability"),
+    scale_color_manual(breaks = c("Naïve Occupancy", "PAO", "Occupancy Probability", "Detection Probability"),
                        values=c("#252424", "#DE2D26", "#DE2D26", "#3182BD")) +
-    scale_fill_manual(breaks = c("Naive Occupancy", "PAO", "Occupancy Probability", "Detection Probability"), 
+    scale_fill_manual(breaks = c("Naïve Occupancy", "PAO", "Occupancy Probability", "Detection Probability"), 
                       values=c("#FFFFFF", "white","#DE2D26", "#3182BD")) +
     # geom_smooth(method=lm) +
     theme_few()
@@ -1440,10 +1442,14 @@ plot.naive <- function(res.comb){
               xlim = c((max(res.comb$new_bins)+1), (min(res.comb$new_bins-1))), 
               ylim = c(0, 1)) +
     geom_line(aes(x = new_bins, y = value, color = Data)) +
-    scale_color_manual(values=c("#252424")) +
+    scale_color_manual(breaks = c("Naïve Occupancy", "PAO", "Occupancy Probability", "Detection Probability"),
+                       values=c("#252424", "#DE2D26", "#DE2D26", "#3182BD")) +
+    scale_fill_manual(breaks = c("Naïve Occupancy", "PAO", "Occupancy Probability", "Detection Probability"), 
+                      values=c("#FFFFFF", "white","#DE2D26", "#3182BD")) +
+   # scale_color_manual(values=c("#252424")) +
     theme_few() +
-    geom_smooth(method=lm) +
-    theme(legend.position="none")
+    geom_smooth(method=lm) #+
+    #theme(legend.position="none")
 }
 
 ###############################
@@ -1538,6 +1544,14 @@ get.results <- function(target){
 }
 
 
+
+siteCoordsFun <- function(res, e, site_IDs){
+  r <- raster(res = res, ext = e)
+  siteCoords <- as.data.frame(xyFromCell(r, site_IDs))
+  siteCoords$siteID <- site_IDs
+  colnames(siteCoords) <- c("lng", "lat", "siteID")
+  return(siteCoords)
+}
 
 
 
@@ -1798,6 +1812,34 @@ organise_det <- function(siteCoords, extracted_covs, occ_data, bin = NA){
                    rain = covs$WC_Prec, 
                    temp = covs$WC_Temp, 
                    coll = coll)
+}
+
+make.table <- function(out.sp, target){
+  # Occupancy
+  Mean <- colMeans(as.data.frame(out.sp$beta.samples))
+  SD <- apply(as.data.frame(out.sp$beta.samples), 2, sd)
+  Rhat <- out.sp$rhat$beta
+  occ <- as.data.frame(t(rbind(Mean, SD, Rhat)))
+  occ$Submodel <- "Occupancy"
+  occ$Res <- res
+  occ$Group <- target
+  # Detection
+  Mean <- colMeans(as.data.frame(out.sp$alpha.samples))
+  SD <- apply(as.data.frame(out.sp$alpha.samples), 2, sd)
+  Rhat <- out.sp$rhat$alpha
+  det <- as.data.frame(t(rbind(Mean, SD, Rhat)))
+  det$Res <- res
+  det$Submodel <- "Detection"
+  det$Group <- target
+  comb <- rbind(occ, det)
+  comb$Covariate <- rownames(comb)
+  return(comb)
+}
+
+save.lattice <- function(p1){
+  pdf(paste("Figures/X.unmodelled.det.", target, ".", res, ".pdf", sep = ""))
+  print(p1)
+  dev.off()
 }
 
 site_remove <- function(eh_list, occ_covs, det_covs, siteCoords, single = TRUE){
