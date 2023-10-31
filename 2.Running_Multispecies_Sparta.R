@@ -8,7 +8,7 @@
 # Script written by Christopher D. Dean
 
 ################################################################################
-#               FILE 4: RUNNING OCCUPANCY MODELS IN SPARTA.                    #
+#               FILE 2: RUNNING OCCUPANCY MODELS IN SPARTA.                    #
 ################################################################################
 
 ################################################################################
@@ -47,13 +47,13 @@ library(viridis)
 source("0.Functions.R") # Import functions from other R file (must be in same working directory)
 
 # Set resolution
-res <- 0.1
+res <- 1
 
 # Set extent
 e <- extent(-155, -72, 22.5, 73)
 
 # Set bin type
-bin.type <- "scotese"
+bin.type <- "formation"
 
 # Load main dataset
 master.occs <- read.csv(paste("Prepped_data/Occurrence_Data/", bin.type, "/", 
@@ -91,6 +91,9 @@ naive.res(target, master.occs.grid)
 # 4. RUNNING SPARTA
 ################################################################################
 
+# c('sparta', 'catlistlength')
+# c('ranwalk', 'halfcauchy', 'catlistlength')
+
 #==== Run models =====
 # Specify parameters within a function that takes a species name and runs the model
 occ_mod_function <- function(taxa_name){
@@ -105,7 +108,7 @@ occ_mod_function <- function(taxa_name){
 } 
 
 # Run occupancy model and combine results
-run.model(master.occs.grid, target)
+all.results <- run.model(master.occs.grid, target)
 
 ################################################################################
 # 5. PLOTTING/SAVING RESULTS
@@ -119,11 +122,11 @@ run.model(master.occs.grid, target)
 occurrence.plot(master.occs.grid, target)
 
 # Plotting occupancy (naive and modelled)
-cera <- all.results %>%
+cera <- all.results[[1]] %>%
   filter(Target == "Ceratopsidae")
-tyran <- all.results %>%
+tyran <- all.results[[1]] %>%
   filter(Target == "Tyrannosauridae")
-hadro <- all.results %>%
+hadro <- all.results[[1]] %>%
   filter(Target == "Hadrosauridae")
 
 # Plot modelled results
@@ -135,32 +138,39 @@ e <- plot.occ(cera)
 f <- plot.naive(cera)
 
 # Arrange
-p <- ggarrange(a, c, e, b, d, f,
+p <- ggarrange(b, d, f, a, c, e,
           nrow = 2, ncol = 3,
           align='h', labels=c('A', 'B', 'C',
                               'D', 'E', 'F'),
           legend = "bottom",
           common.legend = T)
 
-if(bin.type =="formation"){
-  pdf(paste("Results/Outhwaite/", bin.type, "/", bin.res, 
-            "/Plot_", res, ".pdf", sep = ""), width = 11.458, height = 7.292)
-} else{
-  pdf(paste("Results/Outhwaite/", bin.type, "/Plot_", 
-            res, ".pdf", sep = ""), width = 11.458, height = 7.292)
-}
+#if(bin.type =="formation"){
+#  pdf(paste("Results/Outhwaite/", bin.type, "/", bin.res, 
+#            "/Plot_", res, ".pdf", sep = ""), width = 11.458, height = 7.292)
+#} else{
+#  pdf(paste("Results/Outhwaite/", bin.type, "/Plot_", 
+#            res, ".pdf", sep = ""), width = 11.458, height = 7.292)
+#}
 
 # Add phylopics
-cowplot::ggdraw() +  
+(p1 <- cowplot::ggdraw() +  
   cowplot::draw_plot(p) +
   cowplot::draw_image("https://images.phylopic.org/images/aeeb30a8-afdc-4e7e-9bcc-574cb290a1f6/raster/1536x575.png?build=140", 
-             x = 0.435, y = -0.04, scale = 0.1) +
+             x = 0.435, y = 0.44, scale = 0.1) +
   cowplot::draw_image("https://images.phylopic.org/images/f3808e65-a95f-4df5-95a0-5f5b46a221f2/raster/1536x505.png?build=140", 
-           x = 0.09, y = -0.04, scale = 0.12) +
+           x = 0.09, y = 0.44, scale = 0.12) +
   cowplot::draw_image("https://images.phylopic.org/images/72be89b9-3f2b-4dc3-b485-e74a5f8b1fbc/raster/1536x512.png?build=140", 
-             x = -0.23, y = -0.04, scale = 0.1) 
+             x = -0.23, y = 0.44, scale = 0.1))
 
-dev.off()
+#dev.off()
+
+# Choose type of model
+type <- "s"
+
+# Save figure
+ggsave(paste("Figures/1.Sparta.", bin.type, ".", res, ".", type, ".png", sep = ""), plot = p1, 
+       device = "png", type = "cairo")
 
 ########################
 ##### SAVE RESULTS #####
@@ -168,12 +178,18 @@ dev.off()
 
 if(bin.type =="formation"){
   write.csv(results, paste("Results/Outhwaite/", bin.type, "/", 
-                           bin.res, "/naive.results", res, ".csv", sep = ""))
-  write.csv(all.results, paste("Results/Outhwaite/", bin.type,
-                               "/", bin.res, "/results", res, ".csv", sep = ""))
+                           bin.res, "/naive.results.", res, ".csv", sep = ""))
+  write.csv(all.results[[1]], paste("Results/Outhwaite/", bin.type,
+                               "/", bin.res, "/results.", res, ".csv", sep = ""))
+  saveRDS(all.results[[2]], file = paste("Results/Outhwaite/Posterior_checks/",
+                                         bin.type, "/", res, ".models.rds", 
+                                         sep = ""))
 }else{
   write.csv(results, paste("Results/Outhwaite/", bin.type,
                            "/naive.results", res, ".csv", sep = ""))
-  write.csv(all.results, paste("Results/Outhwaite/", bin.type, 
+  write.csv(all.results[[1]], paste("Results/Outhwaite/", bin.type, 
                                "/results", res, ".csv", sep = ""))
+  saveRDS(all.results[[2]], file = paste("Results/Outhwaite/Posterior_checks/",
+                                         bin.type, "/", res, ".models.rds", 
+                                         sep = ""))
 }
