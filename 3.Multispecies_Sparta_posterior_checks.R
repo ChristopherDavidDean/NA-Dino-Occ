@@ -26,7 +26,7 @@ library(dplyr)
 # Setup
 iter_update <- 100
 q <- c(0.025, 0.975)
-res <- 0.1
+res <- 0.5
 dir.create("Results/Outhwaite/Posterior_checks")
 bin.type <- "scotese"
 
@@ -168,10 +168,10 @@ b <- ggplot(data = sppVarSites_Summ) +
   scale_x_log10() + 
   scale_y_log10() + 
   ggtitle("Variance (across years) in proportion of sites per year") +
-  xlab("Observed from data") + ylab("Model prediction") + 
+  xlab("Observed from data") + ylab("Model prediction") +
   theme_bw()
 
-(p1 <- ggarrange(a, b,
+(p1 <- ggpubr::ggarrange(a, b,
           nrow = 1, ncol = 2,
           align='hv', labels=c('A', 'B'),
           legend = "bottom",

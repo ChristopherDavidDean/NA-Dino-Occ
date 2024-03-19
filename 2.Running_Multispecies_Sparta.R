@@ -55,6 +55,12 @@ e <- extent(-155, -72, 22.5, 73)
 # Set bin type
 bin.type <- "formation"
 
+# Set formation based cells or not
+form_cell <- "N"
+
+# Set model type; 1 for sparta, 2 for half cauchy random walk.
+type <- 2
+
 # Load main dataset
 master.occs <- read.csv(paste("Prepped_data/Occurrence_Data/", bin.type, "/", 
                               res, "_", bin.type, "_occurrence_dataset.csv", sep = ""))
@@ -66,6 +72,7 @@ bins <- master.occs %>%
   dplyr::select(bin_assignment, bin_midpoint) %>%
   distinct()
 
+# Make grid
 get_grid(master.occs, res = res, e = e)
 
 # Adding midpoint
@@ -91,8 +98,8 @@ naive.res(target, master.occs.grid)
 # 4. RUNNING SPARTA
 ################################################################################
 
-# c('sparta', 'catlistlength')
-# c('ranwalk', 'halfcauchy', 'catlistlength')
+model.list <- list(c('sparta', 'catlistlength'), 
+                   c('ranwalk', 'halfcauchy', 'catlistlength'))
 
 #==== Run models =====
 # Specify parameters within a function that takes a species name and runs the model
@@ -101,7 +108,7 @@ occ_mod_function <- function(taxa_name){
                                 n_iterations = 40000,
                                 nyr = 2,
                                 burnin = 20000, 
-                                modeltype = c('sparta', 'catlistlength'),
+                                modeltype = model.list[[type]],
                                 occDetdata = formattedOccData$occDetdata,
                                 spp_vis = formattedOccData$spp_vis,
                                 write_results = FALSE)  
@@ -119,7 +126,7 @@ all.results <- run.model(master.occs.grid, target)
 #################
 
 # Plotting number of occurrences
-occurrence.plot(master.occs.grid, target)
+#occurrence.plot(master.occs.grid, target)
 
 # Plotting occupancy (naive and modelled)
 cera <- all.results[[1]] %>%
@@ -129,21 +136,25 @@ tyran <- all.results[[1]] %>%
 hadro <- all.results[[1]] %>%
   filter(Target == "Hadrosauridae")
 
+c.uuid <- get_uuid(name = "Ceratopsidae", n = 4)[[4]]
+t.uuid <- get_uuid(name = "Tyrannosauridae", n = 4)[[4]]
+h.uuid <- get_uuid(name = "Edmontosaurus", n = 3)[[3]]
+
 # Plot modelled results
 a <- plot.occ(hadro)
-b <- plot.naive(hadro)
+b <- plot.naive(hadro, h.uuid)
 c <- plot.occ(tyran)
-d <- plot.naive(tyran)
+d <- plot.naive(tyran, t.uuid)
 e <- plot.occ(cera)
-f <- plot.naive(cera)
+f <- plot.naive(cera, c.uuid)
 
 # Arrange
-p <- ggarrange(b, d, f, a, c, e,
+(p <- ggarrange(f, b, d, e, a, c, 
           nrow = 2, ncol = 3,
           align='h', labels=c('A', 'B', 'C',
                               'D', 'E', 'F'),
           legend = "bottom",
-          common.legend = T)
+          common.legend = T))
 
 #if(bin.type =="formation"){
 #  pdf(paste("Results/Outhwaite/", bin.type, "/", bin.res, 
@@ -152,44 +163,50 @@ p <- ggarrange(b, d, f, a, c, e,
 #  pdf(paste("Results/Outhwaite/", bin.type, "/Plot_", 
 #            res, ".pdf", sep = ""), width = 11.458, height = 7.292)
 #}
-
-# Add phylopics
-(p1 <- cowplot::ggdraw() +  
-  cowplot::draw_plot(p) +
-  cowplot::draw_image("https://images.phylopic.org/images/aeeb30a8-afdc-4e7e-9bcc-574cb290a1f6/raster/1536x575.png?build=140", 
-             x = 0.435, y = 0.44, scale = 0.1) +
-  cowplot::draw_image("https://images.phylopic.org/images/f3808e65-a95f-4df5-95a0-5f5b46a221f2/raster/1536x505.png?build=140", 
-           x = 0.09, y = 0.44, scale = 0.12) +
-  cowplot::draw_image("https://images.phylopic.org/images/72be89b9-3f2b-4dc3-b485-e74a5f8b1fbc/raster/1536x512.png?build=140", 
-             x = -0.23, y = 0.44, scale = 0.1))
-
 #dev.off()
 
 # Choose type of model
-type <- "s"
+if(type == 1){
+  type <- "sp"
+}
+if(type == 2){
+  type <- "hc.rw"
+}
+
+
 
 # Save figure
-ggsave(paste("Figures/1.Sparta.", bin.type, ".", res, ".", type, ".png", sep = ""), plot = p1, 
-       device = "png", type = "cairo")
+ggsave(paste("Figures/2.Sparta.", bin.type, ".", res, ".", type, ".png", sep = ""), plot = p, 
+       device = "png")
+ggsave(paste("Figures/2.Sparta.", bin.type, ".", res, ".", type, ".pdf", sep = ""), plot = p, 
+       device = "pdf")
 
 ########################
 ##### SAVE RESULTS #####
 ########################
 
-if(bin.type =="formation"){
-  write.csv(results, paste("Results/Outhwaite/", bin.type, "/", 
-                           bin.res, "/naive.results.", res, ".csv", sep = ""))
-  write.csv(all.results[[1]], paste("Results/Outhwaite/", bin.type,
-                               "/", bin.res, "/results.", res, ".csv", sep = ""))
-  saveRDS(all.results[[2]], file = paste("Results/Outhwaite/Posterior_checks/",
-                                         bin.type, "/", res, ".models.rds", 
-                                         sep = ""))
-}else{
-  write.csv(results, paste("Results/Outhwaite/", bin.type,
-                           "/naive.results", res, ".csv", sep = ""))
-  write.csv(all.results[[1]], paste("Results/Outhwaite/", bin.type, 
-                               "/results", res, ".csv", sep = ""))
-  saveRDS(all.results[[2]], file = paste("Results/Outhwaite/Posterior_checks/",
-                                         bin.type, "/", res, ".models.rds", 
-                                         sep = ""))
-}
+DIC.res <- data.frame(Taxon = target, 
+           DIC = c(all.results[[2]]$Hadrosauridae$BUGSoutput$DIC,
+                   all.results[[2]]$Ceratopsidae$BUGSoutput$DIC, 
+                   all.results[[2]]$Tyrannosauridae$BUGSoutput$DIC), 
+           Res = rep(res, 3), 
+           Bin.type = rep(bin.type, 3), 
+           Model.type = rep(type, 3))
+
+write.csv(DIC.res, paste("Results/Outhwaite/DIC/", bin.type, ".", res, ".", type, 
+                         ".csv", sep = ""))
+
+write.csv(results, paste("Results/Outhwaite/", bin.type, "/naive.results.", 
+                         res, ".", type, ".csv", sep = ""))
+write.csv(all.results[[1]], paste("Results/Outhwaite/", bin.type,
+                             "/results.", res, ".", type, ".csv", sep = ""))
+saveRDS(all.results[[2]], file = paste("Results/Outhwaite/Posterior_checks/",
+                                       bin.type, "/", res, ".", type, ".models.rds", 
+                                       sep = ""))
+
+####################################
+##### ASSESSING ALL DIC VALUES #####
+####################################
+
+(all.DIC <- do.call(rbind, lapply(list.files(path = "Results/Outhwaite/DIC/", 
+                                             full.names = T), read.csv)))

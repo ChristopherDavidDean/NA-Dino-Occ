@@ -66,19 +66,26 @@ colnames(formations)[1] <- "formation" # Change to allow for further analysis
 
 ##### Set values #####
 # Set resolution
-res <- 0.1
+res <- 1
 # Set extent
 e <- extent(-155, -72, 22.5, 73)
 # Set max limit value
-max_val <- 40
-max_val_on <- T
+max_val <- "None"
+max_val_on <- F
 
 ##### Remove occurrences outside bounds #####
 master.occs <- master.occs %>%
-  filter(lat > 32) %>%
-  filter(lat < 60) %>%
-  filter(lng > -120) %>%
-  filter(lng < -90)
+  filter(lat > 22.5) %>%
+  filter(lat < 73) %>%
+  filter(lng > -155) %>%
+  filter(lng < -72)
+
+###### Remove occurrences outside bounds #####
+#master.occs <- master.occs %>%
+#  filter(lat > 32) %>%
+#  filter(lat < 60) %>%
+#  filter(lng > -120) %>%
+#  filter(lng < -90)
 
 ##### Manually setup extent for figures #####
 #maxLat <- round_any((max(occurrence_dataset$lat) + 7), 0.5)  #get value for defining extent, and increase by x for visualisation purposes
@@ -116,27 +123,14 @@ master.occs <- master.occs %>%
 master.occs$max_ma[master.occs$max_ma > 83.59] <- 83.59
 master.occs$min_ma[master.occs$min_m < 66] <- 66.001 # If using majority method, all occurrences with minimum age of <66 Ma must be capped to 66 Ma, otherwise bin_time() breaks.
 
-#################
-##### STAGE #####
-#################
-
-bins <- stages
-colnames(bins) <- c("sys","system", "series", "stage", "short", "max_ma", 
-                    "mid_ma", "min_ma", "dur", "stg", "systemCol", "seriesCol", 
-                    "col")
-bins <- arrange(bins, (max_ma))
-bins$bin <- c("teyeo", "teyeq")
-master.occs.binned <- bin_time(master.occs, bins, method = "all")
-bin.type <- "stage"
-         
 ####################
 ##### SUBSTAGE #####
 ####################
 
-bins <- read.csv("Data/Occurrences/substages.csv")
-bins$bin <- c("SB.1","SB.2","SB.3","SB.4","SB.5")
-master.occs.binned <- bin_time(master.occs, bins, method = "all")
-bin.type <- "substage"
+#bins <- read.csv("Data/Occurrences/substages.csv")
+#bins$bin <- c("SB.1","SB.2","SB.3","SB.4","SB.5")
+#master.occs.binned <- bin_time(master.occs, bins, method = "all")
+#bin.type <- "substage"
 
 ###################
 ##### SCOTESE #####
@@ -157,6 +151,7 @@ bins <- binning(bin.res, master.occs)
 master.occs <- master.occs %>%
   dplyr::filter(max_ma < bins$max_ma[6]) %>%
   dplyr::filter(min_ma > bins$min_ma[1])
+bins <- bins[-7, ]
 master.occs.binned <- bin_time(master.occs, bins, method = "majority")
 bin.type <- "formation"
 
@@ -175,7 +170,11 @@ bin.dino.coll <- master.occs %>%
   distinct()
 
 get_grid_im(master.occs, res, "Occurrences", ext = e)
-get_grid_im(bin.dino.coll, res, "Dinosaur Collections", ext = e)
+a <- get_grid_im(bin.dino.coll, 1, "Dinosaur Collections", ext = e2)
+
+pdf(paste("Figures/Dino.colls.pdf", sep = ""))
+print(a[[1]])
+dev.off()
 
 ##### Testing Targets #####
 target_maker(bin.occs, "family", "Ceratopsidae")
@@ -188,7 +187,7 @@ stri <- c()
 for (t in 1:50){
   all_results_for_unmarked(data = bin.occs.targeted, name = bin.name, res = res, 
                            ext = e, target = target, subsamp = TRUE, sampval = 10, 
-                           single = FALSE, formCells = "Y")
+                           single = FALSE, formCells = form_cells)
   stri <- c(stri, comp_num)
 } # Mean score of 2.68 occupied sites dropped.
 
@@ -224,114 +223,40 @@ master.occs.binned.targeted <- master.occs.binned.targeted %>%
                                     bin_midpoint == 80.75 ~ 80))
 
 # Palaeo-rotate to get accurate palaeolat/long
-master.occs.binned.targeted <- palaeorotate(occdf = master.occs.binned.targeted,
-                                            lat = "lat",
-                                            lng = "lng",
-                                            age = "Rot_age",
-                                            method = "point", 
-                                            model = c("PALEOMAP")
-                                            )
+if(bin.type == "scotese"){
+  master.occs.binned.targeted <- palaeorotate(occdf = master.occs.binned.targeted,
+                                              lat = "lat",
+                                              lng = "lng",
+                                              age = "Rot_age",
+                                              method = "point", 
+                                              model = c("PALEOMAP")
+  )
+}
+if(bin.type == "formation"){
+  master.occs.binned.targeted <- palaeorotate(occdf = master.occs.binned.targeted,
+                                              lat = "lat",
+                                              lng = "lng",
+                                              age = "bin_midpoint",
+                                              method = "point", 
+                                              model = c("PALEOMAP")
+  )
+}
 
 ##### Save prepped occurrence data for other approaches #####
 write.csv(master.occs.binned.targeted, file.path(paste("Prepped_data/Occurrence_Data/", bin.type, 
-                                    "/", res, "_", bin.type, "_occurrence_dataset.csv", sep = "")))
+                                                       "/", res, "_", bin.type, "_occurrence_dataset.csv", sep = "")))
+# Record resolution target data
+vect <- c(0.5, 1)
 
-############################################################
-##### DATA PREPPED FOR OCCUPANCY IN SPARTA OR UNMARKED #####
-############################################################
-
-# Load dataset
-master.occs.binned.targeted <- read.csv(paste("Prepped_data/Occurrence_Data/", bin.type, 
-                                              "/", res, "_", bin.type, "_occurrence_dataset.csv", sep = ""))
-
-# For each time bin - 
+# Makes list of dataframes, each containing information about various cell resolutions. 
+# Can also see Naive occupancy estimates.
 for(t in 1:length(bins$bin)){ 
-  
   # Select relevant occurrences for bin. 
   bin.name <- bins$bin[t]
   bin.occs <- master.occs.binned.targeted %>% 
     filter(bin_assignment == bin.name)
-  
-  # Create appropriate folder
-  dir.create(paste0("Prepped_data/Occurrence_Data/", bin.type, "/"), showWarnings = FALSE)
-  dir.create(paste0("Prepped_data/Occurrence_Data/", bin.type, "/", bin.name, "/", sep =""), showWarnings = FALSE)
-  dir.create(paste0("Prepped_data/Occurrence_Data/", bin.type, "/", bin.name, "/", res, "/", sep =""), 
-             showWarnings = FALSE)
-  
-  # Record resolution target data
-  vect <- c(0.1, 0.5, 1)
-  res_data(bin.occs, target, vect = vect, single = TRUE) # Makes list of dataframes, each containing information about various cell resolutions. Can also see Naive occupancy estimates.
+  res_data(bin.occs, target, vect = vect, single = TRUE) 
   Res_results <- do.call(rbind.data.frame, Res_results_list)
-  write.csv(Res_results, file.path(paste("Prepped_data/Occurrence_data/", bin.type, "/", bin.name, 
-                                         "/Targeted_res_stats.csv", sep="")))
-  
-  # Prepare data for unmarked
-  all_results_for_unmarked(data = bin.occs, name = bin.name, res = res, ext = e, 
-                           target = target, single = TRUE, formCells = "N", 
-                           max_val_on = max_val_on, max_val = max_val) 
-  
-  ##### PRECISE AND SURVEY COVARIATE DATA #####
-  # Grab hi resolution covariates (taken directly from collection co-ordinates)
-  precise_cov(bin.occs, unmarked_Ceratopsidae[[2]], max_val)
-  
-  ##### SITE COVARIATE DATA: MODERN #####
-
-  wc <- list.files(paste("Prepped_data/Covariate_Data/All_data/", 
-                         res, "deg/", sep = ""), 
-                   pattern=".asc")
-  stacked <- raster::stack(paste("Prepped_data/Covariate_Data/All_data/", 
-                                 res, "deg/", wc, 
-                                 sep =""))
-  bin.occs <- get_cov(bin.occs, stacked)
-  
-  covs <- unlist(strsplit(wc, ".asc"))
-  
-  site.covs <- bin.occs %>%
-    dplyr::select(siteID, any_of(covs), Coll_count) %>%
-    filter(Coll_count == "Non-singleton") %>%
-    distinct()
-
-  ##### SITE COVARIATE DATA: PALAEO #####
-  if(bin.type == "stage" | bin.type == "scotese"){
-    # Load rasters
-    wc <- list.files(paste("Prepped_data/Covariate_Data/All_data/", 
-                           res, "deg/Palaeo/", sep = ""), 
-                     pattern=paste0("^", bins$code[t], ".*", sep = ""))
-    stacked <- raster::stack(paste("Prepped_data/Covariate_Data/All_data/", 
-                                   res, "deg/Palaeo/", wc, 
-                                   sep =""))
-    # Set palaeo lat/long
-    names(bin.occs)[names(bin.occs) == "p_lng"] <- "plng"
-    names(bin.occs)[names(bin.occs) == "p_lat"] <- "plat"
-
-    bin.occs <- get_p_cov(bin.occs, stacked)
-  
-    pcovs <- c("dry_mean.1", "col_mean.1", "wet_mean.1", "hot_mean.1", "ann_sd.1", paste(bin.name, "_sed_", res, sep = ""))
-    
-    p.site.covs <- bin.occs %>%
-      dplyr::select(siteID, any_of(pcovs), Coll_count) %>%
-      dplyr::filter(Coll_count == "Non-singleton") %>%
-      dplyr::rename_with(~ sub(paste("^", bin.name, sep = ""), "p", .x), starts_with(bin.name)) %>%
-      dplyr::rename_with(~gsub("\\d+", "", .)) %>%
-      dplyr:: rename_with(~gsub("\\.", "", .)) %>%
-      dplyr::group_by(siteID) %>%
-      dplyr:: summarise(dry_mean = mean(dry_mean, na.rm = TRUE), 
-                        wet_mean = mean(wet_mean, na.rm = TRUE),
-                        col_mean = mean(col_mean, na.rm = TRUE),
-                        hot_mean = mean(hot_mean, na.rm = TRUE), 
-                        ann_sd = mean(ann_sd, na.rm = TRUE),
-                        mean_psed = mean(p_sed_, na.rm = TRUE)
-      )
-    site.covs <- merge(site.covs, p.site.covs, by = "siteID")
-    site.covs <- site.covs %>% select(-Coll_count)
-  }
-  
-  ##### SAVING FILES #####
-  write.csv(site.covs, file.path(paste("Prepped_data/Occurrence_Data/", bin.type, 
-                                       "/", bin.name, "/", res, "/", 
-                                       "site_occupancy_covs_", max_val, ".csv", 
-                                       sep = "")))
-  write.csv(bin.occs, file.path(paste("Prepped_data/Occurrence_Data/", bin.type, 
-                                      "/", bin.name, "/", res,
-                                      "/", bin.name, "_dataset.csv", sep = "")))
+  write.csv(Res_results, file.path(paste("Prepped_data/Occurrence_data/", bin.type, "/", 
+                                         "/Targeted_res_stats.", bin.name,".csv", sep="")))
 }

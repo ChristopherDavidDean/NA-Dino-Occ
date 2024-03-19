@@ -24,23 +24,29 @@ library(stringr)
 library(MCMCvis)
 library(purrr)
 library(sp)
+library(tictoc)
+
+##### Set timer #####
+tic("Full code")
 
 ##### Load in Functions #####
 source("0.Functions.R") # Import functions from other R file (must be in same working directory)
 
 ##### Set values #####
 # Set resolution
-res <- 0.1
+res <-  0.5
 # Set extent
 e <- extent(-155, -72, 22.5, 73)
 # Set max limit value
-max_val <- 20
+max_val <- 40
 max_val_on <- TRUE
 bin.type <- "scotese"
 target <- "Ceratopsidae"
 bins <- read.csv("Data/Occurrences/scotesebins.csv")
 bins$bin <- bins$code
 bin <- NA # Change this if you want a single season model
+form_cells <- "N" # Change this to "Y" for single season models with cells grouped 
+                  # by formations
 
 # Load occurrence dataset
 master.occs.binned.targeted <- read.csv(paste("Prepped_data/Occurrence_Data/", 
@@ -58,19 +64,25 @@ rand <- round(runif(1, min = 0, max = 999))
 #########################
 
 # Get grid cells for occurrences
-get_grid(master.occs.binned.targeted, res = res, e = e)
+get_grid(master.occs.binned.targeted, res = res, e = e, formCells = form_cells)
 
 # Prep data for 
 prepare_for_spOcc(master.occs.binned.targeted.grid, single = FALSE, bin = bin)
 
 # Get site IDs for sorting later
-site_IDs <- as.numeric(rownames(eh_list[[1]][[1]]))
+if(form_cells == "Y"){
+  site_IDs <- as.numeric(gsub("([0-9]+).*$", "\\1", rownames(eh_list[[1]][[1]])))
+}else{
+  site_IDs <- as.numeric(rownames(eh_list[[1]][[1]]))
+}
 
 # Palaeo-rotate site IDs for each time bin to enable acquiring relevant covariate data
 rotated <- p_rotate(res, e, site_IDs, bins, bin = bin)
 
 # Extract palaeo-covariates
+tic("Extracting palaeo-covariates")
 extracted_covs <- extract_p(rotated)
+toc()
 
 # Format occupancy covariates for spOccupancy
 occ_covs <- format_occ_covs(p_cov_list = extracted_covs)
@@ -94,6 +106,10 @@ if(is.na(bin) == T){
   transpose_eh(eh_list, target)
 }
 
+# Add road distance data
+Distance <- distance_fun(eh_list)
+det_covs$Distance <- Distance
+
 #########################
 ##### SPATIAL SETUP #####
 #########################
@@ -111,7 +127,8 @@ sp_points_proj <- sp::spTransform(sp_points, nad83_proj)
 
 # Organise coordinates for spatial models
 coords <- sp_points_proj@coords[,1:2]
-names(coords) <- c("X", "Y")
+rownames(coords) <- 1:nrow(coords)
+colnames(coords) <- c("X", "Y")
 
 # Add site variable to detection covariates
 det_covs$Site <- 1:nrow(coords)
@@ -123,7 +140,7 @@ det_covs$Year <- occ_covs$Year
 # 3. COMBINE AND SAVE
 ################################################################################
 
-# Combined data into correct format depending on single or multi season approach
+# Combined data into correct format depending on single or multi-season approach
 if(is.na(bin) == T){
   sp.data <- Array_prep(target, sp = TRUE)
 }else{
@@ -135,12 +152,20 @@ if(is.na(bin) == T){
 
 # Save data
 if(is.na(bin) == T){
-  saveRDS(sp.data, 
+  saveRDS(sp.data,
           file = paste("Prepped_data/spOccupancy/Multi_season/", res, "/", target, 
                        "_multi_", res, ".rds", sep = ""))
 }else{
-  saveRDS(sp.data, 
-          file = paste("Prepped_data/spOccupancy/Single_season/", res, "/", 
-                       bin, "/", target, "_single_", res, ".rds", sep = ""))
+  if(form_cells == "Y"){
+    saveRDS(sp.data, 
+            file = paste("Prepped_data/spOccupancy/Single_season/", res, "/", 
+                         bin, "/", target, "_single_", res, ".formcells.rds", sep = ""))
+  }else{
+    saveRDS(sp.data, 
+            file = paste("Prepped_data/spOccupancy/Single_season/", res, "/", 
+                         bin, "/", target, "_single_", res, ".rds", sep = ""))
+  }
 }
 
+##### Close timer loop #####
+toc()

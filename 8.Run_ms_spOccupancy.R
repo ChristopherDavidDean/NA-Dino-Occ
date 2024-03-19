@@ -8,7 +8,7 @@
 # Script written by Christopher D. Dean
 
 ################################################################################
-#                    FILE 6: RUNNING MULTI-SEASON OCCUPANCY                    #
+#                    FILE 8: RUNNING MULTI-SEASON OCCUPANCY                    #
 ################################################################################
 
 ################################################################################
@@ -36,7 +36,7 @@ e <- extent(-155, -72, 22.5, 73)
 max_val <- 40
 max_val_on <- TRUE
 bin.type <- "scotese"
-target <- "Tyrannosauridae"
+target <- "Hadrosauridae"
 bins <- read.csv("Data/Occurrences/scotesebins.csv")
 bins$bin <- bins$code
 
@@ -76,7 +76,8 @@ n.batch * batch.length
 
 # Set total potential covariates
 occ.form <- c("scale(ann)", "scale(hot)", "scale(col)", "scale(wet)", "scale(dry)")
-det.form <- c("scale(outcrop)", "scale(MGVF)", "scale(rain)", "factor(Year)", "factor(land)")
+det.form <- c("scale(outcrop)", "scale(MGVF)", "scale(rain)", "factor(Year)", 
+              "factor(land)", "scale(occur)", "scale(sedflux)", "scale(Distance)")
 occ.form <- unlist(lapply(1:length(occ.form), 
                           function(x) combn(occ.form, x, simplify = FALSE)), 
                    recursive = FALSE)
@@ -144,14 +145,12 @@ system.time({
 # Stop the cluster
 sfStop()
 
-det.waic2 <- det.waic
-
 # Unlist
 det.waic <- as.data.frame(do.call(rbind, det.waic))
 det.waic$model <- rownames(det.waic)
 
 # Set det.
-best.det <- as.formula(paste(gsub("det", "", det.waic[which.min(det.waic$WAIC), 4]), "+ (1 | Site)", sep = " "))
+best.det <- as.formula(paste(gsub("det", "", det.waic[which.min(det.waic$WAIC), 4]), sep = " "))
 
 ################################
 ##### OCCUPANCY COVARIATES #####
@@ -177,7 +176,7 @@ occ.wrapper <- function(occ.form){
                     n.thin = n.thin, 
                     n.chains = 3) 
   occ_waic <- t(as.data.frame(spOccupancy::waicOcc(out.sp)))
-  rownames(occ_waic) <- c(paste("occ ~", revi.sp.det.formula)[2])
+  rownames(occ_waic) <- c(paste("occ ~", revi.sp.occ.formula)[2])
   return(occ_waic)
 }
 
@@ -211,19 +210,11 @@ sfStop()
 occ.waic <- as.data.frame(do.call(rbind, occ.waic))
 occ.waic$model <- rownames(occ.waic)
 
-best.occ <- as.formula(paste(gsub("occ", "", occ_waic[which.min(occ_waic$WAIC), 4]), sep = " "))
+best.occ <- as.formula(paste(gsub("occ", "", occ.waic[which.min(occ.waic$WAIC), 4]), sep = " "))
 
 #######################
 ##### BEST MODELS #####
 #######################
-
-# 0.1
-# Hadrosaur Best Model
-
-# Ceratopsidae Best model
-
-# Tyrannosauridae Best model
-
   
 # 0.5
 # Hadrosaur Best Model
@@ -231,11 +222,12 @@ best.occ <- as.formula(paste(gsub("occ", "", occ_waic[which.min(occ_waic$WAIC), 
 #revi.sp.det.formula <- ~ scale(rain) + factor(Year) + (1 | Site)
 
 # Ceratopsidae Best model
-#revi.sp.occ.formula <- ~ scale(ann)
-#revi.sp.det.formula <- ~ scale(outcrop) + factor(land) + factor(Year) + (1 | Site)
+best.occ <- ~ scale(ann)
+best.det <- ~ scale(Distance) + (1 | Site)
 
 # Tyrannosauridae Best model
-
+#revi.sp.occ.formula <- ~ scale(col)
+#revi.sp.det.formula <- ~ scale(rain) + (1 | Site)
 
 # 1 
 # Hadrosaur Best Model
@@ -326,11 +318,8 @@ mapTheme <- rasterVis::rasterTheme(region=brewer.pal(8,"Reds"))
 save.lattice(p2)
 
 ################################################################################
-# A1. ADDITIONAL - NON-SPATIAL MODEL
+# 5. NON-SPATIAL MODEL
 ################################################################################
-
-# Prep the array for the individual target chosen
-sp.data <- Array_prep(target, sp = FALSE)
 
 # Quick plot to check occupancy
 raw.occ.prob <- apply(sp.data$y, 2, mean, na.rm = TRUE)
@@ -339,8 +328,8 @@ plot(1:4, raw.occ.prob, pch = 16,
      cex = 1.5, frame = FALSE, ylim = c(0, 1))
 
 # Specify formula
-revi.occ.formula <- ~ scale(ann) + scale(dry)
-revi.det.formula <- ~ scale(outcrop) + factor(land) 
+revi.sp.occ.formula <- ~ scale(col) + scale(wet) + scale(dry)
+revi.sp.det.formula <- ~ scale(rain) + factor(Year) + (1 | Site)
 
 # Specify model parameters
 z.inits <- apply(sp.data$y, c(1, 2), function(a) as.numeric(sum(a, na.rm = TRUE) > 0))

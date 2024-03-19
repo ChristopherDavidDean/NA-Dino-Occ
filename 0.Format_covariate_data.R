@@ -27,11 +27,11 @@ library(dplyr)
 library(beepr)
 
 # Load in Functions
-source("0.Functions_DR.R")
+source("0.Functions.R")
 
 # Set values
 res <- 0.5
-e <- extent(-155, -72, 22.5, 73) # For 0.5 and 0.1 degree
+e <- extent(-155, -72, 22.5, 73) # For 0.5 degree
 e <- extent(-155, -72, 23, 73) # For 1 degree
 
 # Setup Folders
@@ -550,3 +550,9 @@ writeRaster(MaasTemp, paste("Data/Covariate_Data/Formatted/PalaeoClimate/MaasTem
 writeRaster(MaasTemp, paste("Data/Covariate_Data/Formatted/All_data/", 
                             res, "deg/PalaeoClimate/MaasTemp_", res, ".asc", sep = ""), 
             pattern = "ascii", overwrite = TRUE)
+
+test <- master.occs.binned.targeted.grid %>%
+  dplyr::select(siteID, collection_no, lng, lat) %>%
+  dplyr::distinct()
+
+write.csv(test, file = "collections_test.csv")

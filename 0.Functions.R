@@ -223,8 +223,8 @@ gen_raster <- function(cell_data, value_data, res, ext, zero = FALSE){
   if (zero == TRUE){
      full_dframe[is.na(full_dframe)] <- 0
   }
-  raster_for_values <<- raster(res = res, val = full_dframe$Vals, ext = ext)
-  plot(raster_for_values)
+  raster_for_values <- raster(res = res, val = full_dframe$Vals, ext = ext)
+  return(raster_for_values)
 }
 
 
@@ -441,21 +441,22 @@ get_grid_im <- function(data, res, name, ext){
   countries <<- maptools::map2SpatialPolygons(countries, 
                                               IDs = countries$names, 
                                               proj4string = CRS("+proj=longlat")) 
-  mapTheme <- rasterVis::rasterTheme(region=brewer.pal(8,"Greens"))
+  mapTheme <- rasterVis::rasterTheme(region=brewer.pal(8,"Reds"))
   
   #create levelplot for raster
-  print(rasterVis::levelplot(r, margin=F, par.settings=mapTheme,  
+  (a <- rasterVis::levelplot(r, margin=F, par.settings=mapTheme,  
                              main = paste("Total ", (substitute(name)), 
                                           " per Grid Cell", sep = "")) + 
     # Plots state lines
     latticeExtra::layer(sp.polygons(states, col = "white", fill = NA), under = T)  + 
     # Plots background colour
     latticeExtra::layer(sp.polygons(countries, col = 0, fill = "light grey"), under = T)) 
-  hist(r, breaks = 20,
+  (b <- hist(r, breaks = 20,
        main = paste((substitute(name)), " per Grid Cell", sep = ""),
        xlab = "Number of Collections", ylab = "Number of Grid Cells",
-       col = "springgreen")
+       col = "springgreen"))
   r <<- r
+  return(list(a, b))
 }
 
 
@@ -742,11 +743,23 @@ all_results_for_unmarked <- function(data, res, target, ext, name, single = TRUE
                         sep = ""), showWarnings = FALSE) 
 
       if(max_val_on == TRUE){
-        temp_name_1 <- paste(name, ".", res[r], ".", target[q], ".dframe.",  max_val, sep = "")
-        temp_name_2 <- paste(name, ".", res[r], ".", target[q], ".colframe.", max_val, sep = "")
+        if(form_cells == "Y"){
+          temp_name_1 <- paste(name, ".", res[r], ".", target[q], ".dframe.",  
+                               max_val, ".formcells", sep = "")
+          temp_name_2 <- paste(name, ".", res[r], ".", target[q], ".colframe.", 
+                               max_val, ".formcells", sep = "")
+        }else{
+          temp_name_1 <- paste(name, ".", res[r], ".", target[q], ".dframe.",  max_val, sep = "")
+          temp_name_2 <- paste(name, ".", res[r], ".", target[q], ".colframe.", max_val, sep = "")
+        }
       }else{
-        temp_name_1 <- paste(name, ".", res[r], ".", target[q], ".dframe",  sep = "")
-        temp_name_2 <- paste(name, ".", res[r], ".", target[q], ".colframe", sep = "")
+        if(form_cells == "Y"){
+          temp_name_1 <- paste(name, ".", res[r], ".", target[q], ".dframe.formcells",  sep = "")
+          temp_name_2 <- paste(name, ".", res[r], ".", target[q], ".colframe.formcells", sep = "")
+        } else{
+          temp_name_1 <- paste(name, ".", res[r], ".", target[q], ".dframe",  sep = "")
+          temp_name_2 <- paste(name, ".", res[r], ".", target[q], ".colframe", sep = "")
+        }
       }
       
       write.csv(test2[[1]], file.path(paste("Prepped_data/Occurrence_Data/", bin.type, "/", bin.name, "/", 
@@ -1320,6 +1333,8 @@ run.model <- function(data, target){
   
   # Export data to the cluster
   sfExport('formattedOccData')
+  sfExport('type')
+  sfExport('model.list')
   
   # Run the model in parallel
   system.time({
@@ -1427,17 +1442,21 @@ plot.occ.unmarked <- function(res.comb){
 ######################
 
 # WHAT DOES THIS FUNCTION DO?
-
-plot.naive <- function(res.comb){
-  
+plot.naive <- function(res.comb, uuid){
   # WHAT DOES THIS FUNCTION NEED TO RUN?
-  
+  silhouette_df <- data.frame(x = c(70), y = c(0.88), 
+                              Data = c("Naive occupancy"))
   naive <- res.comb %>%
     filter(Data == "Naive occupancy")
   ggplot(data = naive, aes(x = new_bins, y = value)) +
     ylab("Proportion of total sites") + 
     xlab("Time (Ma)") +
     scale_x_reverse() +
+    geom_phylopic(data = silhouette_df, aes(x = x, y = y), 
+                    uuid = uuid, 
+                    size = 0.14, 
+                    alpha = 1, 
+                    color = "dark grey") +
     deeptime::coord_geo(dat = list("stages"), 
               xlim = c((max(res.comb$new_bins)+1), (min(res.comb$new_bins-1))), 
               ylim = c(0, 1)) +
@@ -1640,7 +1659,7 @@ format_occ_covs <- function(p_cov_list){
     occ_covs <- list(wet, dry, hot, col, ann, site.effect)
     names(occ_covs) <- c("wet", "dry", "hot", "col", "ann", "site.effect")
   }
-  occ_covs <<- occ_covs
+  return(occ_covs)
 }
 
 extract_p <- function(p_rotate_list){
@@ -1655,13 +1674,20 @@ extract_p <- function(p_rotate_list){
     full_p_covs[[which(!is.na(str_locate(bins$bin, t)), arr.ind=TRUE)[1,1]]] <- get_p_cov(p_rotate_list[[t]], stacked, colls = FALSE)
     colnames(full_p_covs[[which(!is.na(str_locate(bins$bin, t)), arr.ind=TRUE)[1,1]]]) <- gsub(paste(t, "_", sep = ""), "", colnames(full_p_covs[[which(!is.na(str_locate(bins$bin, t)), arr.ind=TRUE)[1,1]]]))
     names(full_p_covs)[[which(!is.na(str_locate(bins$bin, t)), arr.ind=TRUE)[1,1]]] <- t
+  
+    # Get nearest value for seds
+    xy <- p_rotate_list[[t]][,8:9]
+    sed <- raster(paste("Prepped_data/Covariate_Data/All_data/", res, "deg/Palaeo/", 
+                        t, "_sed.asc", sep = ""))
+    sed <- readAll(sed)
+    sampled <- apply(X = xy, MARGIN = 1, FUN = function(xy) sed@data@values[which.min(replace(distanceFromPoints(sed, xy), is.na(sed), NA))])
+    # Save only first element (stops issue of equidistant values)
+    sampled <- sapply(sampled, "[[", 1)
+    full_p_covs[[which(!is.na(str_locate(bins$bin, t)), arr.ind=TRUE)[1,1]]]$sed <- sampled
   }
   full_p_covs <- full_p_covs[!sapply(full_p_covs, is.null)]
   full_p_covs <- full_p_covs
 }
-
-
-
 
 prepare_for_spOcc <- function(data, single = TRUE, bin = NA){ 
   # Select relevant info
@@ -1763,10 +1789,10 @@ organise_det <- function(siteCoords, extracted_covs, occ_data, bin = NA){
   names(covs) <- gsub(".[[:digit:]]", "", names(covs))
   
   # Outcrop
-  outcrop <- data.frame(teyeq = covs$COut_all, 
-                        teyep = covs$COut_all,
-                        teyeo = covs$MOut_all,
-                        teyen = covs$MOut_all
+  outcrop <- data.frame(teyeq = covs$Out_teyeq, 
+                        teyep = covs$Out_teyep,
+                        teyeo = covs$Out_teyeo,
+                        teyen = covs$Out_teyen
   )
   if(is.na(bin) == F){
     outcrop <- as.vector(outcrop[bin])
@@ -1788,6 +1814,20 @@ organise_det <- function(siteCoords, extracted_covs, occ_data, bin = NA){
     coll <- coll[!is.na(coll)]
   }
   
+  # Occs
+  occur <- occ_data %>% 
+    dplyr::group_by(siteID, bin_assignment) %>%
+    dplyr::summarise(occur = n())
+  occur <- pivot_wider(occur, names_from = bin_assignment, values_from = occur)
+  column_index <- c("teyeq", "teyep", "teyeo", "teyen")
+  occur <- as.data.frame(occur[, column_index])
+  if(is.na(bin) == F){
+    occur <- as.vector(occur[bin])
+    occur <- occur[[1]]
+    occur <- occur[!is.na(occur)]
+  }
+  
+  
   # Palaeo det
   sed <- data.frame(siteNo = rep(1:length(site_IDs)))
   
@@ -1806,40 +1846,71 @@ organise_det <- function(siteCoords, extracted_covs, occ_data, bin = NA){
     sed <- sed[[1]]
   }
   
-  det_covs <- list(outcrop = outcrop, sedflux = sed, 
+  det_covs <- list(outcrop = outcrop, 
+                   sedflux = sed, 
                    land = as.factor(covs$LANDCVI_multiple), 
                    MGVF = covs$MGVF, 
                    rain = covs$WC_Prec, 
                    temp = covs$WC_Temp, 
-                   coll = coll)
+                   coll = coll, 
+                   occur = occur)
 }
 
-make.table <- function(out.sp, target){
+make.table <- function(out.sp, target, res, ss = F, bin = NA){
   # Occupancy
   Mean <- colMeans(as.data.frame(out.sp$beta.samples))
-  SD <- apply(as.data.frame(out.sp$beta.samples), 2, sd)
+  Quant <- apply(as.data.frame(out.sp$beta.samples), 2, quantile, c(0.025, 0.975))
   Rhat <- out.sp$rhat$beta
-  occ <- as.data.frame(t(rbind(Mean, SD, Rhat)))
+  occ <- as.data.frame(t(rbind(Mean, Quant, Rhat)))
   occ$Submodel <- "Occupancy"
   occ$Res <- res
   occ$Group <- target
+  occ$Covariate <- rownames(occ)
+  if(ss == T){
+    occ$Bin <- bin
+  }
   # Detection
   Mean <- colMeans(as.data.frame(out.sp$alpha.samples))
-  SD <- apply(as.data.frame(out.sp$alpha.samples), 2, sd)
+  Quant <- apply(as.data.frame(out.sp$alpha.samples), 2, quantile, c(0.025, 0.975))
   Rhat <- out.sp$rhat$alpha
-  det <- as.data.frame(t(rbind(Mean, SD, Rhat)))
-  det$Res <- res
+  det <- as.data.frame(t(rbind(Mean, Quant, Rhat)))
   det$Submodel <- "Detection"
+  det$Res <- res
   det$Group <- target
-  comb <- rbind(occ, det)
-  comb$Covariate <- rownames(comb)
+  det$Covariate <- rownames(det)
+  if(ss == T){
+    det$Bin <- bin
+  }
+  # Random Effects
+  if(is.null(out.sp$sigma.sq.p.samples) == F){
+    Mean <- mean(out.sp$sigma.sq.p.samples)
+    Quant <- apply(as.data.frame(out.sp$sigma.sq.p.samples), 2, quantile, c(0.025, 0.975))
+    Rhat <- out.sp$rhat$sigma.sq.p
+    var <- as.data.frame(t(rbind(Mean, Quant, Rhat)))
+    var$Res <- res
+    var$Submodel <- "Detection"
+    var$Group <- target
+    var$Covariate <- "REV: Site"
+    if(ss == T){
+      var$Bin <- bin
+    }  
+    comb <- rbind(occ, det, var)
+  }else{
+    comb <- rbind(occ, det)
+  }
   return(comb)
 }
 
-save.lattice <- function(p1){
-  pdf(paste("Figures/X.unmodelled.det.", target, ".", res, ".pdf", sep = ""))
-  print(p1)
-  dev.off()
+save.lattice <- function(p1, ss = F){
+  if(ss == T){
+    pdf(paste("Results/spOccupancy/single_season/Figures/Unmodelled.det.", target, ".", res, ".", bin, ".pdf", sep = ""))
+    print(p1)
+    dev.off()
+  }else{
+    pdf(paste("Figures/X.unmodelled.det.", target, ".", res, ".pdf", sep = ""))
+    print(p1)
+    dev.off()
+  }
 }
 
 site_remove <- function(eh_list, occ_covs, det_covs, siteCoords, single = TRUE){
@@ -1882,13 +1953,31 @@ site_remove <- function(eh_list, occ_covs, det_covs, siteCoords, single = TRUE){
 }
 
 transpose_eh <- function(eh_list, target){
-  eh_list_adjusted <- list(eh_list[[1]][[1]], eh_list[[2]][[1]], 
-                           eh_list[[3]][[1]], eh_list[[4]][[1]])
-  testArray <- abind(eh_list_adjusted, along = 3)
+  if(class(eh_list[[1]]) == "list"){
+    eh_list <- list(eh_list[[1]][[1]], eh_list[[2]][[1]], 
+                             eh_list[[3]][[1]], eh_list[[4]][[1]])
+  }
+  testArray <- abind(eh_list, along = 3)
   newArray <- aperm(testArray, c(1,3,2))
   assign(paste("EH_array_", target, sep = ""), newArray, envir = .GlobalEnv)
 }
 
+distance_fun <- function(eh_list){
+  road <- read.csv("Data/Covariate_Data/Distance_roads.csv")
+  road <- road %>%
+    dplyr::distinct()
+  final.list <- list()
+  for(t in names(eh_list)){
+    temp_data <- eh_list[[t]][[2]]
+    final.list[[t]] <- temp_data %>% 
+      dplyr::mutate(across(everything(), .fns = ~ road$distance[match(., road$collection)]))
+  }
+  if(is.na(bin) == T){
+    Distance <- transpose_eh(final.list, "road_distance")
+  }else{
+    Distance <- final.list[[1]]
+  }
+}
 
 Array_prep <- function(data_suffix, sp = FALSE) {
   # Create the full data frame name
@@ -2103,4 +2192,219 @@ prepare_for_multispecies <- function(data, res, ext, level = "genus", target,
 }
 
 
+
+# Edited from forestplotGG
+forestplot2 <- function(df,
+                        name = name,
+                        estimate = estimate,
+                        CI.max = CI.max,
+                        CI.min = CI.min,
+                        pvalue = NULL,
+                        colour = NULL,
+                        shape = NULL,
+                        logodds = FALSE,
+                        psignif = 0.05,
+                        ci = 0.95,
+                        ...) {
+  
+  # Input checks
+  stopifnot(is.data.frame(df))
+  stopifnot(is.logical(logodds))
+  
+  # TODO: Add some warnings when name, estimate etc are missing from df and user
+  # is not defining the name, estimate etc explicitly.
+  
+  # Quote input
+  name <- enquo(name)
+  estimate <- enquo(estimate)
+  CI.max <- enquo(CI.max)
+  CI.min <- enquo(CI.min)
+  pvalue <- enquo(pvalue)
+  colour <- enquo(colour)
+  shape <- enquo(shape)
+  
+  args <- list(...)
+  
+  # TODO: Allow color instead of colour. This will do it, but also breaks other
+  # options at the end, so fix those before uncommenting this.
+  # args <- enquos(...)
+  # if (quo_is_null(colour) && "color" %in% names(args)) {
+  #   colour <- args$color
+  # }
+  
+  # Adjust data frame variables
+  df <-
+    df %>%
+    # Convert to a factor to preserve order.
+    dplyr::mutate(
+      !!name := factor(
+        !!name,
+        levels = !!name %>% unique() %>% rev(),
+        ordered = TRUE
+      ),
+      # Added here to estimate xbreaks for log odds later
+      .xmin = !!CI.min,
+      .xmax = !!CI.max,
+      # Add a logical variable with the info on whether points will be filled.
+      # Defaults to TRUE.
+      .filled = TRUE,
+      # Add a variable with the estimates to be printed on the right side of y-axis
+      .label = sprintf("%.2f", !!estimate)
+    )
+  
+  # Exponentiate the estimates and CIs if logodds
+  if (logodds) {
+    df <-
+      df %>%
+      mutate(
+        .xmin = exp(.data$.xmin),
+        .xmax = exp(.data$.xmax),
+        !!estimate := exp(!!estimate)
+      )
+  }
+  
+  # If pvalue provided, adjust .filled variable
+  if (!rlang::quo_is_null(pvalue)) {
+    df <-
+      df %>%
+      dplyr::mutate(.filled = !!pvalue > !!psignif)
+  }
+  
+  # Plot
+  g <-
+    ggplot2::ggplot(
+      df,
+      aes(
+        x = !!estimate,
+        y = !!name
+      )
+    )
+  
+  # If logodds, adjust axis scale
+  if (logodds) {
+    if ("xtickbreaks" %in% names(args)) {
+      g <-
+        g +
+        scale_x_continuous(
+          trans = "log10",
+          breaks = args$xtickbreaks
+        )
+    } else {
+      g <-
+        g +
+        scale_x_continuous(
+          trans = "log10",
+          breaks = scales::log_breaks(n = 7)
+        )
+    }
+  }
+  
+  g <-
+    g +
+    # Add custom theme
+    theme_forest() +
+    # Add Nightingale colour palette
+    scale_colour_ng_d() +
+    scale_fill_ng_d() +
+    # Add striped background
+    geom_stripes() +
+    # Add vertical line at null point
+    geom_vline(
+      xintercept = ifelse(test = logodds, yes = 1, no = 0),
+      linetype = "solid",
+      size = 0.4,
+      colour = "black"
+    )
+  
+  g <-
+    g +
+    # And point+errorbars
+    geom_effect(
+      ggplot2::aes(
+        xmin = .data$.xmin,
+        xmax = .data$.xmax,
+        colour = !!colour,
+        shape = !!shape,
+        filled = .data$.filled
+      ),
+      position = ggstance::position_dodgev(height = 0.5)
+    ) +
+    # Define the shapes to be used manually
+    ggplot2::scale_shape_manual(values = c(21L, 22L, 23L, 24L, 25L)) +
+    guides(
+      colour = guide_legend(reverse = TRUE),
+      shape = guide_legend(reverse = TRUE)
+    )
+  
+  # Limits adjustment
+  #
+  # # Extend the shorter x-axis side to mirror the longer one
+  # xext <-
+  #   c(
+  #     df[[quo_name(xmin)]],
+  #     df[[quo_name(xmax)]]
+  #   ) %>%
+  #   abs() %>%
+  #   max()
+  # g <-
+  #   g +
+  #   ggplot2::expand_limits(x = c(-xext, xext))
+  
+  # If no groups specified (through either colour or shape), show estimate values.
+  # ### Note: I had to switch back to row number as the y aesthetic in order to use
+  # ### continuous scale and to be able to add a secondary axis for labels on the
+  # ### right. Any other solution was too time consuming.
+  # ### I also had to simplify the fi statement below cause when colour and/or
+  # ### shape is specified a legend is added even if they are of length 1L and
+  # ### messes up right side visuals.
+  # if (
+  #   (quo_is_null(colour) || length(unique(df[[quo_name(colour)]])) == 1L) &&
+  #   (quo_is_null(shape) || length(unique(df[[quo_name(shape)]])) == 1L)
+  # ) {
+  # if ( quo_is_null(colour) && quo_is_null(shape)){
+  #   g <-
+  #     g +
+  #     geom_text(
+  #       aes(label = .label),
+  #       x = 1.1 * xext,
+  #       hjust = 1
+  #     ) +
+  #     expand_limits(x = 1.1 * xext)
+  # } else {
+  #   g <-
+  #     g +
+  #     ggplot2::scale_y_continuous(
+  #       breaks = df %>% pull(.name_order),
+  #       labels = df %>% pull(!!name)
+  #     )
+  # }
+  
+  # Pass through graphical parameters and define defaults values for some.
+  if ("title" %in% names(args)) {
+    g <- g + labs(title = args$title)
+  }
+  if ("subtitle" %in% names(args)) {
+    g <- g + labs(subtitle = args$subtitle)
+  }
+  if ("caption" %in% names(args)) {
+    g <- g + labs(caption = args$caption)
+  }
+  if ("xlab" %in% names(args)) {
+    g <- g + labs(x = args$xlab)
+  }
+  if (!"ylab" %in% names(args)) {
+    args$ylab <- ""
+  }
+  g <- g + labs(y = args$ylab)
+  if ("xlim" %in% names(args)) {
+    g <- g + coord_cartesian(xlim = args$xlim)
+  }
+  if ("ylim" %in% names(args)) {
+    g <- g + ylim(args$ylim)
+  }
+  if ("xtickbreaks" %in% names(args) & !logodds) {
+    g <- g + scale_x_continuous(breaks = args$xtickbreaks)
+  }
+  g
+}
 
