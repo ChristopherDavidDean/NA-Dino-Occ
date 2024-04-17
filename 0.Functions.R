@@ -2,9 +2,10 @@
 ############ OCCUPANCY OF LATE CRETACEOUS NORTH AMERICAN DINOSAURS #############
 ################################################################################
 #
-# Christopher D. Dean, Lewis A. Jones, Alfio A. Chiarenza, Sinéad Lyster, 
-# Alex Farnsworth, Philip D. Mannion, Richard J. Butler.
-# 2023
+# Christopher D. Dean, Alfio Alessandro Chiarenza, Jeffrey W. Doser, Alexander
+# Farnsworth, Lewis A. Jones, Sinéad Lyster, Charlotte L. Outhwaite, Richard J. 
+# Butler, Philip D. Mannion.
+# 2024
 # Script written by Christopher D. Dean and Lewis A. Jones
 #
 ################################################################################
@@ -26,43 +27,54 @@
 # 0. INDEX
 ################################################################################
 
-# 1. iPAK AND REQUIRED PACKAGES
-# 2. GET_EXTENT
-# 3. TARGET_MAKER
-# 4. VIEW CELLS & GEN_RASTER
-# 5. GET_GRID
-# 6. GET COVARIATE FUNCTIONS
-# 7. GET_GRID_IM
-# 8. PREPARE_FOR_RES_DATA & RES_DATA
-# 9. PREPARE_FOR_UNMARKED, SAMPLE_FOR_UNMARKED & ALL_RESULTS_FOR_UNMARKED
-# 10. FORMATION BINNING
-# 11. GET_OCC
-# 12. GET_DET
-# 13. NAIVE.RES
-# 14. COMB.RES
-# 15. RUN.MODEL
-# 16. PLOT.OCC & PLOT.OCC.UNMARKED
-# 17. PLOT.NAIVE & PLOT.NAIVE.UNMARKED
-# 18. OCCURRENCE.PLOT
-# 19. GET.RESULTS
-# 20. OLD FUNCTIONS
+# FUNCTION                                                                  LINE
+# 1. REQUIRED PACKAGES........................................................75
+# 2. GET_EXTENT..............................................................119
+# 3. TARGET_MAKER............................................................135
+# 4. SITECOORDSFUN...........................................................168
+# 5. VIEW CELLS, GEN_RASTER, GET_GRID_IM.....................................185
+#--- 5.1. VIEW_CELLS.........................................................191
+#--- 5.2. GEN_RASTER.........................................................232
+#--- 5.3. GET_GRID_IM........................................................260
+# 6. GET_GRID................................................................314
+# 7. FORMATION BINNING.......................................................354
+#--- 7.1. SCORING_GRID.......................................................364
+#--- 7.2. NEWBINS............................................................434
+#--- 7.3. BINNING............................................................564
+# 8. GET COVARIATE FUNCTIONS.................................................617
+#--- 8.1. FIND_COLLECTIONS...................................................623
+#--- 8.2. GET_COV............................................................645
+#--- 8.3. GET_P_COV..........................................................666
+# 9. PREPARE_FOR_RES_DATA & RES_DATA.........................................686
+#--- 9.1. PREPARE_FOR_RES_DATA...............................................692
+#--- 9.2. RES_DATA...........................................................769
+# 10. SPARTA FUNCTIONS.......................................................807
+#--- 10.1. GET_OCC...........................................................815
+#--- 10.2. GET_DET...........................................................849
+#--- 10.3. NAIVE_RES.........................................................896
+#--- 10.4. COMB_RES..........................................................944
+#--- 10.5. RUN_MODEL........................................................1000
+#--- 10.6. PLOT_OCC.........................................................1061
+#--- 10.7. PLOT_NAIVE.......................................................1097
+# 11. SPOCCUPANCY FUNCTIONS.................................................1134
+#--- 11.1. P_ROTATE.........................................................1141
+#--- 11.2. FORMAT_OCC_COVS..................................................1177
+#--- 11.3. EXTRACT_P........................................................1246
+#--- 11.4. SAMPLE_FOR_SPOCC.................................................1283
+#--- 11.4. PREPARE_FOR_SPOCC................................................1317
+#--- 11.5. ORGANISE_DET.....................................................1412
+#--- 11.6. SITE_REMOVE......................................................1523
+#--- 11.7. TRANSPOSE_EH.....................................................1570
+#--- 11.8. ARRAY_PREP.......................................................1589
+#--- 11.9. DISTANCE_FUN.....................................................1617
+#--- 11.10. MAKE_TABLE......................................................1642
+# 12. SAVE_LATTICE..........................................................1697
+# 13. FORESTPLOT2...........................................................1716
+# 14. CLEAN_FOR_FIG.........................................................1937
 
 ################################################################################
-# 1. iPAK AND REQUIRED PACKAGES
+# 1. REQUIRED PACKAGES
 ################################################################################
-
-# function that automatically installs necessary packages that the user is lacking.
-
-###### iPAK #####
-ipak <- function(pkg){ # Function to install packages. Read in character vector 
-                       # of any packages required. 
-  new.pkg <- pkg[!(pkg %in% installed.packages()[, "Package"])]
-  if (length(new.pkg)) 
-    install.packages(new.pkg, dependencies = TRUE)
-  sapply(pkg, require, character.only = TRUE)
-} 
-
-##### REQUIRED PACKAGES #####
 
 library(beepr)
 library(rphylopic)
@@ -154,14 +166,31 @@ target_maker <- function (data, level, target){
 }
 
 ################################################################################
-# 4. VIEW CELLS & GEN RASTER
+# 4. SITECOORDSFUN
+################################################################################
+
+# Uses a raster, extent and list of site IDs to makes a dataframe for latitudinal
+# and longitudinal coordinates for each site ID.
+
+siteCoordsFun <- function(res, e, site_IDs){
+  #res is the chosen resolution, e is the extent, site_IDs is a vector of grid cell
+  # (site) IDs 
+  r <- raster(res = res, ext = e)
+  siteCoords <- as.data.frame(xyFromCell(r, site_IDs))
+  siteCoords$siteID <- site_IDs
+  colnames(siteCoords) <- c("lng", "lat", "siteID")
+  return(siteCoords)
+}
+
+################################################################################
+# 5. VIEW CELLS, GEN RASTER & GET_GRID_IM
 ################################################################################
 
 # Functions to view specific cells of a raster. 
 
-######################
-##### VIEW_CELLS #####
-######################
+###########################
+##### 5.1. VIEW_CELLS #####
+###########################
 
 # Function that extracts data from a raster, and makes a new raster with only a 
 # chosen vector of cells.
@@ -200,9 +229,9 @@ view_cells <- function(chosen_raster, vector_of_cells, res, zero = FALSE){
   plot(raster_for_values)
 }
 
-######################
-##### GEN_RASTER #####
-######################
+###########################
+##### 5.2. GEN_RASTER #####
+###########################
 
 # Function that makes a raster from scratch, using a vector of cells and associated 
 # values. Used for quickly visualising covariate data.
@@ -227,9 +256,63 @@ gen_raster <- function(cell_data, value_data, res, ext, zero = FALSE){
   return(raster_for_values)
 }
 
+#
+############################
+##### 5.3. GET_GRID_IM #####
+############################
+
+# Sets raster to dimensions of inputted data ready for visualisation. Is used in 
+# vis_grid. 
+
+# Find maps to use as backdrop
+countries <- maps::map("world", plot=FALSE, fill = TRUE) 
+states <- maps::map("state", plot = FALSE, fill = TRUE)
+
+# Turn maps into spatialpolygons
+countries <<- maptools::map2SpatialPolygons(countries, 
+                                            IDs = countries$names, 
+                                            proj4string = CRS("+proj=longlat")) 
+states <<- maptools::map2SpatialPolygons(states, 
+                                         IDs = states$names, 
+                                         proj4string = CRS("+proj=longlat")) 
+
+get_grid_im <- function(data, res, name, ext){ 
+  # Data is first output from combine_data (fossil.colls). Res is chosen 
+  # resolution in degrees. name is user inputted string related to data inputted, 
+  # for display on graphs. 
+  
+  xy <- cbind(as.double(data$lng), as.double(data$lat))
+  xy <- unique(xy)
+  r <- raster::raster(ext = ext, res = res)
+  r <- raster::rasterize(xy, r, fun = 'count')
+  #r[r > 0] <- 1 # Remove if you want values instead of pure presence/absence.
+  
+  # find map to use as backdrop
+  countries <- maps::map("world", plot=FALSE, fill = TRUE) 
+  # Turn map into spatialpolygons
+  countries <<- maptools::map2SpatialPolygons(countries, 
+                                              IDs = countries$names, 
+                                              proj4string = CRS("+proj=longlat")) 
+  mapTheme <- rasterVis::rasterTheme(region=brewer.pal(8,"Reds"))
+  
+  #create levelplot for raster
+  (a <- rasterVis::levelplot(r, margin=F, par.settings=mapTheme,  
+                             main = paste("Total ", (substitute(name)), 
+                                          " per Grid Cell", sep = "")) + 
+      # Plots state lines
+      latticeExtra::layer(sp.polygons(states, col = "white", fill = NA), under = T)  + 
+      # Plots background colour
+      latticeExtra::layer(sp.polygons(countries, col = 0, fill = "light grey"), under = T)) 
+  (b <- hist(r, breaks = 20,
+             main = paste((substitute(name)), " per Grid Cell", sep = ""),
+             xlab = "Number of Collections", ylab = "Number of Grid Cells",
+             col = "springgreen"))
+  r <<- r
+  return(list(a, b))
+}
 
 ################################################################################
-# 5. GET_GRID
+# 6. GET_GRID
 ################################################################################
 
 # Creates a raster of chosen resolution, and attaches associated grid cell IDs 
@@ -269,520 +352,24 @@ get_grid <- function(data, res, e, r = "N", formCells = "N"){
 }
 
 ################################################################################
-# 6. GET COVARIATE FUNCTIONS
+# 7. FORMATION BINNING
 ################################################################################
 
-# Functions to organise covariate data.
+# Selection of functions for making formation bins. Further details can be found in:
+# Dean, C.D., Chiarenza, A.A., Maidment, S.C.R. 2020. Formation binning: a new 
+# method for increased temporal resolution in regional studies, applied to the
+# Late Cretaceous dinosaur fossil record of North America, Palaeontology, 63(6), 
+# 881-901
 
-############################
-##### FIND_COLLECTIONS #####
-############################
+#############################
+##### 7.1. SCORING_GRID #####
+#############################
 
-# Extracts information about number of collections per cell of chosen data. 
-
-find_collections <- function(data, single = FALSE){ 
-  # Data is output from Get_grid. Res is resolution (only neccessary for 
-  # later functions)
-  
-  Collections_per_cell <- data %>% # Counting collections per cell
-    dplyr::select(collection_no, siteID) %>%
-    dplyr::distinct() %>%
-    dplyr::group_by(siteID) %>%
-    dplyr::summarize(colls_per_cell = n())
-  if(single == TRUE){
-    # Removing any cells with 1 collection
-    Collections_per_cell <- Collections_per_cell[!Collections_per_cell$colls_per_cell == 1,] 
-  }
-  Collections_per_cell <<- Collections_per_cell
-}
-
-###################
-##### GET_COV #####
-###################
-
-# Attaches grid cell IDs from an inputted raster to occurrences/collections.
-
-get_cov <- function(data, raster, colls = TRUE){
-  # data is first output from get_grid. Raster is a chosen raster file, which 
-  # can be a raster stack. 
-  
-  xy <- SpatialPointsDataFrame(cbind.data.frame(data$lng, data$lat), data)
-  cov_dat <- raster::extract(raster, xy, sp = TRUE, cellnumbers = FALSE)
-  cov_dat <- as.data.frame(cov_dat)
-  if(colls == TRUE){
-    colls <- find_collections(data)
-    cov_dat <- merge(cov_dat, colls, by = "siteID")
-  }else{
-    cov_dat <- cov_dat
-  }
-}
-
-#####################
-##### GET_P_COV #####
-#####################
-
-# Attaches grid cell IDs from an inputted raster to occurrences/collections.
-
-get_p_cov <- function(data, raster, colls = TRUE){
-  # data is first output from get_grid. Raster is a chosen raster file, which 
-  # can be a raster stack. 
-  xy <- SpatialPointsDataFrame(cbind.data.frame(data$plng, data$plat), data)
-  cov_dat <- raster::extract(raster, xy, sp = TRUE, cellnumbers = FALSE)
-  cov_dat <- as.data.frame(cov_dat)
-  if(colls == TRUE){
-    colls <- find_collections(data)
-    p_cov_dat <- merge(cov_dat, colls, by = "siteID")
-  }else{
-    p_cov_dat <- cov_dat
-  }
-}
-
-#######################
-##### PRECISE_COV #####
-#######################
-
-# Creates dataframe of covariate data associated with relevant grid cells, taken
-# from original hi-resolution rasters. Covariate values are created from the mean 
-# value of collections within larger grid cells of chosen resolution. 
-
-precise_cov <- function(data, samp.data, max_val){
-  # ADD INFO HERE
-  
-  wc <- list.files("Prepped_data/Covariate_Data/Precise/")
-  wc <- wc[!grepl('0.*', wc)] # Remove folders based on resolution
-  wc <- stack(paste0("Data/Covariate_Data/Formatted_For_Precise/", wc, sep = ""))
-  projection(wc) <- "+proj=laea +lat_0=45 +lon_0=-100 +x_0=0 +y_0=0 +a=6370997 +b=6370997 +units=m +no_defs" 
-  xy <- SpatialPointsDataFrame(cbind.data.frame(data$lng, data$lat), data, 
-                               proj4string = CRS("+proj=laea +lat_0=45 +lon_0=-100 +x_0=0 +y_0=0 +a=6370997 +b=6370997 +units=m +no_defs"))
-  hires_cov_dat <- raster::extract(wc, xy, sp = TRUE, cellnumbers = FALSE)
-  data <- as.data.frame(hires_cov_dat)
-  
-  counting_colls <- data %>%
-    dplyr::select(siteID, collection_no) %>%
-    dplyr::distinct() %>%
-    dplyr::group_by(siteID) %>%
-    dplyr::summarize(Coll_count = n())
-  hires_cov_dat <- data %>%
-    dplyr::group_by(siteID) %>%
-    dplyr::summarize(mean_DEM = mean(DEM, na.rm = TRUE), 
-                     mean_prec = mean(prec, na.rm = TRUE),
-                     mean_temp = mean(temp, na.rm = TRUE))
-  hires_cov_dat <- cbind(hires_cov_dat, counting_colls$Coll_count)
-  
-  if(is.numeric(max_val) == T){
-    surv.data <- data.frame(siteID = rep(rownames(samp.data), each = max_val),
-                            colls = matrix(t(samp.data), ncol=1, nrow=ncol(samp.data)*nrow(samp.data), byrow=F))
-  }else{
-    surv.data <- data.frame(siteID = rep(rownames(samp.data), each = ncol(samp.data)),
-                            colls = matrix(t(samp.data), ncol=1, nrow=ncol(samp.data)*nrow(samp.data), byrow=F))
-  }
-  
-  for(r in 1:nrow(surv.data)){
-    tem <- which(surv.data$colls[r] == data$collection_no)
-    if(length(tem) == 0){
-      surv.data$temp[r] <- NA
-      surv.data$prec[r] <- NA
-      surv.data$DEM[r] <- NA
-    }else{
-      tem
-      surv.data$temp[r] <- data$temp[[tem[1]]]
-      surv.data$prec[r] <- data$prec[[tem[1]]]
-      surv.data$DEM[r] <- data$DEM[[tem[1]]]
-    }
-  }
-  write.csv(hires_cov_dat, file.path(paste("Prepped_data/Occurrence_Data/", bin.type, "/", bin.name, "/", 
-                                        res, "/precise_mean_covs_", max_val, ".csv", sep="")))
-  write.csv(surv.data, file.path(paste("Prepped_data/Occurrence_Data/", bin.type, "/", bin.name, "/", 
-                                        res, "/surv_covs_", max_val, ".csv", sep="")))
-}
-
-
-################################################################################
-# 7. GET_GRID_IM
-################################################################################
-
-###########################
-##### BACKGROUND INFO #####
-###########################
-
-# Find maps to use as backdrop
-countries <- maps::map("world", plot=FALSE, fill = TRUE) 
-states <- maps::map("state", plot = FALSE, fill = TRUE)
-
-# Turn maps into spatialpolygons
-countries <<- maptools::map2SpatialPolygons(countries, 
-                                            IDs = countries$names, 
-                                            proj4string = CRS("+proj=longlat")) 
-states <<- maptools::map2SpatialPolygons(states, 
-                                         IDs = states$names, 
-                                         proj4string = CRS("+proj=longlat")) 
-
-#######################
-##### GET_GRID_IM #####
-#######################
-
-# Sets raster to dimensions of inputted data ready for visualisation. Is used in 
-# vis_grid. 
-
-get_grid_im <- function(data, res, name, ext){ 
-  # Data is first output from combine_data (fossil.colls). Res is chosen 
-  # resolution in degrees. name is user inputted string related to data inputted, 
-  # for display on graphs. 
-  
-  xy <- cbind(as.double(data$lng), as.double(data$lat))
-  xy <- unique(xy)
-  r <- raster::raster(ext = ext, res = res)
-  r <- raster::rasterize(xy, r, fun = 'count')
-  #r[r > 0] <- 1 # Remove if you want values instead of pure presence/absence.
-  
-  # find map to use as backdrop
-  countries <- maps::map("world", plot=FALSE, fill = TRUE) 
-  # Turn map into spatialpolygons
-  countries <<- maptools::map2SpatialPolygons(countries, 
-                                              IDs = countries$names, 
-                                              proj4string = CRS("+proj=longlat")) 
-  mapTheme <- rasterVis::rasterTheme(region=brewer.pal(8,"Reds"))
-  
-  #create levelplot for raster
-  (a <- rasterVis::levelplot(r, margin=F, par.settings=mapTheme,  
-                             main = paste("Total ", (substitute(name)), 
-                                          " per Grid Cell", sep = "")) + 
-    # Plots state lines
-    latticeExtra::layer(sp.polygons(states, col = "white", fill = NA), under = T)  + 
-    # Plots background colour
-    latticeExtra::layer(sp.polygons(countries, col = 0, fill = "light grey"), under = T)) 
-  (b <- hist(r, breaks = 20,
-       main = paste((substitute(name)), " per Grid Cell", sep = ""),
-       xlab = "Number of Collections", ylab = "Number of Grid Cells",
-       col = "springgreen"))
-  r <<- r
-  return(list(a, b))
-}
-
-
-################################################################################
-# 8. PREPARE_FOR_RES_DATA AND RES DATA
-################################################################################
-
-# Functions to test quality of data at different resolutions of grid cells.
-
-################################
-##### PREPARE_FOR_RES_DATA #####
-################################
-
-# Produces summary of key stats for data at a specified resolution of grid cell. 
-# Used in res_data.
-
-prepare_for_res_data <- function(data, target, single = TRUE){ 
-  # Data is first output from combine_data (fossil.colls). Target is chosen 
-  # taxon group of interest.
-  
-  # Select appropriate cells
-  rel_data <- data %>% 
-    dplyr::select(collection_no, siteID, Target) 
-  
-  # Make anything that's not the target group a 0
-  rel_data$Target[rel_data$Target != target] <- 0 
-  
-  # Make target's a 1
-  rel_data$Target[rel_data$Target == target] <- 1 
-  
-  # Make all NA's a 0
-  rel_data$Target[is.na(rel_data$Target)] <- 0 
-  rel_data$Target <- as.numeric(rel_data$Target)
-  
-  # For all collections, give a mean score of presences and absences
-  coll_data <- rel_data %>% 
-    dplyr::group_by(collection_no) %>%
-    dplyr::summarize(mean(Target)) 
-  
-  # Anything above a 0 has presences, therefore can be counted as 1
-  coll_data$`mean(Target)` <- ceiling(coll_data$`mean(Target)`)
-  
-  #Join with cell IDs, remove old target, clean column name
-  joined_data <- dplyr::left_join(coll_data, rel_data) %>% 
-    dplyr::select(-Target, Pres.Abs = `mean(Target)`, collection_no) 
-  
-  # Remove duplicates of remaining collections
-  joined_data <- joined_data %>% dplyr::distinct() 
-  cells.removed <- NA
-  
-  if(single == TRUE){
-    
-    # Create table for removing singleton cells (cells with only one collection)
-    id.table <- table(joined_data$siteID) 
-    
-    # Record how many cells removed
-    cells.removed <- sum(id.table == 1) 
-    removed <- subset(joined_data, siteID %in% names(id.table[id.table == 1]))
-    
-    # Remove cells with only one collection
-    joined_data <- subset(joined_data, siteID %in% names(id.table[id.table > 1])) 
-  }
-  
-  # Get data for calculating naive occupancy
-  prestest<- joined_data %>% 
-    dplyr::group_by(siteID) %>%
-    dplyr::summarize(ceiling(mean(Pres.Abs)))
-  rem.prestest <- removed %>%
-    dplyr::group_by(siteID) %>%
-    dplyr::summarize(ceiling(mean(Pres.Abs)))
-  
-  # Generate results
-  results <- c(nrow(prestest), # number of cells
-               sum(prestest$`ceiling(mean(Pres.Abs))`), # Number of occupied cells
-               sum(prestest$`ceiling(mean(Pres.Abs))`)/nrow(prestest)*100, #naive occupancy
-               nrow(joined_data), # total number of collections
-               mean(table(joined_data$siteID)), # mean number of collections in each cell
-               min(table(joined_data$siteID)), # min number of collections in each cell
-               max(table(joined_data$siteID)), # max number of collections in each cell
-               median(table(joined_data$siteID)), # median number of collections in each cell
-               cells.removed, # Number of cells with one collection removed
-               sum(rem.prestest$`ceiling(mean(Pres.Abs))`)
-               ) 
-  results <<- results
-}
-
-####################
-##### RES_DATA #####
-####################
-
-# Carries out prepare_for_res_data over a sequence of resolutions, and outputs 
-# as a data.frame.
-
-res_data <- function(data, target, single = TRUE, vect, formCells = "N"){ 
-  # Data is first output from combine_data (fossil.colls). Target is chosen 
-  # group to test. Vect is a vector of resolutions to find data for.
-  
-  s1 <- vect
-  Res_results_list <- list()
-   for(t in 1:length(target)){
-    Res_results <- data.frame(matrix(ncol = 10, nrow = length(s1)))
-    colnames(Res_results) <- c("No.Cells", "Occupied.cells", "Naive.occ", 
-                               "Total.Colls", "Mean.Colls", "Min.Colls", 
-                               "Max.Colls", "Median.Colls", 
-                               "No.Singleton.Cells.Removed.",
-                               "No.Singleton.Targeted.Cells.Removed")
-    row.names(Res_results) <- s1
-    for (i in (1:length(s1))){
-      test <- get_grid(data, s1[i], formCells = formCells)
-      if (single == FALSE){
-        prepare_for_res_data(test, target[t], single = FALSE)
-      }
-      else {
-        prepare_for_res_data(test, target[t])
-      }
-      Res_results[i,]<- results
-    }
-  Res_results_list[[t]] <- Res_results
-   }
-names(Res_results_list) <- target
-Res_results_list <<- Res_results_list
-}
-
-
-################################################################################
-# 9. PREPARE_FOR_UNMARKED, SAMPLE_FOR_UNMARKED AND ALL_RESULTS_FOR_UNMARKED
-################################################################################
-
-# Functions for converting data into the correct format for unmarked (occupancy 
-# modelling package). Can be run individually or for multiple Targets and Resolutions. 
-
-################################
-##### PREPARE_FOR_UNMARKED #####
-################################
-
-# WHAT DOES THIS FUNCTION DO?
-
-prepare_for_unmarked <- function(data, target, single = TRUE){ 
-  # data is output from Get_Grid. target is specified group to examine. 
-  
-  # Select relevant info
-  rel_data <- data %>% 
-    dplyr::select(collection_no, siteID, Target)
-  
-  # Make target's a 1
-  rel_data$Target[rel_data$Target == target] <- 1 
-  rel_data$Target[rel_data$Target != 1] <- NA
-  
-  # Make anything that's not the target group a 0
-  rel_data$Target[is.na(rel_data$Target)] <- 0 
-  rel_data$Target <- as.numeric(rel_data$Target)
-  
-  # For all collections, give a mean score of presences and absences
-  coll_data <- rel_data %>% 
-    dplyr::group_by(collection_no) %>%
-    dplyr::summarize(mean(Target)) 
-  
-  # Anything above a 0 has presences, therefore can be counted as 1
-  coll_data$`mean(Target)` <- ceiling(coll_data$`mean(Target)`) 
-  
-  # Join with cell IDs, remove old target, clean column name
-  joined_data <- dplyr::left_join(coll_data, rel_data) %>% 
-    dplyr::select(-Target, Pres.Abs = `mean(Target)`, collection_no) 
-  
-  # Remove duplicates of remaining collections, then create table for removing 
-  # singleton siteID (siteID with only one collection) and remove siteID with 
-  # only one collection
-  joined_data <- joined_data %>% dplyr::distinct() 
-  if (single == TRUE){
-    id.table <- table(joined_data$siteID) 
-    joined_data <- subset(joined_data, siteID %in% names(id.table[id.table > 1])) 
-  }
-  
-  # Get data for calculating naive occupancy
-  prestest<- joined_data %>%  
-    dplyr::group_by(siteID) %>%
-    dplyr::summarize(ceiling(mean(Pres.Abs)))
-  
-  # Generate results
-  results <- c(nrow(prestest), # number of siteID
-               sum(prestest$`ceiling(mean(Pres.Abs))`)/nrow(prestest)*100, #naive occupancy
-               nrow(joined_data), # total number of collections
-               mean(table(joined_data$siteID)), # mean number of collections in each cell
-               min(table(joined_data$siteID)), # min number of collections in each cell
-               max(table(joined_data$siteID)), # max number of collections in each cell
-               median(table(joined_data$siteID))) # median number of collections in each cell
-  
-  # Making dataframe for unmarked data
-  dframe_for_unmarked <- data.frame(matrix(ncol = results[6], nrow = results[1])) 
-
-  # Sort siteID so they match output of covariate data
-  joined_data <- joined_data %>% 
-    dplyr::arrange(siteID, collection_no) 
-  colnames(dframe_for_unmarked) <- c(sprintf("y.%d", seq(1,results[6])))
-  row.names(dframe_for_unmarked) <- unique(joined_data$siteID)
-  test <- unique(joined_data$siteID)
-  colframe <- dframe_for_unmarked
-  for (g in 1:results[1]){
-    counter <- 1
-    for (r in 1:nrow(joined_data)){
-      if (joined_data[r,3] == test[g]){
-        dframe_for_unmarked[g, counter] <- as.numeric(joined_data[r, 2])
-        colframe[g, counter] <- joined_data[r,1]
-        counter <- counter + 1
-      }
-    }
-  }
-
-  for_unmarked <- list(dframe_for_unmarked, colframe)
-  temp_name <- paste("unmarked_", target, sep = "")
-  assign(temp_name, for_unmarked, envir = .GlobalEnv)
-}
-
-###############################
-##### SAMPLE_FOR_UNMARKED #####
-###############################
-
-# WHAT DOES THIS FUNCTION DO?
-
-sample_for_unmarked <- function(for_unmarked, max_val){
-  dframe <- for_unmarked[[1]]
-  colframe <- for_unmarked[[2]]
-  up_colframe <- colframe[,1:max_val]
-  up_dframe <- dframe[,1:max_val]
-  for(n in 1:nrow(dframe)){ # For each row (site)
-    if(any(is.na(colframe[n,])) == FALSE){ #If there are no NAs (max no. of collections)
-      samples <- sample(1:ncol(colframe), max_val, replace=FALSE) # Sample 10 positions
-      up_colframe[n,] <- colframe[n,samples] # Use those positions to subset columns
-      up_dframe[n,] <- dframe[n,samples] # Use those positions to subset columns
-    }
-    else if(which(is.na(colframe[n,]))[1] > (max_val + 1)){ # If it has more collections than max_val
-      samples <- sample(1:(which(is.na(colframe[n,]))[1]-1), max_val, replace=FALSE) # Sample 10 positions
-      up_colframe[n,] <- colframe[n,samples] # Use those positions to subset columns
-      up_dframe[n,] <- dframe[n,samples] # Use those positions to subset columns
-    }else{
-      up_colframe[n,] <- colframe[n,1:max_val]
-      up_dframe[n,] <- dframe[n,1:max_val]
-    }
-  }
-  up_for_unmarked <- list(up_dframe, up_colframe)
-}
-
-####################################
-##### ALL_RESULTS_FOR_UNMARKED #####
-####################################
-
-# loop that takes basic combined data and writes multiple .csv files into Results 
-# folder in current directory for chosen grid cells resolutions and targets in 
-# correct format for unmarked. Sound rings when function has finished running.
-
-all_results_for_unmarked <- function(data, res, target, ext, name, single = TRUE, 
-                                     formCells = "N", max_val_on = TRUE, max_val = 10){ 
-  # data is first output from combined_data (fossil.colls). res is vectors of 
-  # chosen resolutions. target is vector of chosen targets. 
-  
-  for (r in 1:length(res)){
-    ptm <- proc.time()
-    test1 <- get_grid(data, res[r], ext, formCells = formCells)
-    rand <- round(runif(1, min = 0, max = 999)) # Set random number for seed
-    for (q in 1:length(target)){
-      if(single == FALSE){
-        test2 <- prepare_for_unmarked(test1, target[q], single = FALSE)
-        if(max_val_on == TRUE){
-          set.seed(rand) # set seed to ensure all targets are have same sampling
-          test2 <- sample_for_unmarked(test2, max_val)
-          temp_name <- paste("unmarked_", target[q], sep = "")
-          assign(temp_name, test2, envir = .GlobalEnv)
-        }
-      }
-      else {
-        test2 <- prepare_for_unmarked(test1, target[q])
-        if(max_val_on == TRUE){
-          set.seed(rand) # set seed to ensure all targets have same sampling
-          test2 <- sample_for_unmarked(test2, max_val)
-          temp_name <- paste("unmarked_", target[q], sep = "")
-          assign(temp_name, test2, envir = .GlobalEnv)
-        }
-      }
-      # Create folders, remove warning if they already exist.
-      dir.create(paste0("Prepped_data/Occurrence_Data/", bin.type, "/", sep = ""), showWarnings = FALSE) 
-      dir.create(paste0("Prepped_data/Occurrence_Data/", bin.type, "/", bin.name, "/", sep =""), 
-                 showWarnings = FALSE) 
-      dir.create(paste0("Prepped_data/Occurrence_Data/", bin.type, "/", bin.name, "/", res, "/", 
-                        sep = ""), showWarnings = FALSE) 
-
-      if(max_val_on == TRUE){
-        if(form_cells == "Y"){
-          temp_name_1 <- paste(name, ".", res[r], ".", target[q], ".dframe.",  
-                               max_val, ".formcells", sep = "")
-          temp_name_2 <- paste(name, ".", res[r], ".", target[q], ".colframe.", 
-                               max_val, ".formcells", sep = "")
-        }else{
-          temp_name_1 <- paste(name, ".", res[r], ".", target[q], ".dframe.",  max_val, sep = "")
-          temp_name_2 <- paste(name, ".", res[r], ".", target[q], ".colframe.", max_val, sep = "")
-        }
-      }else{
-        if(form_cells == "Y"){
-          temp_name_1 <- paste(name, ".", res[r], ".", target[q], ".dframe.formcells",  sep = "")
-          temp_name_2 <- paste(name, ".", res[r], ".", target[q], ".colframe.formcells", sep = "")
-        } else{
-          temp_name_1 <- paste(name, ".", res[r], ".", target[q], ".dframe",  sep = "")
-          temp_name_2 <- paste(name, ".", res[r], ".", target[q], ".colframe", sep = "")
-        }
-      }
-      
-      write.csv(test2[[1]], file.path(paste("Prepped_data/Occurrence_Data/", bin.type, "/", bin.name, "/", 
-                                        res, "/", temp_name_1, ".csv", sep="")))
-      write.csv(test2[[2]], file.path(paste("Prepped_data/Occurrence_Data/", bin.type, "/", bin.name, "/", 
-                                       res, "/", temp_name_2, ".csv", sep="")))
-    }
-    proc.time() - ptm
-    assign("bin.occs", test1, envir = .GlobalEnv)
-  }
-  beepr::beep(sound = 3)
-}
-
-
-################################################################################
-# 10. FORMATION BINNING
-################################################################################
-
-##########################
-##### SCORING_GRID_1 #####
-##########################
-
-# WHAT DOES THIS DO...
+# Takes the dataframe of formations and scores each one at intervals of 0.01 Ma.
+# If the formation does not cross the boundary, it gets an automatic maximum 
+# binning score of 100. If the formation crosses the boundary, the smallest 
+# percentage of the formation that sits either side of that boundary is identified, 
+# and the binning score is reduced by that percentage.
 
 Scoring_Grid_1 <- function(formations, res=0.01) { 
   # Requires formation information. Resolution of time lines is set automatically 
@@ -844,92 +431,9 @@ Scoring_Grid_1 <- function(formations, res=0.01) {
   allbins <<- allbins 
 }
 
-##########################
-##### SCORING_GRID_2 #####
-##########################
-
-# Create a scoring grid ignoring formations with length longer than the 3rd quantile. 
-# In his way, long ranging formations don't bias the creation of bins, especially 
-# when they appear during the same time interval.
-
-Scoring_Grid_2 <- function(formations, res=0.01) { 
-  # Requires formation information. Resolution of time lines is set automatically 
-  # at 0.01, but can be adjusted.
-  
-  # Find max/mins ages of formations
-  max_age <- max(formations$max_age) 
-  min_age <- min(formations$min_age) 
-  
-  # Make 1ma bins in sequence based on max/min ages. 0.0045 added to ensure 
-  # formation is never exactly equivalent to a bin.
-  allbins <- seq(min_age-1.0045, max_age+1.0045, res) 
-  
-  # makes a matrix for the scoring of each time line in terms of how good it is 
-  # to be a bin boundary
-  score_grid <- matrix(data = NA, nrow = nrow(formations), ncol = length(allbins)) 
-  colnames(score_grid) <- allbins 
-  rownames(score_grid) <- formations$Formation 
-  
-  # Set counter and go through each time line
-  counter <- 0
-  for(i in allbins) {
-    counter <- sum(counter,1)
-    
-    # Go through each formation 
-    for (f in 1:nrow(formations)){ 
-      
-      # If formation range is less than the 3rd Quantile
-      if (formations$Range[f] < quantile(formations$Range, 0.75, type = 7)) { 
-        
-        # if timeline is between max/min age of a formation (i.e. formation 
-        # crosses that line)
-        if (i <= formations$max_age[f] && i >= formations$min_age[f]){ 
-          
-          # Work out how much of formation is younger/older than timeline
-          a <- formations$max_age[f] - i 
-          b <- i - formations$min_age[f] 
-          
-          # Calculate range of formation
-          range <- formations$max_age[f] - formations$min_age[f] 
-          
-          # Work out percentage that sits each side of line, reduce score by 
-          # that amount
-          if (a > b){
-            score_grid[,counter][f] <- (a/range)*100
-          }
-          else{ 
-            score_grid[,counter][f] <- (b/range)*100
-          }
-        }
-        
-        # Otherwise, just score it 100. 
-        else {
-          score_grid[,counter][f] = 100 
-        }
-      }
-      
-      # If formation range is longer than mean formation range, skip (bin drawing 
-      # isn't affected)
-      else { 
-        next
-      }
-    }
-  }  
-  
-  # Remove effect of formations longer than mean formation range
-  score_grid <- na.omit(score_grid) 
-  
-  # Work out mean score for each time bin and add to grid
-  means <- colMeans(score_grid) 
-  score_grid <- rbind(score_grid, means)
-  
-  # Output results
-  score_grid <<- score_grid
-  allbins <<- allbins
-}
-###################
-##### NEWBINS #####
-###################
+########################
+##### 7.2. NEWBINS #####
+########################
 
 # Looks at the previously generated score_grid and generates appropriate new bins 
 # based on those scores. Boundaries are outputted as a list (binlist). If bins 
@@ -1057,15 +561,16 @@ newBins <- function(score_grid, formations, bin_limits, allbins, stages,
   box(lwd=2)
 }
 
-###################
-##### BINNING #####
-###################
+########################
+##### 7.3. BINNING #####
+########################
 
-# WHAT DOES THIS FUNCTION DO???
+# Wrapper for other formation binning functions. Returns dataframe of appropriate bins, 
+# and a binned dataset of fossil occurrences assigned to those bins.
 
-binning <- function(window, occdf){
-  
-  # WHAT DOES THIS FUNCTION NEED TO RUN?
+binning <- function(window, occdf, formations){
+  # Window is the resolution of the formation bins, occdf is the dataframe of 
+  # fossil occurrences to be binned.
   
   # Set user defined bin size - change the first number to vary resolution in graphs.
   bin_limits <- c(window, max(formations$max_age), 66) 
@@ -1110,16 +615,212 @@ binning <- function(window, occdf){
 }
 
 ################################################################################
-# 11. GET_OCC
+# 8. GET COVARIATE FUNCTIONS
 ################################################################################
+
+# Functions to organise covariate data.
+
+#################################
+##### 8.1. FIND_COLLECTIONS #####
+#################################
+
+# Extracts information about number of collections per cell of chosen data. 
+
+find_collections <- function(data, single = FALSE){ 
+  # Data is output from Get_grid. Res is resolution (only necessary for 
+  # later functions)
+  
+  Collections_per_cell <- data %>% # Counting collections per cell
+    dplyr::select(collection_no, siteID) %>%
+    dplyr::distinct() %>%
+    dplyr::group_by(siteID) %>%
+    dplyr::summarize(colls_per_cell = n())
+  if(single == TRUE){
+    # Removing any cells with 1 collection
+    Collections_per_cell <- Collections_per_cell[!Collections_per_cell$colls_per_cell == 1,] 
+  }
+  Collections_per_cell <<- Collections_per_cell
+}
+
+########################
+##### 8.2. GET_COV #####
+########################
+
+# Attaches grid cell IDs from an inputted raster to occurrences/collections.
+
+get_cov <- function(data, raster, colls = TRUE){
+  # data is first output from get_grid. Raster is a chosen raster file, which 
+  # can be a raster stack. 
+  
+  xy <- SpatialPointsDataFrame(cbind.data.frame(data$lng, data$lat), data)
+  cov_dat <- raster::extract(raster, xy, sp = TRUE, cellnumbers = FALSE)
+  cov_dat <- as.data.frame(cov_dat)
+  if(colls == TRUE){
+    colls <- find_collections(data)
+    cov_dat <- merge(cov_dat, colls, by = "siteID")
+  }else{
+    cov_dat <- cov_dat
+  }
+}
+
+##########################
+##### 8.3. GET_P_COV #####
+##########################
+
+# Attaches grid cell IDs from an inputted raster to occurrences/collections.
+
+get_p_cov <- function(data, raster, colls = TRUE){
+  # data is first output from get_grid. Raster is a chosen raster file, which 
+  # can be a raster stack. 
+  xy <- SpatialPointsDataFrame(cbind.data.frame(data$plng, data$plat), data)
+  cov_dat <- raster::extract(raster, xy, sp = TRUE, cellnumbers = FALSE)
+  cov_dat <- as.data.frame(cov_dat)
+  if(colls == TRUE){
+    colls <- find_collections(data)
+    p_cov_dat <- merge(cov_dat, colls, by = "siteID")
+  }else{
+    p_cov_dat <- cov_dat
+  }
+}
+
+################################################################################
+# 9. PREPARE_FOR_RES_DATA AND RES DATA
+################################################################################
+
+# Functions to test quality of data at different resolutions of grid cells.
+
+#####################################
+##### 9.1. PREPARE_FOR_RES_DATA #####
+#####################################
+
+# Produces summary of key stats for data at a specified resolution of grid cell. 
+# Used in res_data.
+
+prepare_for_res_data <- function(data, target, single = TRUE){ 
+  # Data is first output from combine_data (fossil.colls). Target is chosen 
+  # taxon group of interest.
+  
+  # Select appropriate cells
+  rel_data <- data %>% 
+    dplyr::select(collection_no, siteID, Target) 
+  
+  # Make anything that's not the target group a 0
+  rel_data$Target[rel_data$Target != target] <- 0 
+  
+  # Make target's a 1
+  rel_data$Target[rel_data$Target == target] <- 1 
+  
+  # Make all NA's a 0
+  rel_data$Target[is.na(rel_data$Target)] <- 0 
+  rel_data$Target <- as.numeric(rel_data$Target)
+  
+  # For all collections, give a mean score of presences and absences
+  coll_data <- rel_data %>% 
+    dplyr::group_by(collection_no) %>%
+    dplyr::summarize(mean(Target)) 
+  
+  # Anything above a 0 has presences, therefore can be counted as 1
+  coll_data$`mean(Target)` <- ceiling(coll_data$`mean(Target)`)
+  
+  #Join with cell IDs, remove old target, clean column name
+  joined_data <- dplyr::left_join(coll_data, rel_data) %>% 
+    dplyr::select(-Target, Pres.Abs = `mean(Target)`, collection_no) 
+  
+  # Remove duplicates of remaining collections
+  joined_data <- joined_data %>% dplyr::distinct() 
+  cells.removed <- NA
+  
+  if(single == TRUE){
+    
+    # Create table for removing singleton cells (cells with only one collection)
+    id.table <- table(joined_data$siteID) 
+    
+    # Record how many cells removed
+    cells.removed <- sum(id.table == 1) 
+    removed <- subset(joined_data, siteID %in% names(id.table[id.table == 1]))
+    
+    # Remove cells with only one collection
+    joined_data <- subset(joined_data, siteID %in% names(id.table[id.table > 1])) 
+  }
+  
+  # Get data for calculating naive occupancy
+  prestest<- joined_data %>% 
+    dplyr::group_by(siteID) %>%
+    dplyr::summarize(ceiling(mean(Pres.Abs)))
+  rem.prestest <- removed %>%
+    dplyr::group_by(siteID) %>%
+    dplyr::summarize(ceiling(mean(Pres.Abs)))
+  
+  # Generate results
+  results <- c(nrow(prestest), # number of cells
+               sum(prestest$`ceiling(mean(Pres.Abs))`), # Number of occupied cells
+               sum(prestest$`ceiling(mean(Pres.Abs))`)/nrow(prestest)*100, #naive occupancy
+               nrow(joined_data), # total number of collections
+               mean(table(joined_data$siteID)), # mean number of collections in each cell
+               min(table(joined_data$siteID)), # min number of collections in each cell
+               max(table(joined_data$siteID)), # max number of collections in each cell
+               median(table(joined_data$siteID)), # median number of collections in each cell
+               cells.removed, # Number of cells with one collection removed
+               sum(rem.prestest$`ceiling(mean(Pres.Abs))`)
+               ) 
+  results <<- results
+}
+
+#########################
+##### 9.2. RES_DATA #####
+#########################
+
+# Carries out prepare_for_res_data over a sequence of resolutions, and outputs 
+# as a data.frame.
+
+res_data <- function(data, target, single = TRUE, vect, formCells = "N"){ 
+  # Data is first output from combine_data (fossil.colls). Target is chosen 
+  # group to test. Vect is a vector of resolutions to find data for.
+  
+  s1 <- vect
+  Res_results_list <- list()
+   for(t in 1:length(target)){
+    Res_results <- data.frame(matrix(ncol = 10, nrow = length(s1)))
+    colnames(Res_results) <- c("No.Cells", "Occupied.cells", "Naive.occ", 
+                               "Total.Colls", "Mean.Colls", "Min.Colls", 
+                               "Max.Colls", "Median.Colls", 
+                               "No.Singleton.Cells.Removed.",
+                               "No.Singleton.Targeted.Cells.Removed")
+    row.names(Res_results) <- s1
+    for (i in (1:length(s1))){
+      test <- get_grid(data, s1[i], formCells = formCells)
+      if (single == FALSE){
+        prepare_for_res_data(test, target[t], single = FALSE)
+      }
+      else {
+        prepare_for_res_data(test, target[t])
+      }
+      Res_results[i,]<- results
+    }
+  Res_results_list[[t]] <- Res_results
+   }
+names(Res_results_list) <- target
+Res_results_list <<- Res_results_list
+}
+
+
+################################################################################
+# 10. SPARTA FUNCTIONS
+################################################################################
+
+# Selection of functions to generate occupancy probability estimates using the 
+# 'sparta' package. Some of these functions have been adapted from functions
+# available in the 'sparta' package.
+
+#########################
+##### 10.1. GET_OCC #####
+#########################
 
 # Modified version of the function plot.occDet() from the package 'sparta',
 # available on github. Takes occupancy results from occDetFunc() and provides them
 # in a dataframe for plotting at a later date.
 
 get_occ <- function(x, y = NULL, main = x$SPP_NAME, reg_agg = '', ...){
-  
-  # WHAT DOES THIS FUNCTION NEED????
   
   # gets summary output from the BUGS files 
   spp_data <- as.data.frame(x$BUGSoutput$summary)
@@ -1145,17 +846,15 @@ get_occ <- function(x, y = NULL, main = x$SPP_NAME, reg_agg = '', ...){
   occ_summary <<- new_data
 }
 
-################################################################################
-# 12. GET_DET
-################################################################################
+#########################
+##### 10.2. GET_DET #####
+#########################
 
 # Modified version of the function plot_DetectionOverTime() from the package
 # 'sparta' available on github. Takes detection results from occDetFunc() and 
 # provides them in a dataframe for plotting at a later date.
 
 get_det <- function (model, min.yr = NULL, CI = 95){ 
-  
-  # WHAT DOES THIS FUNCTION NEED???
   
   if ((CI > 100) | (CI <= 0)) 
     stop("Credible intervals must be between 0 and 100")
@@ -1168,7 +867,7 @@ get_det <- function (model, min.yr = NULL, CI = 95){
   pDet1 <- sims_list$alpha.p
   if ("beta1" %in% names(sims_list)) {
     pDet1 <- apply(pDet1, 2, function(x) x + 180 * sims_list$beta1[, 
-                                  1] + 180^2 * sims_list$beta2[, 1])
+                                                                   1] + 180^2 * sims_list$beta2[, 1])
   }
   if ("LL.p" %in% names(sims_list)) {
     pDet2 <- pDet1 + sims_list$LL.p * log(2)
@@ -1194,15 +893,16 @@ get_det <- function (model, min.yr = NULL, CI = 95){
   pDet_summary <<- pDet_summary
 }
 
-################################################################################
-# 13. NAIVE.RES
-################################################################################
+###########################
+##### 10.3. NAIVE_RES #####
+###########################
 
-# WHAT DOES THIS FUNCTION DO?
+# Function that provides naive occupancy results based on a list of target taxa
+# and a dataframe of occurrences.
 
-naive.res <- function(target, data){
-  
-  # WHAT DOES THIS FUNCTION NEED TO RUN?
+naive_res <- function(target, data){
+  # Target is a vector of named taxonomic targets; data is a dataframe of occurrences.
+  # It must have bin_midpoint present to be able to appropriately bin taxa.
   
   # Make empty results table
   results <- data.frame(matrix(ncol = 6, nrow = 0))
@@ -1241,18 +941,14 @@ naive.res <- function(target, data){
   results <<- results
 }
 
+##########################
+##### 10.4. COMB_RES #####
+##########################
 
-################################################################################
-# 14. COMB.RES
-################################################################################
+# Combines results produced from sparta models. Is run from within 'run_model'.
 
-# WHAT DOES THIS FUNCTION DO?
-
-comb.res <- function(occ, det, naive, target){
-  
-  # WHAT DOES THIS FUNCTION NEED TO RUN?
-  
-  #===== combining results =====
+comb_res <- function(occ, det, naive, target){
+  # combining results
   occ.res <- occ %>%
     dplyr::select(mean, quant_025, quant_975, year, rhat_threshold) %>%
     gather(Data, value, c(mean))
@@ -1290,10 +986,10 @@ comb.res <- function(occ, det, naive, target){
   
   # Add midpoint
   lookup <<- data.frame('currentbins' = sort(unique(master.occs.grid$bin_assignment)), 
-                       'newbins' = 
-                         seq(from = length(unique(master.occs.grid$bin_assignment)), 
-                             to = 1), 
-                       'bin_midpoint' = sort(bins$bin_midpoint))
+                        'newbins' = 
+                          seq(from = length(unique(master.occs.grid$bin_assignment)), 
+                              to = 1), 
+                        'bin_midpoint' = sort(bins$bin_midpoint))
   
   inds <- match(complete$year, lookup$newbins)
   complete$new_bins <- lookup$bin_midpoint[inds]
@@ -1301,15 +997,15 @@ comb.res <- function(occ, det, naive, target){
   assign(paste(target, ".res.comb", sep = ""), complete, envir = .GlobalEnv)
 }
 
-################################################################################
-# 15. RUN.MODEL
-################################################################################
+###########################
+##### 10.5. RUN_MODEL #####
+###########################
 
-# WHAT DOES THIS FUNCTION DO?
+# Function that runs 'sparta' models and generates a table of results for plotting
 
-run.model <- function(data, target){
-  
-  # WHAT DOES THIS FUNCTION NEED TO RUN?
+run_model <- function(data, target){
+  # data is an occurrence dataframe; target is a vector of the targeted taxa used 
+  # in analysis.
   
   #==== Occupancy model ====
   # run the model with these data for one species
@@ -1326,7 +1022,7 @@ run.model <- function(data, target){
                                               replicate = data$collection_no,
                                               closure_period = data$new_bins)
   }
-
+  
   
   # Initiate the cluster
   sfInit(parallel = TRUE, cpus = 4)
@@ -1353,7 +1049,7 @@ run.model <- function(data, target){
   for(i in 1:length(target)){
     temp.occ <- get_occ(para_out[[i]])
     temp.det <- get_det(para_out[[i]])
-    temp.comb <- comb.res(temp.occ, temp.det, results, target[i])
+    temp.comb <- comb_res(temp.occ, temp.det, results, target[i])
     temp.comb$Target <- target[i]
     all.results <- rbind(all.results, temp.comb)
   }
@@ -1362,19 +1058,15 @@ run.model <- function(data, target){
   return(all.results)
 }
 
-################################################################################
-# 16. PLOT.OCC & PLOT.OCC.UNMARKED
-################################################################################
+##########################
+##### 10.6. PLOT_OCC #####
+##########################
 
-####################
-##### PLOT.OCC #####
-####################
+# Function to plot occupancy and detection probability through time, using results 
+# from 'sparta' models. 
 
-# WHAT DOES THIS FUNCTION DO?
-
-plot.occ <- function(res.comb){
-  
-  # WHAT DOES THIS FUNCTION NEED TO RUN?
+plot_occ <- function(res.comb){
+  # Res.comb is results table produced by run_model for an individual target taxon.
   
   ggplot(data = subset(res.comb, Data == "Mean occupancy"), aes(x = new_bins, 
                                                                 y = value)) +
@@ -1385,8 +1077,8 @@ plot.occ <- function(res.comb){
     xlab("Time (Ma)") +
     scale_x_reverse() +
     deeptime::coord_geo(dat = list("stages"), 
-              xlim = c((max(res.comb$new_bins)+1), (min(res.comb$new_bins-1))), 
-              ylim = c(0, 1)) +
+                        xlim = c((max(res.comb$new_bins)+1), (min(res.comb$new_bins-1))), 
+                        ylim = c(0, 1)) +
     geom_line(data = subset(res.comb, Data != "Naive occupancy"), 
               aes(x = new_bins, y = value, color = Data)) +
     scale_color_manual(values=c("#BDD7E7", "#6BAED6", "#3182BD", 
@@ -1402,48 +1094,16 @@ plot.occ <- function(res.comb){
     theme_few()
 }
 
-#############################
-##### PLOT.OCC.UNMARKED #####
-#############################
+############################
+##### 10.7. PLOT_NAIVE #####
+############################
 
-plot.occ.unmarked <- function(res.comb){
-  res.comb <- res.comb %>%
-    dplyr::filter(Data != "Null.occ.prob") %>%
-    dplyr::filter(Data != "Null.det.prob")
-  res.comb[res.comb$Data =="PAO",]["lower95CI"] <- NA
-  res.comb[res.comb$Data =="PAO",]["upper95CI"] <- NA
-  ggplot(data = subset(res.comb, Data == "Occupancy Probability" | Data == "Detection Probability"), aes(x = new_bins, 
-                                                                                                         y = value)) +
-    geom_blank(aes(color = Data), data = res.comb) +
-    geom_ribbon(data = res.comb, aes(x = new_bins, ymin = lower95CI, 
-                                     ymax = upper95CI, fill = Data), alpha = 0.2) +
-    ylab("Probability") + 
-    xlab("Time (Ma)") +
-    scale_x_reverse() +
-    deeptime::coord_geo(dat = list("stages"), 
-              xlim = c((max(res.comb$new_bins)+1), (min(res.comb$new_bins-1))), 
-              ylim = c(0, 1)) +
-    geom_line(data = subset(res.comb, Data == "Occupancy Probability" | Data == "Detection Probability"), 
-              aes(x = new_bins, y = value, colour = Data)) +
-    scale_color_manual(breaks = c("Naïve Occupancy", "PAO", "Occupancy Probability", "Detection Probability"),
-                       values=c("#252424", "#DE2D26", "#DE2D26", "#3182BD")) +
-    scale_fill_manual(breaks = c("Naïve Occupancy", "PAO", "Occupancy Probability", "Detection Probability"), 
-                      values=c("#FFFFFF", "white","#DE2D26", "#3182BD")) +
-    # geom_smooth(method=lm) +
-    theme_few()
-}
+# Function to plot naive occupancy estimates for individual taxonomic groups.
 
-################################################################################
-# 17. PLOT.NAIVE & PLOT.NAIVE.UNMARKED
-################################################################################
-
-######################
-##### PLOT.NAIVE #####
-######################
-
-# WHAT DOES THIS FUNCTION DO?
-plot.naive <- function(res.comb, uuid){
-  # WHAT DOES THIS FUNCTION NEED TO RUN?
+plot_naive <- function(res.comb, uuid){
+  # res.comb is results table produced by run_model for an individual target taxon,
+  # uuid is the rphylopic uuid for the taxonomic group, selected using the get_uuid() 
+  # function. 
   silhouette_df <- data.frame(x = c(70), y = c(0.88), 
                               Data = c("Naive occupancy"))
   naive <- res.comb %>%
@@ -1453,128 +1113,40 @@ plot.naive <- function(res.comb, uuid){
     xlab("Time (Ma)") +
     scale_x_reverse() +
     geom_phylopic(data = silhouette_df, aes(x = x, y = y), 
-                    uuid = uuid, 
-                    size = 0.14, 
-                    alpha = 1, 
-                    color = "dark grey") +
+                  uuid = uuid, 
+                  size = 0.14, 
+                  alpha = 1, 
+                  color = "dark grey") +
     deeptime::coord_geo(dat = list("stages"), 
-              xlim = c((max(res.comb$new_bins)+1), (min(res.comb$new_bins-1))), 
-              ylim = c(0, 1)) +
+                        xlim = c((max(res.comb$new_bins)+1), (min(res.comb$new_bins-1))), 
+                        ylim = c(0, 1)) +
     geom_line(aes(x = new_bins, y = value, color = Data)) +
     scale_color_manual(breaks = c("Naïve Occupancy", "PAO", "Occupancy Probability", "Detection Probability"),
                        values=c("#252424", "#DE2D26", "#DE2D26", "#3182BD")) +
     scale_fill_manual(breaks = c("Naïve Occupancy", "PAO", "Occupancy Probability", "Detection Probability"), 
                       values=c("#FFFFFF", "white","#DE2D26", "#3182BD")) +
-   # scale_color_manual(values=c("#252424")) +
+    # scale_color_manual(values=c("#252424")) +
     theme_few() +
     geom_smooth(method=lm) #+
-    #theme(legend.position="none")
-}
-
-###############################
-##### PLOT.NAIVE.UNMARKED #####
-###############################
-
-plot.naive.unmarked <- function(res.comb){
-  naive <- res.comb %>%
-    filter(Data == "Naive Occupancy" | Data ==  "PAO")
-  ggplot(data = naive, aes(x = new_bins, y = value, color = Data)) +
-    ylab("Proportion of total sites") + 
-    xlab("Time (Ma)") +
-    scale_x_reverse() +
-    deeptime::coord_geo(dat = list("stages"), 
-              xlim = c((max(res.comb$new_bins)+1), (min(res.comb$new_bins-1))), 
-              ylim = c(0, 1)) +
-    geom_smooth(method=lm, aes(group = Data), colour = "#3182BD", 
-                alpha = 0.2, linewidth = 0.75) +
-    geom_line(aes(x = new_bins, y = value, color = Data)) +
-    scale_color_manual(values=c("#252424", "#DE2D26")) +
-    scale_fill_manual(values=c("#252424", "#DE2D26"))  +
-    theme_few() +
-    theme(legend.position="none")
+  #theme(legend.position="none")
 }
 
 ################################################################################
-# 18. OCCURRENCE.PLOT
+# 11. SPOCCUPANCY FUNCTIONS
 ################################################################################
 
-# WHAT DOES THIS FUNCTION DO?
+# Variety of functions to enable running occupancy models using 'spOccupancy' with
+# occurrence data from the PBDB and a variety of palaeo and modern covariates.
 
-occurrence.plot <- function(data, target){
-  
-  # WHAT DOES THIS FUNCTION NEED TO RUN?
-  
-  occ.comb <- data.frame(matrix(ncol = 0, nrow = 0))
-  for(i in 1:length(target)){
-    temp <- master.occs.grid %>%
-      dplyr::filter(Target == target[i])
-    temp <- as.data.frame(table(temp$bin_midpoint))
-    temp$Var1 <- as.numeric(as.character(temp$Var1))
-    temp$Family <- target[i]
-    occ.comb <- bind_rows(occ.comb, temp)
-  }
-  ggplot(data = occ.comb, aes(x = Var1, y = Freq, color = Family)) +
-    ylab("No. of occurrences") + 
-    xlab("Time (Ma)") +
-    scale_x_reverse() +
-    deeptime::coord_geo(dat = list("stages"), xlim = c((max(occ.comb$Var1)+1), 
-                                             (min(occ.comb$Var1-1))), 
-              ylim = c(0, (max(occ.comb$Freq)+10))) +
-    geom_line(aes(x = Var1, y = Freq)) +
-    theme_few() +
-    scale_color_viridis(discrete=TRUE) 
-}
-################################################################################
-# 19. GET.RESULTS
-################################################################################
+##########################
+##### 11.1. P_ROTATE #####
+##########################
 
-get.results <- function(target){
-  results.list <- c()
-  for(t in bins$Bin) {
-    if(file.exists(paste("Results/Unmarked/", bin.type, "/", t, "/", res, "/", 
-                         target, ".combined.results.", res, ".", t, ".", samp_val,".csv", sep ="")) == T){
-      results.list <- c(results.list, paste("Results/Unmarked/", bin.type, "/", t, "/", res, "/", 
-                                            target, ".combined.results.", res, ".", t,".", samp_val, ".csv", sep =""))
-    }
-  }
-  temp <- do.call(rbind,lapply(results.list,read.csv))
-  s.bins <- bins %>%
-    dplyr::select(Bin, mid_ma)
-  temp <- merge(temp, s.bins)
-  temp <- temp %>%
-    dplyr::select(-X)
-  
-  temp[temp$Parameter =="Occ.prob" | temp$Parameter == "Det.prob",]["X2.5."] <- 
-    temp[temp$Parameter =="Occ.prob"| temp$Parameter == "Det.prob",]["Estimate"]-
-    temp[temp$Parameter =="Occ.prob"| temp$Parameter == "Det.prob",]["SE"]*1.959964
-  temp[temp$Parameter =="Occ.prob" | temp$Parameter == "Det.prob",]["X97.5."] <- 
-    temp[temp$Parameter =="Occ.prob"| temp$Parameter == "Det.prob",]["Estimate"]+
-    temp[temp$Parameter =="Occ.prob"| temp$Parameter == "Det.prob",]["SE"]*1.959964
-  
-  temp[temp$Parameter =="Occ.prob",]["Parameter"] <- "Occupancy Probability"
-  temp[temp$Parameter =="Det.prob",]["Parameter"] <- "Detection Probability"
-  
-  names(temp)[names(temp) == "X2.5."] <- "lower95CI"
-  names(temp)[names(temp) == "X97.5."] <- "upper95CI"
-  names(temp)[names(temp) == "Parameter"] <- "Data"
-  names(temp)[names(temp) == "Estimate"] <- "value"
-  names(temp)[names(temp) == "mid_ma"] <- "new_bins"
-  assign(target, temp, envir = .GlobalEnv)
-}
-
-
-
-siteCoordsFun <- function(res, e, site_IDs){
-  r <- raster(res = res, ext = e)
-  siteCoords <- as.data.frame(xyFromCell(r, site_IDs))
-  siteCoords$siteID <- site_IDs
-  colnames(siteCoords) <- c("lng", "lat", "siteID")
-  return(siteCoords)
-}
-
-
+# Function to palaeo-rotate site IDs for each time bin to enable acquiring 
+# relevant covariate data
 
 p_rotate <- function(res, e, site_IDs, bins, bin = NA){
+  # Requires resolution, extent, a vector of site IDs and the relevant time bins.
   r <- raster(res = res, ext = e)
   siteCoords <- as.data.frame(xyFromCell(r, site_IDs))
   siteCoords$siteID <- site_IDs
@@ -1585,23 +1157,32 @@ p_rotate <- function(res, e, site_IDs, bins, bin = NA){
     bins <- bins %>%
       dplyr::filter(code == !!bin)
   }
-    for(b in 1:nrow(bins)){
-      age <- bins$mid_ma[b]
-      temp_data <- cbind(siteCoords, age)
-      temp_data <- palaeorotate(occdf = temp_data, 
-                                age = "age",
-                                method = "point", 
-                                model = "PALEOMAP"
-      )
-      names(temp_data)[names(temp_data) == "p_lat"] <- "plat"
-      names(temp_data)[names(temp_data) == "p_lng"] <- "plng"
-      p_rotate_list[[b]] <- temp_data
-      names(p_rotate_list)[[b]] <- bins$code[b]
-    }
+  # For each time bin, rotate occurrences to correct position.
+  for(b in 1:nrow(bins)){
+    age <- bins$mid_ma[b]
+    temp_data <- cbind(siteCoords, age)
+    temp_data <- palaeorotate(occdf = temp_data, 
+                              age = "age",
+                              method = "point", 
+                              model = "PALEOMAP"
+    )
+    names(temp_data)[names(temp_data) == "p_lat"] <- "plat"
+    names(temp_data)[names(temp_data) == "p_lng"] <- "plng"
+    p_rotate_list[[b]] <- temp_data
+    names(p_rotate_list)[[b]] <- bins$code[b]
+  }
   return(p_rotate_list)
 }
 
+#################################
+##### 11.2. FORMAT_OCC_COVS #####
+#################################
+
+# Function to format the covariates potentially influencing the occupancy of 
+# taxa. These covariates are produced from palaeo-climatic models. 
+
 format_occ_covs <- function(p_cov_list){
+  # Requires output from function 'extract_p()' (11.3, below).
   wet <- data.frame(siteNo = rep(1:nrow(p_cov_list[[1]])))
   dry <- data.frame(siteNo = rep(1:nrow(p_cov_list[[1]])))
   col <- data.frame(siteNo = rep(1:nrow(p_cov_list[[1]])))
@@ -1662,7 +1243,17 @@ format_occ_covs <- function(p_cov_list){
   return(occ_covs)
 }
 
+###########################
+##### 11.3. EXTRACT_P #####
+###########################
+
+# Function for extracting the palaeo co-ordinates for sites necessary to calculate 
+# relevant covariates. Additionally finds the nearest relevant sed. flux value for
+# occurrences plotted within the Western Interior Seaway (which has no associated
+# sed. flux values).
+
 extract_p <- function(p_rotate_list){
+  # Takes output from 'p_rotate()' function.
   full_p_covs <- list()
   for(t in names(p_rotate_list)){
     wc <- list.files(paste("Prepped_data/Covariate_Data/All_data/", 
@@ -1674,7 +1265,7 @@ extract_p <- function(p_rotate_list){
     full_p_covs[[which(!is.na(str_locate(bins$bin, t)), arr.ind=TRUE)[1,1]]] <- get_p_cov(p_rotate_list[[t]], stacked, colls = FALSE)
     colnames(full_p_covs[[which(!is.na(str_locate(bins$bin, t)), arr.ind=TRUE)[1,1]]]) <- gsub(paste(t, "_", sep = ""), "", colnames(full_p_covs[[which(!is.na(str_locate(bins$bin, t)), arr.ind=TRUE)[1,1]]]))
     names(full_p_covs)[[which(!is.na(str_locate(bins$bin, t)), arr.ind=TRUE)[1,1]]] <- t
-  
+    
     # Get nearest value for seds
     xy <- p_rotate_list[[t]][,8:9]
     sed <- raster(paste("Prepped_data/Covariate_Data/All_data/", res, "deg/Palaeo/", 
@@ -1689,8 +1280,50 @@ extract_p <- function(p_rotate_list){
   full_p_covs <- full_p_covs
 }
 
+##################################
+##### 11.4. SAMPLE_FOR_SPOCC #####
+##################################
+
+# Function that randomly samples collections (visits) for any sites that contain
+# over a specified maximum number of collections. Returns a list of two dataframes;
+# one containing a site by collections matrix of detection histories, the other 
+# a site by collections matrix of collection numbers.
+
+sample_for_spOcc <- function(for_spOcc, max_val){
+  # Requires both the encounter history list produced in 'prepare_for_spOcc()', 
+  # and a specified maximum number of collections per site.
+  dframe <- for_spOcc[[1]]
+  colframe <- for_spOcc[[2]]
+  up_colframe <- colframe[,1:max_val]
+  up_dframe <- dframe[,1:max_val]
+  for(n in 1:nrow(dframe)){ # For each row (site)
+    if(any(is.na(colframe[n,])) == FALSE){ #If there are no NAs (max no. of collections)
+      samples <- sample(1:ncol(colframe), max_val, replace=FALSE) # Sample 10 positions
+      up_colframe[n,] <- colframe[n,samples] # Use those positions to subset columns
+      up_dframe[n,] <- dframe[n,samples] # Use those positions to subset columns
+    }
+    else if(which(is.na(colframe[n,]))[1] > (max_val + 1)){ # If it has more collections than max_val
+      samples <- sample(1:(which(is.na(colframe[n,]))[1]-1), max_val, replace=FALSE) # Sample 10 positions
+      up_colframe[n,] <- colframe[n,samples] # Use those positions to subset columns
+      up_dframe[n,] <- dframe[n,samples] # Use those positions to subset columns
+    }else{
+      up_colframe[n,] <- colframe[n,1:max_val]
+      up_dframe[n,] <- dframe[n,1:max_val]
+    }
+  }
+  up_for_spOcc <- list(up_dframe, up_colframe)
+}
+
+###################################
+##### 11.5. PREPARE_FOR_SPOCC #####
+###################################
+
+# Function that creates a list of site by collections detection histories and 
+# collections assessed for detection histories for each time bin, in a format 
+# that can be easily adapted for use in functions from the package 'spOccupancy'.
+
 prepare_for_spOcc <- function(data, single = TRUE, bin = NA){ 
-  # Select relevant info
+  # Requires a time and spatially binned occurrence dataframe with relevant targets.
   rel_data <- data %>% 
     dplyr::select(collection_no, siteID, Target, bin_assignment)
   
@@ -1770,13 +1403,26 @@ prepare_for_spOcc <- function(data, single = TRUE, bin = NA){
   eh_list_samp <- list()
   
   for(s in 1:length(eh_list)){
-    eh_list_samp[[s]] <- sample_for_unmarked(eh_list[[s]], max_val = max_val)
+    eh_list_samp[[s]] <- sample_for_spOcc(eh_list[[s]], max_val = max_val)
     names(eh_list_samp)[[s]] <- rev(sort(unique(rel_data$bin_assignment)))[s]
   }
   assign("eh_list", eh_list_samp, envir = .GlobalEnv)
 }  
 
+##############################
+##### 11.6. ORGANISE_DET #####
+##############################
+
+# Function to format various detection covariates for spOccupancy, including modern 
+# geographic influences (e.g. rainfall, MGVF, land use), sampling influences (other 
+# occurrences, collections per grid cell) and geological influences (outcrop area,
+# sediment flux). Formatted in a list, with appropriate individual formatting for 
+# input into spOccupancy functions.
+
 organise_det <- function(siteCoords, extracted_covs, occ_data, bin = NA){
+  # Requires the geographic site coordinates (including lat/long and site ID), 
+  # a dataframe of extracted covariates, the occurrence dataframe and the bins used.
+  
   # Modern det
   wc <- list.files(paste("Prepped_data/Covariate_Data/All_data/", 
                          res, "deg/", sep = ""), 
@@ -1815,10 +1461,28 @@ organise_det <- function(siteCoords, extracted_covs, occ_data, bin = NA){
   }
   
   # Occs
-  occur <- occ_data %>% 
+  occur_red <- occ_data %>% # Get partial list
+    dplyr::filter(is.na(Target) == T) %>% # Remove target organisms to avoid circularity
     dplyr::group_by(siteID, bin_assignment) %>%
-    dplyr::summarise(occur = n())
+    dplyr::summarise(occur = n()) %>%
+    mutate(combID = paste(siteID, bin_assignment, sep = "_"))
+  occur_ful <- occ_data %>% # Get full list of sites
+    dplyr::group_by(siteID, bin_assignment) %>%
+    dplyr::summarise(occur = n()) %>%
+    dplyr::select(siteID, bin_assignment) %>%
+    mutate(combID = paste(siteID, bin_assignment, sep = "_"))
+  
+  # Find IDs of sites removed through removing target organisms. (e.g. sites with only target organisms)
+  IDs <- setdiff(occur_ful$combID, occur_red$combID)
+  missing_sites <- subset(occur_ful, combID %in% IDs)
+  missing_sites$occur <- 0 # Set occurrence to 0
+  # Combine datasets and sort
+  test <- rbind(occur_red, missing_sites)
+  test <- test %>% dplyr::select(-combID)
+  occur <- test 
   occur <- pivot_wider(occur, names_from = bin_assignment, values_from = occur)
+  occur <- occur[order(occur$siteID),]
+  
   column_index <- c("teyeq", "teyep", "teyeo", "teyen")
   occur <- as.data.frame(occur[, column_index])
   if(is.na(bin) == F){
@@ -1826,7 +1490,6 @@ organise_det <- function(siteCoords, extracted_covs, occ_data, bin = NA){
     occur <- occur[[1]]
     occur <- occur[!is.na(occur)]
   }
-  
   
   # Palaeo det
   sed <- data.frame(siteNo = rep(1:length(site_IDs)))
@@ -1846,6 +1509,7 @@ organise_det <- function(siteCoords, extracted_covs, occ_data, bin = NA){
     sed <- sed[[1]]
   }
   
+  # Format for spOccupancy
   det_covs <- list(outcrop = outcrop, 
                    sedflux = sed, 
                    land = as.factor(covs$LANDCVI_multiple), 
@@ -1856,7 +1520,136 @@ organise_det <- function(siteCoords, extracted_covs, occ_data, bin = NA){
                    occur = occur)
 }
 
-make.table <- function(out.sp, target, res, ss = F, bin = NA){
+#############################
+##### 11.7. SITE_REMOVE #####
+#############################
+
+# Function to remove any sites that have insufficient data to use within the
+# occupancy model (e.g. site which have NA values within the occupancy covariates, 
+# or as a result of this have only one total visit across all time periods).
+
+site_remove <- function(eh_list, occ_covs, det_covs, siteCoords, single = TRUE){
+  # Find all rows with NAs in occupancy covariates
+  removal <- sort(unique(c(which(is.na(occ_covs[[1]]), arr.ind=TRUE)[,1],
+                           which(is.na(occ_covs[[2]]), arr.ind=TRUE)[,1], 
+                           which(is.na(occ_covs[[3]]), arr.ind=TRUE)[,1], 
+                           which(is.na(occ_covs[[4]]), arr.ind=TRUE)[,1])))
+  if(length(removal) > 0){
+    # Remove those rows from other dataframes, arrange back into lists
+    occ_covs <- c(lapply(occ_covs[1:4], function(x) {x <- x[-removal, ]}),
+                  lapply(occ_covs[5], function(x) {x <- x[-removal]}))
+    eh_list <- lapply(eh_list, lapply, function(x) {x <- x[-removal, ]})
+    det_covs <- c(lapply(det_covs[c(1:2, 7)], function(x) {x <- x[-removal, ]}), 
+                  lapply(det_covs[3:6], function(x) {x <- x[-removal]}))
+    siteCoords <- siteCoords[-removal,]
+  }
+  if(single == TRUE){
+    # Now check for any sites without any history (e.g. due to single collection)
+    results <- data.frame(row = 1:nrow(eh_list[[1]][[1]]))
+    for(i in 1:length(eh_list)){
+      results[,i+1] <- apply(eh_list[[i]][[1]], 1, function(x) all(is.na(x)))
+    }
+    removal <- results %>%
+      filter(V2 == "TRUE" & V3 == "TRUE" & V4 == "TRUE" & V5 == "TRUE") %>%
+      .$row
+    # Remove those rows from other dataframes, arrange back into lists
+    occ_covs <<- c(lapply(occ_covs[1:4], function(x) {x <- x[-removal, ]}), 
+                   lapply(occ_covs[5], function(x) {x <- x[-removal]}))
+    eh_list <<- lapply(eh_list, lapply, function(x) {x <- x[-removal, ]})
+    det_covs <<- c(lapply(det_covs[c(1:2, 7)], function(x) {x <- x[-removal, ]}), 
+                   lapply(det_covs[3:6], function(x) {x <- x[-removal]}))
+    siteCoords <<- siteCoords[-removal,]
+  }else{
+    occ_covs <<- occ_covs
+    eh_list <<- eh_list
+    det_covs <<- det_covs
+    siteCoords <<- siteCoords
+  }
+}
+
+#############################
+##### 11.8. TRANSPOSE_EH ####
+#############################
+
+# Function to reorganise the detection history lists into an array that is 
+# suitable for multi-season spOccupancy. 
+
+transpose_eh <- function(eh_list, target){
+  # Requires the detection history list, and a character based name that can be 
+  # assigned to the resulting array.
+  if(class(eh_list[[1]]) == "list"){
+    eh_list <- list(eh_list[[1]][[1]], eh_list[[2]][[1]], 
+                    eh_list[[3]][[1]], eh_list[[4]][[1]])
+  }
+  testArray <- abind(eh_list, along = 3)
+  newArray <- aperm(testArray, c(1,3,2))
+  assign(paste("EH_array_", target, sep = ""), newArray, envir = .GlobalEnv)
+}
+
+###########################
+##### 11.9. ARRAY_PREP ####
+###########################
+
+# Function to arrange the detection history array and various covariates into the
+# correct format for spOccupancy. 
+
+Array_prep <- function(data_suffix, sp = FALSE) {
+  # Requires the character based name used in 'transpose_eh()' - 11.8 above.
+  # Create the full data frame name
+  data_name <- paste0("EH_array_", data_suffix)
+  
+  # Retrieve the data frame using get()
+  data <- get(data_name)
+  if(sp == FALSE){
+    # Perform operations on the data frame
+    revi.data <- list(y = data, 
+                      occ.covs = occ_covs, 
+                      det.covs = det_covs)
+  }else{
+    revi.data <- list(y = data, 
+                      occ.covs = occ_covs, 
+                      det.covs = det_covs,
+                      coords = coords)
+  }
+  revi.data <- revi.data
+}
+
+##############################
+##### 11.10. DISTANCE_FUN ####
+##############################
+
+# Function to take the distances to nearest road for each collection and assign 
+# them to the correct places within the detection history site by collection matrix.
+
+distance_fun <- function(eh_list){
+  # Requires the detection history list
+  road <- read.csv("Data/Covariate_Data/Distance_roads.csv")
+  road <- road %>%
+    dplyr::distinct()
+  final.list <- list()
+  for(t in names(eh_list)){
+    temp_data <- eh_list[[t]][[2]]
+    final.list[[t]] <- temp_data %>% 
+      dplyr::mutate(across(everything(), .fns = ~ road$distance[match(., road$collection)]))
+  }
+  if(is.na(bin) == T){
+    Distance <- transpose_eh(final.list, "road_distance")
+  }else{
+    Distance <- final.list[[1]]
+  }
+}
+
+############################
+##### 11.11. MAKE_TABLE ####
+############################
+
+# Function to make a table of results from the output of spOccupancy that can be 
+# used for generating appropriate figures and tables. 
+
+make_table <- function(out.sp, target, res, ss = F, bin = NA){
+  # Requires best model output from spOccupancy, character based designation of
+  # target taxon and the chosen spatial resolution.
+  
   # Occupancy
   Mean <- colMeans(as.data.frame(out.sp$beta.samples))
   Quant <- apply(as.data.frame(out.sp$beta.samples), 2, quantile, c(0.025, 0.975))
@@ -1901,7 +1694,14 @@ make.table <- function(out.sp, target, res, ss = F, bin = NA){
   return(comb)
 }
 
-save.lattice <- function(p1, ss = F){
+################################################################################
+# 12. SAVE_LATTICE
+################################################################################
+
+# Function for saving results of unmodelled spatial heterogeneity in detection
+# probability
+
+save_lattice <- function(p1, ss = F){
   if(ss == T){
     pdf(paste("Results/spOccupancy/single_season/Figures/Unmodelled.det.", target, ".", res, ".", bin, ".pdf", sep = ""))
     print(p1)
@@ -1913,287 +1713,13 @@ save.lattice <- function(p1, ss = F){
   }
 }
 
-site_remove <- function(eh_list, occ_covs, det_covs, siteCoords, single = TRUE){
-  # Find all rows with NAs in occupancy covariates
-  removal <- sort(unique(c(which(is.na(occ_covs[[1]]), arr.ind=TRUE)[,1],
-                           which(is.na(occ_covs[[2]]), arr.ind=TRUE)[,1], 
-                           which(is.na(occ_covs[[3]]), arr.ind=TRUE)[,1], 
-                           which(is.na(occ_covs[[4]]), arr.ind=TRUE)[,1])))
-  if(length(removal) > 0){
-    # Remove those rows from other dataframes, arrange back into lists
-    occ_covs <- c(lapply(occ_covs[1:4], function(x) {x <- x[-removal, ]}),
-                  lapply(occ_covs[5], function(x) {x <- x[-removal]}))
-    eh_list <- lapply(eh_list, lapply, function(x) {x <- x[-removal, ]})
-    det_covs <- c(lapply(det_covs[c(1:2, 7)], function(x) {x <- x[-removal, ]}), 
-                  lapply(det_covs[3:6], function(x) {x <- x[-removal]}))
-    siteCoords <- siteCoords[-removal,]
-  }
-  if(single == TRUE){
-    # Now check for any sites without any history (e.g. due to single collection)
-    results <- data.frame(row = 1:nrow(eh_list[[1]][[1]]))
-    for(i in 1:length(eh_list)){
-      results[,i+1] <- apply(eh_list[[i]][[1]], 1, function(x) all(is.na(x)))
-    }
-    removal <- results %>%
-      filter(V2 == "TRUE" & V3 == "TRUE" & V4 == "TRUE" & V5 == "TRUE") %>%
-      .$row
-    # Remove those rows from other dataframes, arrange back into lists
-    occ_covs <<- c(lapply(occ_covs[1:4], function(x) {x <- x[-removal, ]}), 
-                   lapply(occ_covs[5], function(x) {x <- x[-removal]}))
-    eh_list <<- lapply(eh_list, lapply, function(x) {x <- x[-removal, ]})
-    det_covs <<- c(lapply(det_covs[c(1:2, 7)], function(x) {x <- x[-removal, ]}), 
-                   lapply(det_covs[3:6], function(x) {x <- x[-removal]}))
-    siteCoords <<- siteCoords[-removal,]
-  }else{
-    occ_covs <<- occ_covs
-    eh_list <<- eh_list
-    det_covs <<- det_covs
-    siteCoords <<- siteCoords
-  }
-}
-
-transpose_eh <- function(eh_list, target){
-  if(class(eh_list[[1]]) == "list"){
-    eh_list <- list(eh_list[[1]][[1]], eh_list[[2]][[1]], 
-                             eh_list[[3]][[1]], eh_list[[4]][[1]])
-  }
-  testArray <- abind(eh_list, along = 3)
-  newArray <- aperm(testArray, c(1,3,2))
-  assign(paste("EH_array_", target, sep = ""), newArray, envir = .GlobalEnv)
-}
-
-distance_fun <- function(eh_list){
-  road <- read.csv("Data/Covariate_Data/Distance_roads.csv")
-  road <- road %>%
-    dplyr::distinct()
-  final.list <- list()
-  for(t in names(eh_list)){
-    temp_data <- eh_list[[t]][[2]]
-    final.list[[t]] <- temp_data %>% 
-      dplyr::mutate(across(everything(), .fns = ~ road$distance[match(., road$collection)]))
-  }
-  if(is.na(bin) == T){
-    Distance <- transpose_eh(final.list, "road_distance")
-  }else{
-    Distance <- final.list[[1]]
-  }
-}
-
-Array_prep <- function(data_suffix, sp = FALSE) {
-  # Create the full data frame name
-  data_name <- paste0("EH_array_", data_suffix)
-  
-  # Retrieve the data frame using get()
-  data <- get(data_name)
-  if(sp == FALSE){
-    # Perform operations on the data frame
-    revi.data <- list(y = data, 
-                      occ.covs = occ_covs, 
-                      det.covs = det_covs)
-  }else{
-    revi.data <- list(y = data, 
-                      occ.covs = occ_covs, 
-                      det.covs = det_covs,
-                      coords = coords)
-  }
-  revi.data <- revi.data
-}
-
-
-
 ################################################################################
-################################################################################
+# 13. FORESTPLOT2
 ################################################################################
 
-################################################################################
-# 20. OLD FUNCTIONS
-################################################################################
+# Function modified from R package forestplotGG to allow the incorporation of 
+# Bayesian Credible Intervals instead of Confidence Intervals. 
 
-
-#===== SUBSAMP_FOR_UNMARKED =====
-
-# Takes data prepared for unmarked, and standardizes it down to a total of X site
-# visits (collections) for each gridsquare through subsampling.  
-
-SubSamp_for_unmarked <- function(data, target, sampval = 10, trials = 100){ 
-  # Data is output from prepare_for_unmarked. Outputs same data, but subsampled 
-  # to sampval site visits. sampval by default set to 10.
-  
-  new_dframe_for_unmarked <- data.frame()
-  if(sampval > ncol(data)){
-    stop(paste("Sampling value (", sampval, 
-               ") is larger than maximum number of collections per grid cell (", 
-               ncol(data),"). Please choose a lower sampling value.", sep = ""))
-  }
-  
-  # For each row in unmarked ready data:
-  for (n in 1:nrow(data)){ 
-    
-    # If number of collections in a site is less than set subsample value
-    if(rowSums(is.na(data[n,])) > (NCOL(data)-(sampval+1))){ 
-      namecols <- colnames(new_dframe_for_unmarked)
-      tempdat <- data[n,1:sampval]
-      colnames(tempdat) <- namecols
-      
-      # Ignore, and add all obs to new dataframe
-      new_dframe_for_unmarked <- rbind(new_dframe_for_unmarked, tempdat) 
-    }
-    else{ # otherwise (total collections (observations) is greater than chosen subsampled value):
-      
-      # Make temporary dataframe
-      temp_dframe <- data.frame(1:sampval) 
-      
-      # For X trials
-      for (t in 1:trials){ 
-        
-        # Take current row of data
-        temp_vec <- data[n,]
-        
-        # remove NA values
-        temp_vec <- temp_vec[!is.na(temp_vec)] 
-        
-        # Sample a chosen sampling value of the data, without replacement
-        temp_dframe <- cbind(temp_dframe, sample(temp_vec, sampval, replace = FALSE)) 
-      }
-      
-      # Remove first column (cleaning)
-      temp_dframe <- temp_dframe[2:101] 
-      
-      # Find mean of columns (i.e. mean number of subsampled target occurrences 
-      # within X trials)
-      num <- round(mean(colSums(temp_dframe))) 
-      
-      # # Find mean of columns (i.e. mean number of subsampled target occurrences 
-      # within X trials)
-      samp <- sample(c(rep(1, num), rep(0, (sampval-num)))) 
-      
-      # Add subsampled results to dataframe
-      new_dframe_for_unmarked <- rbind(new_dframe_for_unmarked, samp) 
-      
-      # Rename row name
-      rownames(new_dframe_for_unmarked)[n] <- rownames(data)[n] 
-    }
-  }
-  new_dframe_for_unmarked <- new_dframe_for_unmarked[,1:sampval]
-  colnames(new_dframe_for_unmarked) <-  c(sprintf("y.%d", seq(1,sampval)))
-  
-  # Comparison between subsampled and original datasets
-  ori_data <- rowSums(data, na.rm = T)
-  new_data <- rowSums(new_dframe_for_unmarked, na.rm = T)
-  comp <- as.data.frame(cbind(ori_data, new_data))
-  comp[comp > 1] <- 1
-  comp$comp <- ifelse(comp$ori_data > comp$new_data, 1, 0)
-  warning(paste("Decrease in naive occupancy of ", sum(comp$comp), 
-                " sites, equivalent to ", 
-                round((sum(comp$comp)/nrow(comp))*100, digits = 2), 
-                "%. Information about lost sites can be found in 'comp'.", sep = ""))
-  comp_num <<- sum(comp$comp)
-  comp <<- comp
-  
-  # Assign name
-  temp_name <- paste("SS_unmarked_", target, sep = "")
-  assign(temp_name, new_dframe_for_unmarked, envir = .GlobalEnv)
-}
-
-#=========================PREPARE_FOR_MULTISPECIES =============================
-
-# Function to prepare PBDB data for use in multispecies occupancy modelling. 
-# Generates data at a chosen taxonomic level.
-
-prepare_for_multispecies <- function(data, res, ext, level = "genus", target, 
-                                     formCells = "N"){
-  
-  # WHAT IS NEEDED HERE??
-  
-  # Set up potential inputs
-  TYPE <- c("species", "genus") 
-  
-  # if entered level doesn't match potential inputs, throw error.
-  if (is.na(pmatch(level, TYPE))){ 
-    stop("Invalid level. Choose either species or genus") 
-  }
-  
-  # Run get_grid so that occurrences have cell reference IDs
-  gridded <- get_grid(data, res, ext, formCells = formCells) 
-  
-  # Make dataframe lookup table out of chosen targets. Assigned numbers for targets 
-  # in order of entered targets. 
-  targets <- data.frame(target, 1:length(target)) 
-  
-  # rename columns
-  colnames(targets) <- c("Target", "Code") 
-  
-  # If input equals "species" level
-  if (level == "species"){ 
-    
-    # take output from Get_Grid, filter to only include taxa at species rank, 
-    # select only name and targeted info and keep distinct rows
-    targeted <- gridded %>% 
-      dplyr::filter(accepted_rank == "species") %>% 
-      dplyr::select(accepted_name, Target) %>% 
-      distinct() 
-    
-    # Change column name
-    colnames(targeted)[1] <- "Name" 
-  }
-  else{ # If input equals "genus" level
-    
-    # take output from Get_Grid, filter to only include taxa at species rank, 
-    # select only name and targeted info and keep distinct rows
-    targeted <- gridded %>% 
-      dplyr::select(genus, Target) %>% 
-      distinct() 
-    
-    # Change column name
-    colnames(targeted)[1] <- "Name" 
-  }
-  
-  # Take targeted info and turn any blank entries into NAs, then remove any NAs 
-  # in "Name" column. Should now be left with just useful names.
-  targeted <- targeted %>% dplyr::na_if("") %>% 
-    drop_na(Name) 
-  
-  # Attached Target IDs to genera names.
-  targeted <- merge(targeted, targets, by = "Target", all.x = TRUE)[,2:3]  
-  
-  # Sort into alphabetical order
-  targeted <- targeted[order(targeted$Name),] 
-  
-  # Remove any NAs from targeted column (i.e. any organisms/records we don't 
-  # want - all targeted taxa should have a number associated with them)
-  target_keep <- na.omit(targeted) 
-  
-  # If input equals "species" level, use reshape to arrange into taxa x site 
-  # matrix, then keep only records that were Targeted (i.e. taxa of interest)
-  if(level == "species"){ 
-    species.site <- reshape2::dcast(gridded, siteID ~ accepted_name, length) 
-    species.site.final <- species.site[, target_keep$Name] 
-  }
-  # If input equals "genera" level, use reshape to arrange into taxa x site 
-  # matrix, then keep only records that were Targeted (i.e. taxa of interest)
-  else{ 
-    species.site <- dcast(gridded, siteID ~ genus, length) 
-    species.site.final <- species.site[, target_keep$Name] 
-  }
-  # Bind cells back to taxa x site matrix
-  species.site.final <- cbind(species.site$siteID, species.site.final) 
-  
-  # Rename just added column 
-  colnames(species.site.final)[1] <- "Cell" 
-  
-  # Save information to folders and global environment
-  temp_name <- paste(deparse(substitute(data)), ".", res, ".", level, 
-                     ".multispecies", sep = "")
-  dir.create(paste0("Prepped_data/", res, sep =""), showWarnings = FALSE)
-  write.csv(species.site.final, file.path(paste("Prepped_data/", res, "/", temp_name, 
-                                                ".csv", sep="")))
-  species.site.final <<- species.site.final
-  target.cov <<- target_keep$Code
-}
-
-
-
-# Edited from forestplotGG
 forestplot2 <- function(df,
                         name = name,
                         estimate = estimate,
@@ -2408,3 +1934,36 @@ forestplot2 <- function(df,
   g
 }
 
+################################################################################
+# 14. CLEAN_FOR_FIG
+################################################################################
+
+# Function for cleaning results tables prior to use in figures. 
+
+clean_for_fig <- function(cov.table){
+  cov.table[cov.table == "scale(ann)"] <- "Ann"
+  cov.table[cov.table == "scale(dry)"] <- "Dry"
+  cov.table[cov.table == "scale(col)"] <- "Cold"
+  cov.table[cov.table == "scale(wet)"] <- "Wet"
+  cov.table[cov.table == "scale(hot)"] <- "Hot"
+  cov.table[cov.table == "scale(Distance)"] <- "Distance"
+  cov.table[cov.table == "scale(sedflux)"] <- "Sediment Flux" 
+  cov.table[cov.table == "scale(rain)"] <- "Rainfall" 
+  cov.table[cov.table == "scale(MGVF)"] <- "MGVF"
+  cov.table[cov.table == "scale(occur)"] <- "Occurrences"
+  cov.table[cov.table == "scale(outcrop)"] <- "Outcrop area"
+  cov.table[cov.table == "factor(Year)2"] <- "Bin 2 (75 Ma)"
+  cov.table[cov.table == "factor(Year)3"] <- "Bin 3 (69 Ma)"
+  cov.table[cov.table == "factor(Year)4"] <- "Bin 4 (66.7 Ma)"
+  cov.table[cov.table == "factor(land)2"] <- "Land cover (2)"
+  cov.table[cov.table == "factor(land)3"] <- "Land cover (3)"
+  cov.table[cov.table == "factor(land)4"] <- "Land cover (4)"
+  cov.table[cov.table == "(Intercept)"] <- "Intercept"
+  cov.table[cov.table == "scale(coll)"] <- "Collections"
+  cov.table[cov.table == "Random Effect Variance; Site"] <- "REV: Site"
+  cov.table[cov.table == "teyen"] <- "Bin 4 (66.7 Ma)"
+  cov.table[cov.table == "teyeo"] <- "Bin 3 (69 Ma)"
+  cov.table[cov.table == "teyep"] <- "Bin 2 (75 Ma)"
+  cov.table[cov.table == "teyeq"] <- "Bin 1 (80.8 Ma)"
+  return(cov.table)
+}

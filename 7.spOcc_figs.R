@@ -2,9 +2,10 @@
 ############ OCCUPANCY OF LATE CRETACEOUS NORTH AMERICAN DINOSAURS #############
 ################################################################################
 
-# Christopher D. Dean, Lewis A. Jones, Alfio A. Chiarenza, Sinéad Lyster, 
-# Alex Farnsworth, Philip D. Mannion, Richard J. Butler.
-# 2023
+# Christopher D. Dean, Alfio Alessandro Chiarenza, Jeffrey W. Doser, Alexander
+# Farnsworth, Lewis A. Jones, Sinéad Lyster, Charlotte L. Outhwaite, Richard J. 
+# Butler, Philip D. Mannion.
+# 2024
 # Script written by Christopher D. Dean
 
 ################################################################################
@@ -26,35 +27,6 @@ source("0.Functions.R") # Import functions from other R file (must be in same wo
 c.uuid <- get_uuid(name = "Ceratopsidae", n = 4)[[4]]
 t.uuid <- get_uuid(name = "Tyrannosauridae", n = 4)[[4]]
 h.uuid <- get_uuid(name = "Edmontosaurus", n = 3)[[3]]
-
-# Function for cleaning figures
-clean.for.fig <- function(cov.table){
-  cov.table[cov.table == "scale(ann)"] <- "Ann"
-  cov.table[cov.table == "scale(dry)"] <- "Dry"
-  cov.table[cov.table == "scale(col)"] <- "Cold"
-  cov.table[cov.table == "scale(wet)"] <- "Wet"
-  cov.table[cov.table == "scale(hot)"] <- "Hot"
-  cov.table[cov.table == "scale(Distance)"] <- "Distance"
-  cov.table[cov.table == "scale(sedflux)"] <- "Sediment Flux" 
-  cov.table[cov.table == "scale(rain)"] <- "Rainfall" 
-  cov.table[cov.table == "scale(MGVF)"] <- "MGVF"
-  cov.table[cov.table == "scale(occur)"] <- "Occurrences"
-  cov.table[cov.table == "scale(outcrop)"] <- "Outcrop area"
-  cov.table[cov.table == "factor(Year)2"] <- "Bin 2 (75 Ma)"
-  cov.table[cov.table == "factor(Year)3"] <- "Bin 3 (69 Ma)"
-  cov.table[cov.table == "factor(Year)4"] <- "Bin 4 (66.7 Ma)"
-  cov.table[cov.table == "factor(land)2"] <- "Land cover (2)"
-  cov.table[cov.table == "factor(land)3"] <- "Land cover (3)"
-  cov.table[cov.table == "factor(land)4"] <- "Land cover (4)"
-  cov.table[cov.table == "(Intercept)"] <- "Intercept"
-  cov.table[cov.table == "scale(coll)"] <- "Collections"
-  cov.table[cov.table == "Random Effect Variance; Site"] <- "REV: Site"
-  cov.table[cov.table == "teyen"] <- "Bin 4 (66.7 Ma)"
-  cov.table[cov.table == "teyeo"] <- "Bin 3 (69 Ma)"
-  cov.table[cov.table == "teyep"] <- "Bin 2 (75 Ma)"
-  cov.table[cov.table == "teyeq"] <- "Bin 1 (80.8 Ma)"
-  return(cov.table)
-}
 
 ################################################################################
 # FIGURE 2. OCCUPANCY AND DETECTION THROUGH TIME, SPARTA
@@ -90,12 +62,12 @@ t.uuid <- get_uuid(name = "Tyrannosauridae", n = 4)[[4]]
 h.uuid <- get_uuid(name = "Edmontosaurus", n = 3)[[3]]
 
 # Plot modelled results
-a <- plot.occ(hadro)
-b <- plot.naive(hadro, h.uuid)
-c <- plot.occ(tyran)
-d <- plot.naive(tyran, t.uuid)
-e <- plot.occ(cera)
-f <- plot.naive(cera, c.uuid)
+a <- plot_occ(hadro)
+b <- plot_naive(hadro, h.uuid)
+c <- plot_occ(tyran)
+d <- plot_naive(tyran, t.uuid)
+e <- plot_occ(cera)
+f <- plot_naive(cera, c.uuid)
 
 # Arrange
 (p <- ggarrange(f, b, d, e, a, c, 
@@ -339,12 +311,12 @@ cov.table <- dplyr::bind_rows(lapply(target, function(target){
     all.covs <- lapply(res, function(res){
       a <- readRDS(paste("Results/spOccupancy/", res, "/", target, 
                          ".best.model.rds", sep = ""))
-      b <- make.table(out.sp = a, res = res, target = target)
+      b <- make_table(out.sp = a, res = res, target = target)
     })
   return(all.covs)
 }))
 
-cov.table <- clean.for.fig(cov.table)
+cov.table <- clean_for_fig(cov.table)
 cov.table$Resolution <- as.factor(cov.table$Res)
 cov.table <- cov.table[order(cov.table$Group),]
 cov.table <- cov.table[order(cov.table$Resolution),]
@@ -418,12 +390,12 @@ cov.table <- dplyr::bind_rows(lapply(target, function(target){
   all.covs <- lapply(res, function(res){
     a <- readRDS(paste("Results/spOccupancy/Non.spatial/", res, "/", target, 
                        ".best.model.rds", sep = ""))
-    b <- make.table(out.sp = a, res = res, target = target)
+    b <- make_table(out.sp = a, res = res, target = target)
   })
   return(all.covs)
 }))
 
-cov.table <- clean.for.fig(cov.table)
+cov.table <- clean_for_fig(cov.table)
 cov.table$Resolution <- as.factor(cov.table$Res)
 cov.table <- cov.table[order(cov.table$Group),]
 cov.table <- cov.table[order(cov.table$Resolution),]
@@ -534,7 +506,7 @@ cov.table <- dplyr::bind_rows(lapply(target, function(target){
   all.covs <- lapply(res, function(res){
     a <- readRDS(paste("Results/spOccupancy/", res, "/", target, 
                        ".best.model.rds", sep = ""))
-    b <- make.table(out.sp = a, res = res, target = target)
+    b <- make_table(out.sp = a, res = res, target = target)
   })
   return(all.covs)
 }))
@@ -547,7 +519,7 @@ forest.covs <- function(target){
     b <- test[2]
     c <- readRDS(paste("Results/spOccupancy/single_season/", a, "/", b, ".", target, 
                          ".best.model.rds", sep = ""))
-    return(make.table(out.sp = c, res = a, target = target, ss = T, bin = b))
+    return(make_table(out.sp = c, res = a, target = target, ss = T, bin = b))
   }))
   return(all.covs)
 }
@@ -558,7 +530,7 @@ target <- c("Hadrosauridae",
 
 cov.table <- dplyr::bind_rows(lapply(target, forest.covs))
 
-cov.table <- clean.for.fig(cov.table)
+cov.table <- clean_for_fig(cov.table)
 
 cov.table <- cov.table %>%
   dplyr::rowwise() %>%
@@ -631,7 +603,7 @@ forest.covs <- function(target){
     b <- test[2]
     c <- readRDS(paste("Results/spOccupancy/single_season/", a, "/", b, ".", target, 
                        ".formcells.best.model.rds", sep = ""))
-    return(make.table(out.sp = c, res = a, target = target, ss = T, bin = b))
+    return(make_table(out.sp = c, res = a, target = target, ss = T, bin = b))
   }))
   return(all.covs)
 }
@@ -642,7 +614,7 @@ target <- c("Hadrosauridae",
 
 cov.table <- dplyr::bind_rows(lapply(target, forest.covs))
 
-cov.table <- clean.for.fig(cov.table)
+cov.table <- clean_for_fig(cov.table)
 cov.table$Resolution <- as.factor(cov.table$Res)
 cov.table <- cov.table[order(cov.table$Group),]
 cov.table <- cov.table[order(cov.table$Resolution),]
@@ -712,9 +684,9 @@ plot.combine <- function(all.results){
   hadro <- all.results %>%
     filter(Target == "Hadrosauridae")
   # Plot modelled results
-  a <- plot.occ(cera)
-  b <- plot.occ(hadro)
-  c <- plot.occ(tyran)
+  a <- plot_occ(cera)
+  b <- plot_occ(hadro)
+  c <- plot_occ(tyran)
   test <- list(a, b, c)
   return(test)
 }

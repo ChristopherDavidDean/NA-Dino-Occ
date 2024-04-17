@@ -2,9 +2,10 @@
 ############ OCCUPANCY OF LATE CRETACEOUS NORTH AMERICAN DINOSAURS #############
 ################################################################################
 
-# Christopher D. Dean, Lewis A. Jones, Alfio A. Chiarenza, Sinéad Lyster, 
-# Alex Farnsworth, Philip D. Mannion, Richard J. Butler.
-# 2023
+# Christopher D. Dean, Alfio Alessandro Chiarenza, Jeffrey W. Doser, Alexander
+# Farnsworth, Lewis A. Jones, Sinéad Lyster, Charlotte L. Outhwaite, Richard J. 
+# Butler, Philip D. Mannion.
+# 2024
 # Script written by Christopher D. Dean
 
 ################################################################################
@@ -73,7 +74,7 @@ for(r in res1){
     # Set total potential covariates
     occ.form <- c("scale(ann)", "scale(hot)", "scale(col)", "scale(wet)", "scale(dry)")
     det.form <- c("scale(outcrop)", "scale(MGVF)", "scale(rain)", "factor(Year)", 
-                  "factor(land)", "scale(occur)", "Scale(coll)", "scale(sedflux)", "scale(Distance)")
+                  "factor(land)", "scale(occur)", "scale(coll)", "scale(sedflux)", "scale(Distance)")
     occ.form <- unlist(lapply(1:length(occ.form), 
                               function(x) combn(occ.form, x, simplify = FALSE)), 
                        recursive = FALSE)

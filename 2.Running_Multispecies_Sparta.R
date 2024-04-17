@@ -2,9 +2,10 @@
 ############ OCCUPANCY OF LATE CRETACEOUS NORTH AMERICAN DINOSAURS #############
 ################################################################################
 
-# Christopher D. Dean, Lewis A. Jones, Alfio A. Chiarenza, Sinéad Lyster, 
-# Alex Farnsworth, Philip D. Mannion, Richard J. Butler.
-# 2023
+# Christopher D. Dean, Alfio Alessandro Chiarenza, Jeffrey W. Doser, Alexander
+# Farnsworth, Lewis A. Jones, Sinéad Lyster, Charlotte L. Outhwaite, Richard J. 
+# Butler, Philip D. Mannion.
+# 2024
 # Script written by Christopher D. Dean
 
 ################################################################################
@@ -92,7 +93,7 @@ master.occs.grid$new_bins[!is.na(inds)] <- lookup$newbins[na.omit(inds)]
 target = c("Hadrosauridae", "Ceratopsidae", "Tyrannosauridae")
 
 # Make results table for naive occupancy
-naive.res(target, master.occs.grid)
+naive_res(target, master.occs.grid)
 
 ################################################################################
 # 4. RUNNING SPARTA
@@ -115,7 +116,7 @@ occ_mod_function <- function(taxa_name){
 } 
 
 # Run occupancy model and combine results
-all.results <- run.model(master.occs.grid, target)
+all.results <- run_model(master.occs.grid, target)
 
 ################################################################################
 # 5. PLOTTING/SAVING RESULTS
@@ -124,9 +125,6 @@ all.results <- run.model(master.occs.grid, target)
 #################
 ##### PLOTS #####
 #################
-
-# Plotting number of occurrences
-#occurrence.plot(master.occs.grid, target)
 
 # Plotting occupancy (naive and modelled)
 cera <- all.results[[1]] %>%
@@ -141,12 +139,12 @@ t.uuid <- get_uuid(name = "Tyrannosauridae", n = 4)[[4]]
 h.uuid <- get_uuid(name = "Edmontosaurus", n = 3)[[3]]
 
 # Plot modelled results
-a <- plot.occ(hadro)
-b <- plot.naive(hadro, h.uuid)
-c <- plot.occ(tyran)
-d <- plot.naive(tyran, t.uuid)
-e <- plot.occ(cera)
-f <- plot.naive(cera, c.uuid)
+a <- plot_occ(hadro)
+b <- plot_naive(hadro, h.uuid)
+c <- plot_occ(tyran)
+d <- plot_naive(tyran, t.uuid)
+e <- plot_occ(cera)
+f <- plot_naive(cera, c.uuid)
 
 # Arrange
 (p <- ggarrange(f, b, d, e, a, c, 

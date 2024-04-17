@@ -2,9 +2,10 @@
 ############ OCCUPANCY OF LATE CRETACEOUS NORTH AMERICAN DINOSAURS #############
 ################################################################################
 
-# Christopher D. Dean, Lewis A. Jones, Alfio A. Chiarenza, Sinéad Lyster, 
-# Alex Farnsworth, Philip D. Mannion, Richard J. Butler.
-# 2023
+# Christopher D. Dean, Alfio Alessandro Chiarenza, Jeffrey W. Doser, Alexander
+# Farnsworth, Lewis A. Jones, Sinéad Lyster, Charlotte L. Outhwaite, Richard J. 
+# Butler, Philip D. Mannion.
+# 2024
 # Script written by Christopher D. Dean
 
 ################################################################################
@@ -147,7 +148,7 @@ bin.type <- "scotese"
 
 # Run combined binning function, choosing adjustable window
 bin.res <- 2.5
-bins <- binning(bin.res, master.occs)
+bins <- binning(bin.res, master.occs, formations)
 master.occs <- master.occs %>%
   dplyr::filter(max_ma < bins$max_ma[6]) %>%
   dplyr::filter(min_ma > bins$min_ma[1])

@@ -2,9 +2,10 @@
 ############ OCCUPANCY OF LATE CRETACEOUS NORTH AMERICAN DINOSAURS #############
 ################################################################################
 
-# Christopher D. Dean, Lewis A. Jones, Alfio A. Chiarenza, Sinéad Lyster, 
-# Alex Farnsworth, Philip D. Mannion, Richard J. Butler.
-# 2023
+# Christopher D. Dean, Alfio Alessandro Chiarenza, Jeffrey W. Doser, Alexander
+# Farnsworth, Lewis A. Jones, Sinéad Lyster, Charlotte L. Outhwaite, Richard J. 
+# Butler, Philip D. Mannion.
+# 2024
 # Script written by Christopher D. Dean
 
 ################################################################################
@@ -66,7 +67,7 @@ rand <- round(runif(1, min = 0, max = 999))
 # Get grid cells for occurrences
 get_grid(master.occs.binned.targeted, res = res, e = e, formCells = form_cells)
 
-# Prep data for 
+# Prep data 
 prepare_for_spOcc(master.occs.binned.targeted.grid, single = FALSE, bin = bin)
 
 # Get site IDs for sorting later

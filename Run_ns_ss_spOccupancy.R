@@ -37,8 +37,7 @@ bin.type <- "scotese"
 target1 <- c("Hadrosauridae", "Ceratopsidae", "Tyrannosauridae")
 bins <- read.csv("Data/Occurrences/scotesebins.csv")
 bins$bin <- bins$code
-bin1 <- c("teyen") # Change this if you want a single season model
-form_cells <- "N"
+form_cells <- "Y"
 bin1 <- c("teyen", "teyeo", "teyep", "teyeq")
 
 ################################################################################
@@ -51,48 +50,27 @@ for(b in bin1){
     res <- r
     for(t in target1){
       target <- t
-      
-      if(form_cells == "Y"){
-        # Load occurrence dataset
-        sp.data <- readRDS(file = paste("Prepped_data/spOccupancy/Single_season/", res, "/", 
+      sp.data <- readRDS(file = paste("Prepped_data/spOccupancy/Single_season/", res, "/", 
                                         bin, "/", target, "_single_", res, ".formcells.rds", sep = ""))
-      }else{
-        # Load occurrence dataset
-        sp.data <- readRDS(file = paste("Prepped_data/spOccupancy/Single_season/", res, "/", 
-                                        bin, "/", target, "_single_", res, ".rds", sep = ""))
-      }
-      
       # Adjustments to saved data (whoops...)
       sp.data[[1]] <- as.matrix(sp.data[[1]])
       
-      
-      # Pair-wise distances between all sites
-      dist.hbef <- dist(sp.data$coords)
-      # Exponential covariance model
-      cov.model <- "exponential"
-      # Specify list of inits
+      # Set parameters
+      oven.inits <- list(alpha = c(0, 0, 0, 0), 
+                         beta = c(0, 0, 0), 
+                         z = apply(sp.data$y, 1, max, na.rm = TRUE))
+
       oven.inits <- list(alpha = 0, 
                          beta = 0, 
-                         z = apply(sp.data$y, 1, max, na.rm = TRUE), 
-                         sigma.sq = 2, 
-                         phi = 3 / mean(dist.hbef), 
-                         w = rep(0, nrow(sp.data$y)))
-      batch.length <- 25
-      n.batch <- 800
-      n.burn <- 2000
-      n.thin <- 10
+                         z = apply(sp.data$y, 1, max, na.rm = TRUE))
+      
+      oven.priors <- list(alpha.normal = list(mean = 0, var = 2.72), 
+                          beta.normal = list(mean = 0, var = 2.72))
+      
+      n.samples <- 5000
+      n.burn <- 3000
+      n.thin <- 2
       n.chains <- 3
-      oven.tuning <- list(phi = 1)
-      # accept.rate = 0.43 by default, so we do not specify it.
-      min.dist <- min(dist.hbef)
-      max.dist <- max(dist.hbef)
-      oven.priors <- list(beta.normal = list(mean = 0, var = 2.72), 
-                          alpha.normal = list(mean = 0, var = 2.72), 
-                          sigma.sq.ig = c(2, 1), 
-                          phi.unif = c(3/max.dist, 3/min.dist))
-      n.omp.threads <- 1
-      verbose <- TRUE
-      n.report <- 100 # Report progress at every 100th batch.
       
       ################################################################################
       # 3. MODEL SELECTION
@@ -105,7 +83,7 @@ for(b in bin1){
       # Set total potential covariates
       occ.form <- c("scale(ann)", "scale(hot)", "scale(col)", "scale(wet)", "scale(dry)")
       det.form <- c("scale(outcrop)", "scale(MGVF)", "scale(rain)", "factor(land)", 
-                    "scale(occur)", "scale(coll)", "scale(sedflux)", "scale(Distance)")
+                    "scale(occur)", "scale(sedflux)", "scale(Distance)", "scale(coll)")
       occ.form <- unlist(lapply(1:length(occ.form), 
                                 function(x) combn(occ.form, x, simplify = FALSE)), 
                          recursive = FALSE)
@@ -119,22 +97,20 @@ for(b in bin1){
         revi.sp.det.formula <- formula(paste("~", paste(det.form, collapse = " + ")))
         revi.sp.occ.formula <- ~ scale(col) + scale(ann) + scale(wet) + scale(dry) + scale(hot)
         print(paste("Running model ", det.form, " out of ", length(det.form), sep = ""))
-        out.sp <- spOccupancy::spPGOcc(occ.formula = revi.sp.occ.formula, 
+        out <- spOccupancy::PGOcc(occ.formula = revi.sp.occ.formula, 
                                        det.formula = revi.sp.det.formula, 
                                        data = sp.data, 
                                        inits = oven.inits, 
-                                       n.batch = n.batch, 
-                                       batch.length = batch.length, 
+                                       n.samples = n.samples, 
                                        priors = oven.priors, 
-                                       cov.model = cov.model, 
-                                       NNGP = TRUE, 
-                                       n.neighbors = 5,
-                                       tuning = oven.tuning, 
-                                       n.report = n.report, 
+                                       n.omp.threads = 1, 
+                                       verbose = TRUE, 
+                                       n.report = 1000, 
                                        n.burn = n.burn, 
                                        n.thin = n.thin, 
                                        n.chains = n.chains)
-        det_waic <- t(as.data.frame(spOccupancy::waicOcc(out.sp)))
+
+        det_waic <- t(as.data.frame(spOccupancy::waicOcc(out)))
         rownames(det_waic) <- c(paste("det ~", revi.sp.det.formula)[2])
         return(det_waic)
       }
@@ -145,16 +121,11 @@ for(b in bin1){
       # Export data to the cluster
       sfExport('sp.data')
       sfExport('oven.inits')
-      sfExport('n.batch')
-      sfExport('batch.length')
       sfExport('oven.priors')
-      sfExport('cov.model')
-      sfExport('oven.tuning')
-      sfExport('n.report')
+      sfExport('n.samples')
       sfExport('n.burn')
       sfExport('n.thin')
       sfExport('n.chains')
-      sfExport('dist.hbef')
       
       # Run the model in parallel
       system.time({
@@ -179,22 +150,20 @@ for(b in bin1){
       occ.wrapper <- function(occ.form){
         revi.sp.occ.formula <- formula(paste("~", paste(occ.form, collapse = " + ")))
         revi.sp.det.formula <- best.det
-        out.sp <- spOccupancy::spPGOcc(occ.formula = revi.sp.occ.formula, 
+        out <- spOccupancy::PGOcc(occ.formula = revi.sp.occ.formula, 
                                        det.formula = revi.sp.det.formula, 
                                        data = sp.data, 
-                                       inits = oven.inits, 
-                                       n.batch = n.batch, 
-                                       batch.length = batch.length, 
-                                       priors = oven.priors, 
-                                       cov.model = cov.model, 
-                                       NNGP = TRUE, 
-                                       n.neighbors = 5,
-                                       tuning = oven.tuning, 
-                                       n.report = n.report, 
-                                       n.burn = n.burn, 
-                                       n.thin = n.thin, 
-                                       n.chains = n.chains)
-        occ_waic <- t(as.data.frame(spOccupancy::waicOcc(out.sp)))
+                                     inits = oven.inits, 
+                                     n.samples = n.samples, 
+                                     priors = oven.priors, 
+                                     n.omp.threads = 1, 
+                                     verbose = TRUE, 
+                                     n.report = 1000, 
+                                     n.burn = n.burn, 
+                                     n.thin = n.thin, 
+                                     n.chains = n.chains)
+        
+        occ_waic <- t(as.data.frame(spOccupancy::waicOcc(out)))
         rownames(occ_waic) <- c(paste("occ ~", revi.sp.occ.formula)[2])
         return(occ_waic)
       }
@@ -206,16 +175,11 @@ for(b in bin1){
       sfExport('sp.data')
       sfExport('best.det')
       sfExport('oven.inits')
-      sfExport('n.batch')
-      sfExport('batch.length')
       sfExport('oven.priors')
-      sfExport('cov.model')
-      sfExport('oven.tuning')
-      sfExport('n.report')
+      sfExport('n.samples')
       sfExport('n.burn')
       sfExport('n.thin')
       sfExport('n.chains')
-      sfExport('dist.hbef')
       
       # Run the model in parallel
       system.time({
@@ -235,85 +199,53 @@ for(b in bin1){
       # 3. BEST MODEL AND OTHER INFO
       ################################################################################
       
+      revi.sp.det.formula <- ~ scale(Distance) + scale(outcrop) + (1 | Site)
+      revi.sp.occ.formula <- ~ scale(col) + scale(ann) + scale(wet) + scale(dry) + scale(hot)
+      
       # Covariates
       revi.sp.det.formula <- best.det
       revi.sp.occ.formula <- best.occ
       
       # Best Model
-      out.sp <- spOccupancy::spPGOcc(occ.formula = revi.sp.occ.formula, 
-                                     det.formula = revi.sp.det.formula, 
-                                     data = sp.data, 
-                                     inits = oven.inits, 
-                                     n.batch = n.batch, 
-                                     batch.length = batch.length, 
-                                     priors = oven.priors, 
-                                     cov.model = cov.model, 
-                                     NNGP = TRUE, 
-                                     n.neighbors = 5,
-                                     tuning = oven.tuning, 
-                                     n.report = n.report, 
-                                     n.burn = n.burn, 
-                                     n.thin = n.thin, 
-                                     n.chains = n.chains)
+      out <- spOccupancy::PGOcc(occ.formula = revi.sp.occ.formula, 
+                                   det.formula = revi.sp.det.formula, 
+                                   data = sp.data, 
+                                   inits = oven.inits, 
+                                   n.samples = n.samples, 
+                                   priors = oven.priors, 
+                                   n.omp.threads = 1, 
+                                   verbose = TRUE, 
+                                   n.report = 1000, 
+                                   n.burn = n.burn, 
+                                   n.thin = n.thin, 
+                                   n.chains = n.chains)
       
       # Summary
-      summary(out.sp)
+      summary(out)
       
       # Goodness-of-fit across space
-      GOFspace <- spOccupancy::ppcOcc(out.sp, fit.stat = 'freeman-tukey', group = 1)
+      GOFspace <- spOccupancy::ppcOcc(out, fit.stat = 'freeman-tukey', group = 1)
       summary(GOFspace)
       # Goodness-of-fit across replicates
-      GOFrep <- spOccupancy::ppcOcc(out.sp, fit.stat = 'freeman-tukey', group = 2)
+      GOFrep <- spOccupancy::ppcOcc(out, fit.stat = 'freeman-tukey', group = 2)
       summary(GOFrep)
       
       # Occupancy covariates
-      MCMCvis::MCMCplot(out.sp$beta.samples, ref_ovl = TRUE, ci = c(50, 95))
+      MCMCvis::MCMCplot(out$beta.samples, ref_ovl = TRUE, ci = c(50, 95))
       # Detection covariates
-      MCMCvis::MCMCplot(out.sp$alpha.samples, ref_ovl = TRUE, ci = c(50, 95))
+      MCMCvis::MCMCplot(out$alpha.samples, ref_ovl = TRUE, ci = c(50, 95))
       
       
-      saveRDS(out.sp, file = paste("Results/spOccupancy/single_season/",
-                                   res, "/", bin, ".", target, ".best.model.rds", 
+      saveRDS(out, file = paste("Results/spOccupancy/single_season/",
+                                   res, "/", bin, ".", target, ".formcells.best.model.rds", 
                                    sep = ""))
       saveRDS(GOFspace, file = paste("Results/spOccupancy/single_season/",
-                                     res, "/", bin, ".", target, ".gof.space.rds", 
+                                     res, "/", bin, ".", target, ".formcells.gof.space.rds", 
                                      sep = ""))
       saveRDS(GOFrep, file = paste("Results/spOccupancy/single_season/",
-                                   res, "/", bin, ".", target, ".gof.rep.rds", 
+                                   res, "/", bin, ".", target, ".formcells.gof.rep.rds", 
                                    sep = ""))
       
-      ################################################################################
-      # 5. PLOTTING SITE-LEVEL DETECTION PROBABILITY RANDOM EFFECTS
-      ################################################################################
-      if(is.null(out.sp$alpha.star.samples) == T){
-        next
-      }
-      # Find random effects sizes
-      alpha.star.means <- apply(out.sp$alpha.star.samples, 2, mean)
-      
-      # Create siteIDs (individual cell numbers used)
-      siteIDs <- as.numeric(rownames(sp.data$y))
-      
-      # Find coordinates of each site
-      siteCoords <- siteCoordsFun(res = res, e = e, siteIDs)
-      
-      # Generate a raster using random effects
-      raster_for_values <- gen_raster(siteCoords$siteID, alpha.star.means, res = res, ext = e)
-      
-      # Find map to use as backdrop
-      countries <- maps::map("world", plot=FALSE, fill = TRUE) 
-      # Turn map into spatialpolygons
-      countries <<- maptools::map2SpatialPolygons(countries, 
-                                                  IDs = countries$names, 
-                                                  proj4string = CRS("+proj=longlat")) 
-      mapTheme <- rasterVis::rasterTheme(region=brewer.pal(8,"Reds"))
-      
-      (p1 <- rasterVis::levelplot(raster_for_values, margin=T, par.settings=mapTheme) + 
-          # Plots state lines
-          latticeExtra::layer(sp.polygons(states, col = "white", fill = NA), under = T)  + 
-          # Plots background colour
-          latticeExtra::layer(sp.polygons(countries, col = 0, fill = "light grey"), under = T))
-      #save_lattice(p1, ss = T)
     }
   }
 }

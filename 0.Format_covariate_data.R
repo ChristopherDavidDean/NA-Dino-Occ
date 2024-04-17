@@ -1,10 +1,11 @@
 ################################################################################
-############# OCCUPANCY OF LATE CRETACEOUS NORTH AMERICAN DINOSAURS ############
+############ OCCUPANCY OF LATE CRETACEOUS NORTH AMERICAN DINOSAURS #############
 ################################################################################
 
-# Christopher D. Dean, Lewis A. Jones, Alfio A. Chiarenza, Sinéad Lyster, 
-# Alex Farnsworth, Philip D. Mannion, Richard J. Butler.
-# 2023
+# Christopher D. Dean, Alfio Alessandro Chiarenza, Jeffrey W. Doser, Alexander
+# Farnsworth, Lewis A. Jones, Sinéad Lyster, Charlotte L. Outhwaite, Richard J. 
+# Butler, Philip D. Mannion.
+# 2024
 # Script written by Christopher D. Dean and Lewis A. Jones
 
 ################################################################################
@@ -241,98 +242,6 @@ writeRaster(newData, paste("Prepped_data/Covariate_Data/All_data/", res,
             pattern = "ascii", overwrite = TRUE)
 
 ################################################################################
-# 6. FORMAT OUTCROP AREA
-################################################################################
-
-#####################
-##### CAMPANIAN #####
-#####################
-
-##### TERRESTRIAL #####
-CampMix <- sf::st_read("Data/Covariate_Data/Outcrop/Updated_shapefiles",
-                    layer = "Campanian_Mixed")
-CampTer <- sf::st_read("Data/Covariate_Data/Outcrop/Updated_shapefiles",
-                    layer = "Campanian_Terrestrial")
-CampOut <- rbind(CampMix, CampTer)
-sf::st_crs(CampOut) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
-r1 <- raster(ext = e, res = res)
-newData <- raster::rasterize(CampOut, r1, getCover = TRUE, progress = "window")
-writeRaster(newData, paste("Prepped_data/Covariate_Data/Outcrop/COut_", 
-                           res, ".asc", sep = ""), pattern = "ascii", 
-            overwrite = TRUE)
-writeRaster(newData, paste("Prepped_data/Covariate_Data/All_data/", res, 
-                           "deg/COut_", res, ".asc", sep = ""), 
-            pattern = "ascii", overwrite = TRUE)
-
-CampAll <- sf::st_read("Data/Covariate_Data/Outcrop/Updated_shapefiles",
-                       layer = "Campanian_All")
-
-##### ALL #####
-sf::st_crs(CampAll) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
-r1 <- raster(ext = e, res = res)
-newData <- rasterize(CampAll, r1, getCover = TRUE, progress = "window")
-plot(newData)
-writeRaster(newData, paste("Prepped_data/Covariate_Data/Outcrop/COut_all_", 
-                           res, ".asc", sep = ""), pattern = "ascii", 
-            overwrite = TRUE)
-writeRaster(newData, paste("Prepped_data/Covariate_Data/All_data/", res, 
-                           "deg/COut_all_", res, ".asc", sep = ""), 
-            pattern = "ascii", overwrite = TRUE)
-
-#########################
-##### MAASTRICHTIAN #####
-#########################
-
-##### TERRESTRIAL #####
-MaasMix <- sf::st_read("Data/Covariate_Data/Outcrop/Updated_shapefiles",
-                       layer = "Maastrichtian_Mixed")
-MaasTer <- sf::st_read("Data/Covariate_Data/Outcrop/Updated_shapefiles",
-                       layer = "Maastrichtian_Terrestrial")
-MaasOut <- rbind(MaasMix, MaasTer)
-sf::st_crs(MaasOut) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
-r1 <- raster(ext = e, res = res)
-newData <- raster::rasterize(MaasOut, r1, getCover = TRUE, progress = "window")
-writeRaster(newData, paste("Prepped_data/Covariate_Data/Outcrop/MOut_", 
-                           res, ".asc", sep = ""), pattern = "ascii", 
-            overwrite = TRUE)
-writeRaster(newData, paste("Prepped_data/Covariate_Data/All_data/", res, 
-                           "deg/MOut_", res, ".asc", sep = ""), 
-            pattern = "ascii", overwrite = TRUE)
-
-##### ALL #####
-MaasAll <- sf::st_read("Data/Covariate_Data/Outcrop/Updated_shapefiles",
-                       layer = "Maastrichtian_All")
-sf::st_crs(MaasAll) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
-r1 <- raster(ext = e, res = res)
-newData <- rasterize(MaasAll, r1, getCover = TRUE, progress = "window")
-writeRaster(newData, paste("Prepped_data/Covariate_Data/Outcrop/MOut_all_", 
-                           res, ".asc", sep = ""), pattern = "ascii", 
-            overwrite = TRUE)
-writeRaster(newData, paste("Prepped_data/Covariate_Data/All_data/", res, 
-                           "deg/MOut_all_", res, ".asc", sep = ""), 
-            pattern = "ascii", overwrite = TRUE)
-
-#######################
-##### ALL OUTCROP #####
-#######################
-
-CampAll <- sf::st_read("Data/Covariate_Data/Outcrop/Updated_shapefiles",
-                       layer = "Campanian_All")
-MaasAll <- sf::st_read("Data/Covariate_Data/Outcrop/Updated_shapefiles",
-                       layer = "Maastrichtian_All")
-CretAll <- rbind(CampAll, MaasAll)
-sf::st_crs(CretAll) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
-r1 <- raster(ext = e, res = res)
-newData <- rasterize(CretAll, r1, getCover = TRUE, progress = "window")
-plot(newData)
-writeRaster(newData, paste("Prepped_data/Covariate_Data/Outcrop/AllOut_", 
-                           res, ".asc", sep = ""), pattern = "ascii", 
-            overwrite = TRUE)
-writeRaster(newData, paste("Prepped_data/Covariate_Data/All_data/", res, 
-                           "deg/AllOut_", res, ".asc", sep = ""), 
-            pattern = "ascii", overwrite = TRUE)
-
-################################################################################
 # 6. FORMAT SCOTESE PALAEO DATA (PRECIP, TEMP, SEDFLUX)
 ################################################################################
 
@@ -488,71 +397,3 @@ writeRaster(teyeo_sed, paste("Prepped_data/Covariate_Data/PalaeoSed/teyeo_sed_",
 writeRaster(teyeo_sed, paste("Prepped_data/Covariate_Data/All_data/", res, "deg/Palaeo/teyeo_sed_", 
                              res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
 beepr::beep(sound = 3)
-
-################################################################################
-# A1. FORMAT GETECH PALAEO DATA (PRECIP, TEMP)
-################################################################################
-
-#########################
-##### PRECIPITATION #####
-#########################
-
-##### CAMPANIAN #####
-CampPrecip <- raster::raster("Data/Covariate_Data/Climate_Data/Camp_Precip.asc")
-crs(CampPrecip) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
-r <- raster(res = res) #create raster for projecting raster
-CampPrecip <- raster::projectRaster(CampPrecip, r) #project raster
-plot(CampPrecip)
-writeRaster(CampPrecip, paste("Data/Covariate_Data/Formatted/PalaeoClimate/CampPrecip_", 
-                              res, ".asc", sep = ""), pattern = "ascii", 
-            overwrite = TRUE)
-writeRaster(CampPrecip, paste("Data/Covariate_Data/Formatted/All_data/", res, 
-                              "deg/PalaeoClimate/CampPrecip_", res, ".asc", sep = ""), 
-            pattern = "ascii", overwrite = TRUE)
-
-##### MAASTRICHTIAN #####
-MaasPrecip <- raster("Data/Covariate_Data/Climate_Data/Maas_Precip.asc")
-crs(MaasPrecip) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
-r <- raster(res = res) #create raster for projecting raster
-MaasPrecip <- raster::projectRaster(MaasPrecip, r) #project raster
-plot(MaasPrecip)
-writeRaster(MaasPrecip, paste("Data/Covariate_Data/Formatted/PalaeoClimate/MaasPrecip_", 
-                              res, ".asc", sep = ""), pattern = "ascii", 
-            overwrite = TRUE)
-writeRaster(MaasPrecip, paste("Data/Covariate_Data/Formatted/All_data/", res,
-                              "deg/PalaeoClimate/MaasPrecip_", res, ".asc", sep = ""), 
-            pattern = "ascii", overwrite = TRUE)
-
-#######################
-##### TEMPERATURE #####
-#######################
-
-##### CAMPANIAN #####
-CampTemp <- raster::raster("Data/Covariate_Data/Climate_Data/Camp_Temp.asc")
-crs(CampTemp) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
-r <- raster(res = res) #create raster for projecting raster
-CampTemp <- raster::projectRaster(CampTemp, r) #project raster
-plot(CampTemp)
-writeRaster(CampTemp, paste("Data/Covariate_Data/Formatted/PalaeoClimate/CampTemp_", 
-                            res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE)
-writeRaster(CampTemp, paste("Data/Covariate_Data/Formatted/All_data/", 
-                            res, "deg/PalaeoClimate/CampTemp_", res, ".asc", sep = ""), 
-            pattern = "ascii", overwrite = TRUE)
-
-##### MAASTRICHTIAN #####
-MaasTemp <- raster("Data/Covariate_Data/Climate_Data/Maas_Temp.asc")
-crs(MaasTemp) <- "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
-r <- raster(res = res) #create raster for projecting raster
-MaasTemp <- projectRaster(MaasTemp, r) #project raster
-plot(MaasTemp)
-writeRaster(MaasTemp, paste("Data/Covariate_Data/Formatted/PalaeoClimate/MaasTemp_", 
-                            res, ".asc", sep = ""), pattern = "ascii", overwrite = TRUE) 
-writeRaster(MaasTemp, paste("Data/Covariate_Data/Formatted/All_data/", 
-                            res, "deg/PalaeoClimate/MaasTemp_", res, ".asc", sep = ""), 
-            pattern = "ascii", overwrite = TRUE)
-
-test <- master.occs.binned.targeted.grid %>%
-  dplyr::select(siteID, collection_no, lng, lat) %>%
-  dplyr::distinct()
-
-write.csv(test, file = "collections_test.csv")

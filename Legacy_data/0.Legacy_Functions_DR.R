@@ -1,13 +1,5 @@
-#============================================ LEGACY FUNCTIONS FOR OCCUPANCY MODELLING ===========================================#
-#                                                                                                                                 #
-#      PRIMARY AUTHOR: CHRISTOPHER D. DEAN                                                                                        #
-#      CO-AUTHOR: LEWIS A. JONES                                                                                                  #
-#                                                                                                                                 #
-#      Full selection of old functions that were originally included within the main 0.Function file.                             #
-#                                                                                                                                 #   
-#=================================================================================================================================#
 
-#=========================================== iPAK AND REQUIRED PACKAGES ================================================
+#================== iPAK AND REQUIRED PACKAGES =================================
 
 # function that automatically installs necessary packages that the user is lacking.
 
@@ -34,7 +26,7 @@ library(maptools)
 library(parallel)
 library(plyr)
 
-#=============================================== GET_EXTENT =============================================================
+#====== GET_EXTENT =============================================================
 
 # Setup raster for resolution and extent. Note: these values should be the same ones used for the file 1.Setup_occupancy_DR.
 get_extent <- function(data){
@@ -45,7 +37,7 @@ get_extent <- function(data){
   e <<- extent(minLng, maxLng, minLat, maxLat) # build extent object
 }
 
-#=============================================== TARGET_MAKER ===========================================================
+#====== TARGET_MAKER ===========================================================
 
 # Adds new "Target" column with targeted organisms based on specific requirements of the user. Outputs data as named file ending with "targeted".
 
@@ -70,7 +62,7 @@ target_maker <- function (data, level, target){ # Data is entered data. Level is
   temp_name <- paste(deparse(substitute(data)),".", "targeted", sep = "") #Name files based on data entered to function
   assign(temp_name, filtered, envir = .GlobalEnv)
 }
-#=============================================== COMBINE_DATA ===========================================================
+#====== COMBINE_DATA ===========================================================
 
 # Adds together target occurrence dataset with a broader collections dataset (allowing maximum possible sampling opportunities)
 combine_data <- function(fossils, Add_fossils){ # fossils is occurrence dataset, Add_fossils is collections dataset
@@ -88,7 +80,7 @@ combine_data <- function(fossils, Add_fossils){ # fossils is occurrence dataset,
   assign(temp_name, just_colls, envir = .GlobalEnv)
 }
 
-#=============================================== BIN_SPLITTER =======================================================
+#========== BIN_SPLITTER =======================================================
 
 # Takes combined data and splits it into user defined bins based off a vector. 
 bin_splitter <- function(bins, fossils){ # takes first output from combined_data and a vector of time bins. 
@@ -100,7 +92,7 @@ bin_splitter <- function(bins, fossils){ # takes first output from combined_data
   }
 }
 
-#=============================================== GET_GRID ===========================================================
+#===== GET_GRID ================================================================
 
 # Creates a raster of chosen resolution, and attaches associated grid cell IDs to occurrences/collections
 get_grid <- function(data, res, e){ # data is first output from combine_data (fossil.colls). Res is chosen resolution in degrees
@@ -111,7 +103,7 @@ get_grid <- function(data, res, e){ # data is first output from combine_data (fo
   Final <<- as.data.frame(Final)
 }
 
-#=============================================== GET_COV FUNCTIONS ===========================================================
+#======== GET_COV FUNCTIONS ====================================================
 
 # Functions to organise covariate data
 
@@ -438,3 +430,501 @@ all_covs_info <- function(data, res, outcrop){
 #   beepr::beep(sound = 3)
 #   stopCluster(cl) # Finish Parallelizing
 # }
+
+
+###############################
+##### PLOT.NAIVE.UNMARKED #####
+###############################
+
+plot.naive.unmarked <- function(res.comb){
+  naive <- res.comb %>%
+    filter(Data == "Naive Occupancy" | Data ==  "PAO")
+  ggplot(data = naive, aes(x = new_bins, y = value, color = Data)) +
+    ylab("Proportion of total sites") + 
+    xlab("Time (Ma)") +
+    scale_x_reverse() +
+    deeptime::coord_geo(dat = list("stages"), 
+                        xlim = c((max(res.comb$new_bins)+1), (min(res.comb$new_bins-1))), 
+                        ylim = c(0, 1)) +
+    geom_smooth(method=lm, aes(group = Data), colour = "#3182BD", 
+                alpha = 0.2, linewidth = 0.75) +
+    geom_line(aes(x = new_bins, y = value, color = Data)) +
+    scale_color_manual(values=c("#252424", "#DE2D26")) +
+    scale_fill_manual(values=c("#252424", "#DE2D26"))  +
+    theme_few() +
+    theme(legend.position="none")
+}
+
+################################################################################
+# 9. PREPARE_FOR_UNMARKED, SAMPLE_FOR_UNMARKED AND ALL_RESULTS_FOR_UNMARKED
+################################################################################
+
+# Functions for converting data into the correct format for unmarked (occupancy 
+# modelling package). Can be run individually or for multiple Targets and Resolutions. 
+
+################################
+##### PREPARE_FOR_UNMARKED #####
+################################
+
+# WHAT DOES THIS FUNCTION DO?
+
+prepare_for_unmarked <- function(data, target, single = TRUE){ 
+  # data is output from Get_Grid. target is specified group to examine. 
+  
+  # Select relevant info
+  rel_data <- data %>% 
+    dplyr::select(collection_no, siteID, Target)
+  
+  # Make target's a 1
+  rel_data$Target[rel_data$Target == target] <- 1 
+  rel_data$Target[rel_data$Target != 1] <- NA
+  
+  # Make anything that's not the target group a 0
+  rel_data$Target[is.na(rel_data$Target)] <- 0 
+  rel_data$Target <- as.numeric(rel_data$Target)
+  
+  # For all collections, give a mean score of presences and absences
+  coll_data <- rel_data %>% 
+    dplyr::group_by(collection_no) %>%
+    dplyr::summarize(mean(Target)) 
+  
+  # Anything above a 0 has presences, therefore can be counted as 1
+  coll_data$`mean(Target)` <- ceiling(coll_data$`mean(Target)`) 
+  
+  # Join with cell IDs, remove old target, clean column name
+  joined_data <- dplyr::left_join(coll_data, rel_data) %>% 
+    dplyr::select(-Target, Pres.Abs = `mean(Target)`, collection_no) 
+  
+  # Remove duplicates of remaining collections, then create table for removing 
+  # singleton siteID (siteID with only one collection) and remove siteID with 
+  # only one collection
+  joined_data <- joined_data %>% dplyr::distinct() 
+  if (single == TRUE){
+    id.table <- table(joined_data$siteID) 
+    joined_data <- subset(joined_data, siteID %in% names(id.table[id.table > 1])) 
+  }
+  
+  # Get data for calculating naive occupancy
+  prestest<- joined_data %>%  
+    dplyr::group_by(siteID) %>%
+    dplyr::summarize(ceiling(mean(Pres.Abs)))
+  
+  # Generate results
+  results <- c(nrow(prestest), # number of siteID
+               sum(prestest$`ceiling(mean(Pres.Abs))`)/nrow(prestest)*100, #naive occupancy
+               nrow(joined_data), # total number of collections
+               mean(table(joined_data$siteID)), # mean number of collections in each cell
+               min(table(joined_data$siteID)), # min number of collections in each cell
+               max(table(joined_data$siteID)), # max number of collections in each cell
+               median(table(joined_data$siteID))) # median number of collections in each cell
+  
+  # Making dataframe for unmarked data
+  dframe_for_unmarked <- data.frame(matrix(ncol = results[6], nrow = results[1])) 
+  
+  # Sort siteID so they match output of covariate data
+  joined_data <- joined_data %>% 
+    dplyr::arrange(siteID, collection_no) 
+  colnames(dframe_for_unmarked) <- c(sprintf("y.%d", seq(1,results[6])))
+  row.names(dframe_for_unmarked) <- unique(joined_data$siteID)
+  test <- unique(joined_data$siteID)
+  colframe <- dframe_for_unmarked
+  for (g in 1:results[1]){
+    counter <- 1
+    for (r in 1:nrow(joined_data)){
+      if (joined_data[r,3] == test[g]){
+        dframe_for_unmarked[g, counter] <- as.numeric(joined_data[r, 2])
+        colframe[g, counter] <- joined_data[r,1]
+        counter <- counter + 1
+      }
+    }
+  }
+  
+  for_unmarked <- list(dframe_for_unmarked, colframe)
+  temp_name <- paste("unmarked_", target, sep = "")
+  assign(temp_name, for_unmarked, envir = .GlobalEnv)
+}
+
+####################################
+##### ALL_RESULTS_FOR_UNMARKED #####
+####################################
+
+# loop that takes basic combined data and writes multiple .csv files into Results 
+# folder in current directory for chosen grid cells resolutions and targets in 
+# correct format for unmarked. Sound rings when function has finished running.
+
+all_results_for_unmarked <- function(data, res, target, ext, name, single = TRUE, 
+                                     formCells = "N", max_val_on = TRUE, max_val = 10){ 
+  # data is first output from combined_data (fossil.colls). res is vectors of 
+  # chosen resolutions. target is vector of chosen targets. 
+  
+  for (r in 1:length(res)){
+    ptm <- proc.time()
+    test1 <- get_grid(data, res[r], ext, formCells = formCells)
+    rand <- round(runif(1, min = 0, max = 999)) # Set random number for seed
+    for (q in 1:length(target)){
+      if(single == FALSE){
+        test2 <- prepare_for_unmarked(test1, target[q], single = FALSE)
+        if(max_val_on == TRUE){
+          set.seed(rand) # set seed to ensure all targets are have same sampling
+          test2 <- sample_for_unmarked(test2, max_val)
+          temp_name <- paste("unmarked_", target[q], sep = "")
+          assign(temp_name, test2, envir = .GlobalEnv)
+        }
+      }
+      else {
+        test2 <- prepare_for_unmarked(test1, target[q])
+        if(max_val_on == TRUE){
+          set.seed(rand) # set seed to ensure all targets have same sampling
+          test2 <- sample_for_unmarked(test2, max_val)
+          temp_name <- paste("unmarked_", target[q], sep = "")
+          assign(temp_name, test2, envir = .GlobalEnv)
+        }
+      }
+      # Create folders, remove warning if they already exist.
+      dir.create(paste0("Prepped_data/Occurrence_Data/", bin.type, "/", sep = ""), showWarnings = FALSE) 
+      dir.create(paste0("Prepped_data/Occurrence_Data/", bin.type, "/", bin.name, "/", sep =""), 
+                 showWarnings = FALSE) 
+      dir.create(paste0("Prepped_data/Occurrence_Data/", bin.type, "/", bin.name, "/", res, "/", 
+                        sep = ""), showWarnings = FALSE) 
+      
+      if(max_val_on == TRUE){
+        if(form_cells == "Y"){
+          temp_name_1 <- paste(name, ".", res[r], ".", target[q], ".dframe.",  
+                               max_val, ".formcells", sep = "")
+          temp_name_2 <- paste(name, ".", res[r], ".", target[q], ".colframe.", 
+                               max_val, ".formcells", sep = "")
+        }else{
+          temp_name_1 <- paste(name, ".", res[r], ".", target[q], ".dframe.",  max_val, sep = "")
+          temp_name_2 <- paste(name, ".", res[r], ".", target[q], ".colframe.", max_val, sep = "")
+        }
+      }else{
+        if(form_cells == "Y"){
+          temp_name_1 <- paste(name, ".", res[r], ".", target[q], ".dframe.formcells",  sep = "")
+          temp_name_2 <- paste(name, ".", res[r], ".", target[q], ".colframe.formcells", sep = "")
+        } else{
+          temp_name_1 <- paste(name, ".", res[r], ".", target[q], ".dframe",  sep = "")
+          temp_name_2 <- paste(name, ".", res[r], ".", target[q], ".colframe", sep = "")
+        }
+      }
+      
+      write.csv(test2[[1]], file.path(paste("Prepped_data/Occurrence_Data/", bin.type, "/", bin.name, "/", 
+                                            res, "/", temp_name_1, ".csv", sep="")))
+      write.csv(test2[[2]], file.path(paste("Prepped_data/Occurrence_Data/", bin.type, "/", bin.name, "/", 
+                                            res, "/", temp_name_2, ".csv", sep="")))
+    }
+    proc.time() - ptm
+    assign("bin.occs", test1, envir = .GlobalEnv)
+  }
+  beepr::beep(sound = 3)
+}
+
+#######################
+##### PRECISE_COV #####
+#######################
+
+# Creates dataframe of covariate data associated with relevant grid cells, taken
+# from original hi-resolution rasters. Covariate values are created from the mean 
+# value of collections within larger grid cells of chosen resolution. 
+
+precise_cov <- function(data, samp.data, max_val){
+  # ADD INFO HERE
+  
+  wc <- list.files("Prepped_data/Covariate_Data/Precise/")
+  wc <- wc[!grepl('0.*', wc)] # Remove folders based on resolution
+  wc <- stack(paste0("Data/Covariate_Data/Formatted_For_Precise/", wc, sep = ""))
+  projection(wc) <- "+proj=laea +lat_0=45 +lon_0=-100 +x_0=0 +y_0=0 +a=6370997 +b=6370997 +units=m +no_defs" 
+  xy <- SpatialPointsDataFrame(cbind.data.frame(data$lng, data$lat), data, 
+                               proj4string = CRS("+proj=laea +lat_0=45 +lon_0=-100 +x_0=0 +y_0=0 +a=6370997 +b=6370997 +units=m +no_defs"))
+  hires_cov_dat <- raster::extract(wc, xy, sp = TRUE, cellnumbers = FALSE)
+  data <- as.data.frame(hires_cov_dat)
+  
+  counting_colls <- data %>%
+    dplyr::select(siteID, collection_no) %>%
+    dplyr::distinct() %>%
+    dplyr::group_by(siteID) %>%
+    dplyr::summarize(Coll_count = n())
+  hires_cov_dat <- data %>%
+    dplyr::group_by(siteID) %>%
+    dplyr::summarize(mean_DEM = mean(DEM, na.rm = TRUE), 
+                     mean_prec = mean(prec, na.rm = TRUE),
+                     mean_temp = mean(temp, na.rm = TRUE))
+  hires_cov_dat <- cbind(hires_cov_dat, counting_colls$Coll_count)
+  
+  if(is.numeric(max_val) == T){
+    surv.data <- data.frame(siteID = rep(rownames(samp.data), each = max_val),
+                            colls = matrix(t(samp.data), ncol=1, nrow=ncol(samp.data)*nrow(samp.data), byrow=F))
+  }else{
+    surv.data <- data.frame(siteID = rep(rownames(samp.data), each = ncol(samp.data)),
+                            colls = matrix(t(samp.data), ncol=1, nrow=ncol(samp.data)*nrow(samp.data), byrow=F))
+  }
+  
+  for(r in 1:nrow(surv.data)){
+    tem <- which(surv.data$colls[r] == data$collection_no)
+    if(length(tem) == 0){
+      surv.data$temp[r] <- NA
+      surv.data$prec[r] <- NA
+      surv.data$DEM[r] <- NA
+    }else{
+      tem
+      surv.data$temp[r] <- data$temp[[tem[1]]]
+      surv.data$prec[r] <- data$prec[[tem[1]]]
+      surv.data$DEM[r] <- data$DEM[[tem[1]]]
+    }
+  }
+  write.csv(hires_cov_dat, file.path(paste("Prepped_data/Occurrence_Data/", bin.type, "/", bin.name, "/", 
+                                           res, "/precise_mean_covs_", max_val, ".csv", sep="")))
+  write.csv(surv.data, file.path(paste("Prepped_data/Occurrence_Data/", bin.type, "/", bin.name, "/", 
+                                       res, "/surv_covs_", max_val, ".csv", sep="")))
+}
+
+
+#===== SUBSAMP_FOR_UNMARKED =====
+
+# Takes data prepared for unmarked, and standardizes it down to a total of X site
+# visits (collections) for each gridsquare through subsampling.  
+
+SubSamp_for_unmarked <- function(data, target, sampval = 10, trials = 100){ 
+  # Data is output from prepare_for_unmarked. Outputs same data, but subsampled 
+  # to sampval site visits. sampval by default set to 10.
+  
+  new_dframe_for_unmarked <- data.frame()
+  if(sampval > ncol(data)){
+    stop(paste("Sampling value (", sampval, 
+               ") is larger than maximum number of collections per grid cell (", 
+               ncol(data),"). Please choose a lower sampling value.", sep = ""))
+  }
+  
+  # For each row in unmarked ready data:
+  for (n in 1:nrow(data)){ 
+    
+    # If number of collections in a site is less than set subsample value
+    if(rowSums(is.na(data[n,])) > (NCOL(data)-(sampval+1))){ 
+      namecols <- colnames(new_dframe_for_unmarked)
+      tempdat <- data[n,1:sampval]
+      colnames(tempdat) <- namecols
+      
+      # Ignore, and add all obs to new dataframe
+      new_dframe_for_unmarked <- rbind(new_dframe_for_unmarked, tempdat) 
+    }
+    else{ # otherwise (total collections (observations) is greater than chosen subsampled value):
+      
+      # Make temporary dataframe
+      temp_dframe <- data.frame(1:sampval) 
+      
+      # For X trials
+      for (t in 1:trials){ 
+        
+        # Take current row of data
+        temp_vec <- data[n,]
+        
+        # remove NA values
+        temp_vec <- temp_vec[!is.na(temp_vec)] 
+        
+        # Sample a chosen sampling value of the data, without replacement
+        temp_dframe <- cbind(temp_dframe, sample(temp_vec, sampval, replace = FALSE)) 
+      }
+      
+      # Remove first column (cleaning)
+      temp_dframe <- temp_dframe[2:101] 
+      
+      # Find mean of columns (i.e. mean number of subsampled target occurrences 
+      # within X trials)
+      num <- round(mean(colSums(temp_dframe))) 
+      
+      # # Find mean of columns (i.e. mean number of subsampled target occurrences 
+      # within X trials)
+      samp <- sample(c(rep(1, num), rep(0, (sampval-num)))) 
+      
+      # Add subsampled results to dataframe
+      new_dframe_for_unmarked <- rbind(new_dframe_for_unmarked, samp) 
+      
+      # Rename row name
+      rownames(new_dframe_for_unmarked)[n] <- rownames(data)[n] 
+    }
+  }
+  new_dframe_for_unmarked <- new_dframe_for_unmarked[,1:sampval]
+  colnames(new_dframe_for_unmarked) <-  c(sprintf("y.%d", seq(1,sampval)))
+  
+  # Comparison between subsampled and original datasets
+  ori_data <- rowSums(data, na.rm = T)
+  new_data <- rowSums(new_dframe_for_unmarked, na.rm = T)
+  comp <- as.data.frame(cbind(ori_data, new_data))
+  comp[comp > 1] <- 1
+  comp$comp <- ifelse(comp$ori_data > comp$new_data, 1, 0)
+  warning(paste("Decrease in naive occupancy of ", sum(comp$comp), 
+                " sites, equivalent to ", 
+                round((sum(comp$comp)/nrow(comp))*100, digits = 2), 
+                "%. Information about lost sites can be found in 'comp'.", sep = ""))
+  comp_num <<- sum(comp$comp)
+  comp <<- comp
+  
+  # Assign name
+  temp_name <- paste("SS_unmarked_", target, sep = "")
+  assign(temp_name, new_dframe_for_unmarked, envir = .GlobalEnv)
+}
+
+#=========================PREPARE_FOR_MULTISPECIES =============================
+
+# Function to prepare PBDB data for use in multispecies occupancy modelling. 
+# Generates data at a chosen taxonomic level.
+
+prepare_for_multispecies <- function(data, res, ext, level = "genus", target, 
+                                     formCells = "N"){
+  
+  # WHAT IS NEEDED HERE??
+  
+  # Set up potential inputs
+  TYPE <- c("species", "genus") 
+  
+  # if entered level doesn't match potential inputs, throw error.
+  if (is.na(pmatch(level, TYPE))){ 
+    stop("Invalid level. Choose either species or genus") 
+  }
+  
+  # Run get_grid so that occurrences have cell reference IDs
+  gridded <- get_grid(data, res, ext, formCells = formCells) 
+  
+  # Make dataframe lookup table out of chosen targets. Assigned numbers for targets 
+  # in order of entered targets. 
+  targets <- data.frame(target, 1:length(target)) 
+  
+  # rename columns
+  colnames(targets) <- c("Target", "Code") 
+  
+  # If input equals "species" level
+  if (level == "species"){ 
+    
+    # take output from Get_Grid, filter to only include taxa at species rank, 
+    # select only name and targeted info and keep distinct rows
+    targeted <- gridded %>% 
+      dplyr::filter(accepted_rank == "species") %>% 
+      dplyr::select(accepted_name, Target) %>% 
+      distinct() 
+    
+    # Change column name
+    colnames(targeted)[1] <- "Name" 
+  }
+  else{ # If input equals "genus" level
+    
+    # take output from Get_Grid, filter to only include taxa at species rank, 
+    # select only name and targeted info and keep distinct rows
+    targeted <- gridded %>% 
+      dplyr::select(genus, Target) %>% 
+      distinct() 
+    
+    # Change column name
+    colnames(targeted)[1] <- "Name" 
+  }
+  
+  # Take targeted info and turn any blank entries into NAs, then remove any NAs 
+  # in "Name" column. Should now be left with just useful names.
+  targeted <- targeted %>% dplyr::na_if("") %>% 
+    drop_na(Name) 
+  
+  # Attached Target IDs to genera names.
+  targeted <- merge(targeted, targets, by = "Target", all.x = TRUE)[,2:3]  
+  
+  # Sort into alphabetical order
+  targeted <- targeted[order(targeted$Name),] 
+  
+  # Remove any NAs from targeted column (i.e. any organisms/records we don't 
+  # want - all targeted taxa should have a number associated with them)
+  target_keep <- na.omit(targeted) 
+  
+  # If input equals "species" level, use reshape to arrange into taxa x site 
+  # matrix, then keep only records that were Targeted (i.e. taxa of interest)
+  if(level == "species"){ 
+    species.site <- reshape2::dcast(gridded, siteID ~ accepted_name, length) 
+    species.site.final <- species.site[, target_keep$Name] 
+  }
+  # If input equals "genera" level, use reshape to arrange into taxa x site 
+  # matrix, then keep only records that were Targeted (i.e. taxa of interest)
+  else{ 
+    species.site <- dcast(gridded, siteID ~ genus, length) 
+    species.site.final <- species.site[, target_keep$Name] 
+  }
+  # Bind cells back to taxa x site matrix
+  species.site.final <- cbind(species.site$siteID, species.site.final) 
+  
+  # Rename just added column 
+  colnames(species.site.final)[1] <- "Cell" 
+  
+  # Save information to folders and global environment
+  temp_name <- paste(deparse(substitute(data)), ".", res, ".", level, 
+                     ".multispecies", sep = "")
+  dir.create(paste0("Prepped_data/", res, sep =""), showWarnings = FALSE)
+  write.csv(species.site.final, file.path(paste("Prepped_data/", res, "/", temp_name, 
+                                                ".csv", sep="")))
+  species.site.final <<- species.site.final
+  target.cov <<- target_keep$Code
+}
+
+#############################
+##### PLOT.OCC.UNMARKED #####
+#############################
+
+plot.occ.unmarked <- function(res.comb){
+  res.comb <- res.comb %>%
+    dplyr::filter(Data != "Null.occ.prob") %>%
+    dplyr::filter(Data != "Null.det.prob")
+  res.comb[res.comb$Data =="PAO",]["lower95CI"] <- NA
+  res.comb[res.comb$Data =="PAO",]["upper95CI"] <- NA
+  ggplot(data = subset(res.comb, Data == "Occupancy Probability" | Data == "Detection Probability"), aes(x = new_bins, 
+                                                                                                         y = value)) +
+    geom_blank(aes(color = Data), data = res.comb) +
+    geom_ribbon(data = res.comb, aes(x = new_bins, ymin = lower95CI, 
+                                     ymax = upper95CI, fill = Data), alpha = 0.2) +
+    ylab("Probability") + 
+    xlab("Time (Ma)") +
+    scale_x_reverse() +
+    deeptime::coord_geo(dat = list("stages"), 
+                        xlim = c((max(res.comb$new_bins)+1), (min(res.comb$new_bins-1))), 
+                        ylim = c(0, 1)) +
+    geom_line(data = subset(res.comb, Data == "Occupancy Probability" | Data == "Detection Probability"), 
+              aes(x = new_bins, y = value, colour = Data)) +
+    scale_color_manual(breaks = c("Naïve Occupancy", "PAO", "Occupancy Probability", "Detection Probability"),
+                       values=c("#252424", "#DE2D26", "#DE2D26", "#3182BD")) +
+    scale_fill_manual(breaks = c("Naïve Occupancy", "PAO", "Occupancy Probability", "Detection Probability"), 
+                      values=c("#FFFFFF", "white","#DE2D26", "#3182BD")) +
+    # geom_smooth(method=lm) +
+    theme_few()
+}
+
+
+################################################################################
+# 19. GET.RESULTS
+################################################################################
+
+get.results <- function(target){
+  results.list <- c()
+  for(t in bins$Bin) {
+    if(file.exists(paste("Results/Unmarked/", bin.type, "/", t, "/", res, "/", 
+                         target, ".combined.results.", res, ".", t, ".", samp_val,".csv", sep ="")) == T){
+      results.list <- c(results.list, paste("Results/Unmarked/", bin.type, "/", t, "/", res, "/", 
+                                            target, ".combined.results.", res, ".", t,".", samp_val, ".csv", sep =""))
+    }
+  }
+  temp <- do.call(rbind,lapply(results.list,read.csv))
+  s.bins <- bins %>%
+    dplyr::select(Bin, mid_ma)
+  temp <- merge(temp, s.bins)
+  temp <- temp %>%
+    dplyr::select(-X)
+  
+  temp[temp$Parameter =="Occ.prob" | temp$Parameter == "Det.prob",]["X2.5."] <- 
+    temp[temp$Parameter =="Occ.prob"| temp$Parameter == "Det.prob",]["Estimate"]-
+    temp[temp$Parameter =="Occ.prob"| temp$Parameter == "Det.prob",]["SE"]*1.959964
+  temp[temp$Parameter =="Occ.prob" | temp$Parameter == "Det.prob",]["X97.5."] <- 
+    temp[temp$Parameter =="Occ.prob"| temp$Parameter == "Det.prob",]["Estimate"]+
+    temp[temp$Parameter =="Occ.prob"| temp$Parameter == "Det.prob",]["SE"]*1.959964
+  
+  temp[temp$Parameter =="Occ.prob",]["Parameter"] <- "Occupancy Probability"
+  temp[temp$Parameter =="Det.prob",]["Parameter"] <- "Detection Probability"
+  
+  names(temp)[names(temp) == "X2.5."] <- "lower95CI"
+  names(temp)[names(temp) == "X97.5."] <- "upper95CI"
+  names(temp)[names(temp) == "Parameter"] <- "Data"
+  names(temp)[names(temp) == "Estimate"] <- "value"
+  names(temp)[names(temp) == "mid_ma"] <- "new_bins"
+  assign(target, temp, envir = .GlobalEnv)
+}
