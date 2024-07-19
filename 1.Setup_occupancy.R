@@ -3,8 +3,8 @@
 ################################################################################
 
 # Christopher D. Dean, Alfio Alessandro Chiarenza, Jeffrey W. Doser, Alexander
-# Farnsworth, Lewis A. Jones, Sinéad Lyster, Charlotte L. Outhwaite, Richard J. 
-# Butler, Philip D. Mannion.
+# Farnsworth, Lewis A. Jones, Sinéad Lyster, Charlotte L. Outhwaite, Paul J. 
+# Valdes, Richard J. Butler, Philip D. Mannion.
 # 2024
 # Script written by Christopher D. Dean
 
@@ -33,11 +33,9 @@ library(lattice)
 library(rasterVis)
 library(sp)
 library(maps)
-library(maptools)
 library(parallel)
 library(tibble)
 library(divDyn)
-library(rgeos)
 library(RColorBrewer)
 library(chronosphere)
 library(palaeoverse)
@@ -53,7 +51,8 @@ source("0.Functions.R") # Import functions from other R file (must be in same wo
 # http://paleobiodb.org/data1.2/occs/list.csv?datainfo&rowcount&base_name=Tetrapoda&interval=Campanian,Maastrichtian&cc=NOA,^MX&envtype=terr&show=full,strat,lith,env,timebins,timecompare,ref
 
 # Load main dataset
-master.occs <- read.csv("Data/Occurrences/occs_all_stages_tetrapoda_23_05_2023.csv", skip = 20)
+master.occs <- read.csv("Data/Occurrences/occs_tetrapoda_12_06_2024.csv", skip = 22)
+
 # Load formations
 formations <- read.csv("Data/Occurrences/Formations.csv") # Load formations
 # Organise formations
@@ -124,22 +123,13 @@ master.occs <- master.occs %>%
 master.occs$max_ma[master.occs$max_ma > 83.59] <- 83.59
 master.occs$min_ma[master.occs$min_m < 66] <- 66.001 # If using majority method, all occurrences with minimum age of <66 Ma must be capped to 66 Ma, otherwise bin_time() breaks.
 
-####################
-##### SUBSTAGE #####
-####################
-
-#bins <- read.csv("Data/Occurrences/substages.csv")
-#bins$bin <- c("SB.1","SB.2","SB.3","SB.4","SB.5")
-#master.occs.binned <- bin_time(master.occs, bins, method = "all")
-#bin.type <- "substage"
-
 ###################
 ##### SCOTESE #####
 ###################
 
 bins <- read.csv("Data/Occurrences/scotesebins.csv")
 bins$bin <- bins$code
-master.occs.binned <- bin_time(master.occs, bins, method = "majority")
+master.occs.binned <- bin_time(occdf = master.occs, bins = bins, method = "majority")
 bin.type <- "scotese"
 
 #####################
@@ -148,12 +138,15 @@ bin.type <- "scotese"
 
 # Run combined binning function, choosing adjustable window
 bin.res <- 2.5
-bins <- binning(bin.res, master.occs, formations)
+bins <- binning(window = bin.res, occdf = master.occs, formations = formations)
 master.occs <- master.occs %>%
   dplyr::filter(max_ma < bins$max_ma[6]) %>%
   dplyr::filter(min_ma > bins$min_ma[1])
+bins[6,3] <- bins[7,3]
+bins[6,4] <- (bins[6,2] + bins[6,3])/2
 bins <- bins[-7, ]
-master.occs.binned <- bin_time(master.occs, bins, method = "majority")
+
+master.occs.binned <- bin_time(occdf = master.occs, bins = bins, method = "majority")
 bin.type <- "formation"
 
 ################################################################################
@@ -216,7 +209,7 @@ gen_raster(cells, values, res, ext = e)
 
 # Set Target taxa
 target = c("Ceratopsidae", "Tyrannosauridae", "Hadrosauridae") # set Targets
-target_maker(master.occs.binned, "family", target) # run target_maker
+target_maker(data = master.occs.binned, level = "family", target = target) # run target_maker
 master.occs.binned.targeted <- master.occs.binned.targeted %>%
   dplyr::mutate(Rot_age = case_when(bin_midpoint == 66.75 ~ 65, 
                                     bin_midpoint == 69.75 ~ 70,

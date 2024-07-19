@@ -3,8 +3,8 @@
 ################################################################################
 
 # Christopher D. Dean, Alfio Alessandro Chiarenza, Jeffrey W. Doser, Alexander
-# Farnsworth, Lewis A. Jones, Sinéad Lyster, Charlotte L. Outhwaite, Richard J. 
-# Butler, Philip D. Mannion.
+# Farnsworth, Lewis A. Jones, Sinéad Lyster, Charlotte L. Outhwaite, Paul J. 
+# Valdes, Richard J. Butler, Philip D. Mannion.
 # 2024
 # Script written by Christopher D. Dean
 
@@ -26,6 +26,7 @@ library(MCMCvis)
 library(purrr)
 library(sp)
 library(tictoc)
+library(car)
 
 ##### Set timer #####
 tic("Full code")
@@ -35,17 +36,17 @@ source("0.Functions.R") # Import functions from other R file (must be in same wo
 
 ##### Set values #####
 # Set resolution
-res <-  0.5
+res <-  1
 # Set extent
 e <- extent(-155, -72, 22.5, 73)
 # Set max limit value
 max_val <- 40
 max_val_on <- TRUE
 bin.type <- "scotese"
-target <- "Ceratopsidae"
+target <- "Tyrannosauridae"
 bins <- read.csv("Data/Occurrences/scotesebins.csv")
 bins$bin <- bins$code
-bin <- NA # Change this if you want a single season model
+bin <- "teyeq" # Change this if you want a single season model
 form_cells <- "N" # Change this to "Y" for single season models with cells grouped 
                   # by formations
 
@@ -90,7 +91,8 @@ occ_covs <- format_occ_covs(p_cov_list = extracted_covs)
 
 # If generating single season data, reorganise occupancy covariates into suitable format
 if(is.na(bin) == F){
-  occ_covs <- data.frame(bind_rows(!!! occ_covs))
+  occ_covs <- lapply(occ_covs, unlist, use.names = F)
+  occ_covs <- as.data.frame(bind_rows(!!! occ_covs))
   colnames(occ_covs) <- sub("$*", "", colnames(occ_covs))
 }
 
@@ -100,7 +102,9 @@ det_covs <- organise_det(siteCoords, extracted_covs,
                          bin = bin)
 
 # Remove any sites without relevant data to ensure model runs
-site_remove(eh_list, occ_covs, det_covs, siteCoords, single = FALSE)
+if(is.na(bin) == T){
+  site_remove(eh_list, occ_covs, det_covs, siteCoords, single = FALSE)
+}
 
 # Transpose collected data into array format for spOccupancy
 if(is.na(bin) == T){
@@ -137,6 +141,87 @@ det_covs$Site <- 1:nrow(coords)
 # Add year variable to detection covariates
 det_covs$Year <- occ_covs$Year
 
+###################################
+##### MULTICOLLINEARITY CHECK #####
+###################################
+
+##### OCCUPANCY #####
+# select relevant covariates for testing
+if(is.na(bin) == T){
+  test <- within(occ_covs, rm(Year, site.effect))
+}else{
+  test <- within(occ_covs, rm(site.effect))
+}
+
+# Format and scale covariates if multi-season
+if(is.na(bin) == T){
+  occ_test <- bind_cols(lapply(names(test), function(nm) { 
+    x <- as.data.frame(stack(test[[nm]])[,1])
+    x <- scale(x)
+    colnames(x) <- c(nm)
+    return(x)
+  }))
+}else{
+  occ_test <- test
+}
+
+# Make dummy response variable
+occ_test$bogus <- scale(sample(100, size = nrow(occ_test), replace = TRUE))[,1]
+# Make function to automatically remove high VIF
+vif_fun <- function(occ_test, val){
+  occ_test <- janitor::clean_names(occ_test)
+  while(TRUE) {
+    vifs <- car::vif(lm(bogus ~. , data = occ_test))
+    if (max(vifs) < val) {
+      break
+    }
+    highest <- c(names((which(vifs == max(vifs)))))
+    occ_test <- occ_test[,-which(names(occ_test) %in% highest)]
+  }
+  return(occ_test)
+}
+# Run test
+occ_test <- vif_fun(occ_test = occ_test, val = 10)
+# Get names of relevant covs
+occ_names <- colnames(occ_test)
+# Remove dummy response variable
+occ_names <- occ_names[! occ_names %in% c("bogus")]
+# make relevant covs into appropriate format for running spOccupancy models
+occ.form <- as.vector(sapply(occ_names, function(x){
+  paste("scale(", x, ")", sep = "")
+}))
+occ.form <- str_replace(occ.form, "scale(year)", "factor(Year)")
+
+##### DETECTION #####
+# select relevant covariates for testing
+test <- within(det_covs, rm(Distance, land, Site, Year))
+
+det_test <- bind_cols(lapply(names(test), function(nm) {
+  if(is.null(ncol(test[[nm]])) == T){
+    x <- as.data.frame(rep(test[[nm]], 4))
+  }else{
+    x <- as.data.frame(stack(test[[nm]])[,1])
+  }
+  x <- scale(x)
+  colnames(x) <- c(nm)
+  return(x)
+}))
+
+# Make dummy response variable
+det_test$bogus <- scale(sample(100, size = nrow(det_test), replace = TRUE))[,1]
+# Run test
+det_test <- vif_fun(occ_test = det_test, val = 10)
+# Get names of relevant covs
+det_names <- colnames(det_test)
+# Remove dummy response variable
+det_names <- det_names[! det_names %in% c("bogus")]
+# make relevant covs into appropriate format for running spOccupancy models
+det.form <- as.vector(sapply(det_names, function(x){
+  paste("scale(", x, ")", sep = "")
+}))
+det.form <- str_replace(det.form, "mgvf", "MGVF")
+det.form <- c(det.form, "factor(land)", "scale(Distance)", "factor(Year)")
+
 ################################################################################
 # 3. COMBINE AND SAVE
 ################################################################################
@@ -156,6 +241,12 @@ if(is.na(bin) == T){
   saveRDS(sp.data,
           file = paste("Prepped_data/spOccupancy/Multi_season/", res, "/", target, 
                        "_multi_", res, ".rds", sep = ""))
+  saveRDS(occ.form, 
+          file = paste("Prepped_data/spOccupancy/Multi_season/", res, "/", target, 
+                       "_multi_", res, ".occ.form.rds", sep = ""))
+  saveRDS(det.form, 
+          file = paste("Prepped_data/spOccupancy/Multi_season/", res, "/", target, 
+                       "_multi_", res, ".det.form.rds", sep = ""))
 }else{
   if(form_cells == "Y"){
     saveRDS(sp.data, 
@@ -165,6 +256,12 @@ if(is.na(bin) == T){
     saveRDS(sp.data, 
             file = paste("Prepped_data/spOccupancy/Single_season/", res, "/", 
                          bin, "/", target, "_single_", res, ".rds", sep = ""))
+    saveRDS(occ.form, 
+            file = paste("Prepped_data/spOccupancy/Single_season/", res, "/", 
+                         bin, "/", target, "_single_", res, ".occ.form.rds", sep = ""))
+    saveRDS(det.form, 
+            file = paste("Prepped_data/spOccupancy/Single_season/", res, "/", 
+                         bin, "/", target, "_single_", res, ".det.form.rds", sep = ""))
   }
 }
 

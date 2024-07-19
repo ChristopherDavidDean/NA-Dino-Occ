@@ -3,8 +3,8 @@
 ################################################################################
 #
 # Christopher D. Dean, Alfio Alessandro Chiarenza, Jeffrey W. Doser, Alexander
-# Farnsworth, Lewis A. Jones, Sinéad Lyster, Charlotte L. Outhwaite, Richard J. 
-# Butler, Philip D. Mannion.
+# Farnsworth, Lewis A. Jones, Sinéad Lyster, Charlotte L. Outhwaite, Paul J. 
+# Valdes, Richard J. Butler, Philip D. Mannion.
 # 2024
 # Script written by Christopher D. Dean and Lewis A. Jones
 #
@@ -86,12 +86,10 @@ library(lattice)
 library(rasterVis)
 library(sp)
 library(maps)
-library(maptools)
 library(parallel)
 library(reshape2)
 library(tibble)
 library(divDyn)
-library(rgeos)
 library(RColorBrewer)
 library(chronosphere)
 library(sparta)
@@ -261,55 +259,55 @@ gen_raster <- function(cell_data, value_data, res, ext, zero = FALSE){
 ##### 5.3. GET_GRID_IM #####
 ############################
 
-# Sets raster to dimensions of inputted data ready for visualisation. Is used in 
-# vis_grid. 
-
-# Find maps to use as backdrop
-countries <- maps::map("world", plot=FALSE, fill = TRUE) 
-states <- maps::map("state", plot = FALSE, fill = TRUE)
-
-# Turn maps into spatialpolygons
-countries <<- maptools::map2SpatialPolygons(countries, 
-                                            IDs = countries$names, 
-                                            proj4string = CRS("+proj=longlat")) 
-states <<- maptools::map2SpatialPolygons(states, 
-                                         IDs = states$names, 
-                                         proj4string = CRS("+proj=longlat")) 
-
-get_grid_im <- function(data, res, name, ext){ 
-  # Data is first output from combine_data (fossil.colls). Res is chosen 
-  # resolution in degrees. name is user inputted string related to data inputted, 
-  # for display on graphs. 
-  
-  xy <- cbind(as.double(data$lng), as.double(data$lat))
-  xy <- unique(xy)
-  r <- raster::raster(ext = ext, res = res)
-  r <- raster::rasterize(xy, r, fun = 'count')
-  #r[r > 0] <- 1 # Remove if you want values instead of pure presence/absence.
-  
-  # find map to use as backdrop
-  countries <- maps::map("world", plot=FALSE, fill = TRUE) 
-  # Turn map into spatialpolygons
-  countries <<- maptools::map2SpatialPolygons(countries, 
-                                              IDs = countries$names, 
-                                              proj4string = CRS("+proj=longlat")) 
-  mapTheme <- rasterVis::rasterTheme(region=brewer.pal(8,"Reds"))
-  
-  #create levelplot for raster
-  (a <- rasterVis::levelplot(r, margin=F, par.settings=mapTheme,  
-                             main = paste("Total ", (substitute(name)), 
-                                          " per Grid Cell", sep = "")) + 
-      # Plots state lines
-      latticeExtra::layer(sp.polygons(states, col = "white", fill = NA), under = T)  + 
-      # Plots background colour
-      latticeExtra::layer(sp.polygons(countries, col = 0, fill = "light grey"), under = T)) 
-  (b <- hist(r, breaks = 20,
-             main = paste((substitute(name)), " per Grid Cell", sep = ""),
-             xlab = "Number of Collections", ylab = "Number of Grid Cells",
-             col = "springgreen"))
-  r <<- r
-  return(list(a, b))
-}
+## Sets raster to dimensions of inputted data ready for visualisation. Is used in 
+## vis_grid. 
+#
+## Find maps to use as backdrop
+#countries <- maps::map("world", plot=FALSE, fill = TRUE) 
+#states <- maps::map("state", plot = FALSE, fill = TRUE)
+#
+## Turn maps into spatialpolygons
+#countries <<- maptools::map2SpatialPolygons(countries, 
+#                                            IDs = countries$names, 
+#                                            proj4string = CRS("+proj=longlat")) 
+#states <<- maptools::map2SpatialPolygons(states, 
+#                                         IDs = states$names, 
+#                                         proj4string = CRS("+proj=longlat")) 
+#
+#get_grid_im <- function(data, res, name, ext){ 
+#  # Data is first output from combine_data (fossil.colls). Res is chosen 
+#  # resolution in degrees. name is user inputted string related to data inputted, 
+#  # for display on graphs. 
+#  
+#  xy <- cbind(as.double(data$lng), as.double(data$lat))
+#  xy <- unique(xy)
+#  r <- raster::raster(ext = ext, res = res)
+#  r <- raster::rasterize(xy, r, fun = 'count')
+#  #r[r > 0] <- 1 # Remove if you want values instead of pure presence/absence.
+#  
+#  # find map to use as backdrop
+#  countries <- maps::map("world", plot=FALSE, fill = TRUE) 
+#  # Turn map into spatialpolygons
+#  countries <<- maptools::map2SpatialPolygons(countries, 
+#                                              IDs = countries$names, 
+#                                              proj4string = CRS("+proj=longlat")) 
+#  mapTheme <- rasterVis::rasterTheme(region=brewer.pal(8,"Reds"))
+#  
+#  #create levelplot for raster
+#  (a <- rasterVis::levelplot(r, margin=F, par.settings=mapTheme,  
+#                             main = paste("Total ", (substitute(name)), 
+#                                          " per Grid Cell", sep = "")) + 
+#      # Plots state lines
+#      latticeExtra::layer(sp.polygons(states, col = "white", fill = NA), under = T)  + 
+#      # Plots background colour
+#      latticeExtra::layer(sp.polygons(countries, col = 0, fill = "light grey"), under = T)) 
+#  (b <- hist(r, breaks = 20,
+#             main = paste((substitute(name)), " per Grid Cell", sep = ""),
+#             xlab = "Number of Collections", ylab = "Number of Grid Cells",
+#             col = "springgreen"))
+#  r <<- r
+#  return(list(a, b))
+#}
 
 ################################################################################
 # 6. GET_GRID
@@ -595,7 +593,7 @@ binning <- function(window, occdf, formations){
   bins[1,2] <- 66 
   
   # Bin occurrences using palaeoverse
-  master.occs.binned <- bin_time(occdf, bins, method = 'majority') 
+  master.occs.binned <- bin_time(occdf = occdf, bins = bins, method = 'majority') 
   bin.type <- "formation"
   
   # Adding midpoint
@@ -1010,13 +1008,13 @@ run_model <- function(data, target){
   #==== Occupancy model ====
   # run the model with these data for one species
   if(bin.type == "formation"){
-    formattedOccData <- sparta::formatOccData(taxa = data$family,
+    formattedOccData <- formatOccData(taxa = data$family,
                                               site = data$siteID,
                                               survey = data$mid_ma,
                                               replicate = data$collection_no,
                                               closure_period = data$new_bins)
   }else{
-    formattedOccData <- sparta::formatOccData(taxa = data$family,
+    formattedOccData <- formatOccData(taxa = data$family,
                                               site = data$siteID,
                                               survey = data$bin_midpoint,
                                               replicate = data$collection_no,
@@ -1065,10 +1063,10 @@ run_model <- function(data, target){
 # Function to plot occupancy and detection probability through time, using results 
 # from 'sparta' models. 
 
-plot_occ <- function(res.comb){
+plot_occ <- function(res.comb, x = T){
   # Res.comb is results table produced by run_model for an individual target taxon.
   
-  ggplot(data = subset(res.comb, Data == "Mean occupancy"), aes(x = new_bins, 
+  g <- ggplot(data = subset(res.comb, Data == "Mean occupancy"), aes(x = new_bins, 
                                                                 y = value)) +
     geom_blank(aes(color = Data), data = res.comb) +
     geom_ribbon(data = res.comb, aes(x = new_bins, ymin = lower95CI, 
@@ -1092,6 +1090,12 @@ plot_occ <- function(res.comb){
                                                  'Good (<1.1)' = '#DE2D26')) +
     geom_smooth(method=lm) +
     theme_few()
+  if(x == T){
+    return(g)
+  }else{
+    g <- g + theme(axis.title.x = element_blank())
+    return(g)
+  }
 }
 
 ############################
@@ -1267,7 +1271,7 @@ extract_p <- function(p_rotate_list){
     names(full_p_covs)[[which(!is.na(str_locate(bins$bin, t)), arr.ind=TRUE)[1,1]]] <- t
     
     # Get nearest value for seds
-    xy <- p_rotate_list[[t]][,8:9]
+    xy <- p_rotate_list[[t]][c("plng", "plat")]
     sed <- raster(paste("Prepped_data/Covariate_Data/All_data/", res, "deg/Palaeo/", 
                         t, "_sed.asc", sep = ""))
     sed <- readAll(sed)
@@ -1460,36 +1464,36 @@ organise_det <- function(siteCoords, extracted_covs, occ_data, bin = NA){
     coll <- coll[!is.na(coll)]
   }
   
-  # Occs
-  occur_red <- occ_data %>% # Get partial list
-    dplyr::filter(is.na(Target) == T) %>% # Remove target organisms to avoid circularity
-    dplyr::group_by(siteID, bin_assignment) %>%
-    dplyr::summarise(occur = n()) %>%
-    mutate(combID = paste(siteID, bin_assignment, sep = "_"))
-  occur_ful <- occ_data %>% # Get full list of sites
-    dplyr::group_by(siteID, bin_assignment) %>%
-    dplyr::summarise(occur = n()) %>%
-    dplyr::select(siteID, bin_assignment) %>%
-    mutate(combID = paste(siteID, bin_assignment, sep = "_"))
-  
-  # Find IDs of sites removed through removing target organisms. (e.g. sites with only target organisms)
-  IDs <- setdiff(occur_ful$combID, occur_red$combID)
-  missing_sites <- subset(occur_ful, combID %in% IDs)
-  missing_sites$occur <- 0 # Set occurrence to 0
-  # Combine datasets and sort
-  test <- rbind(occur_red, missing_sites)
-  test <- test %>% dplyr::select(-combID)
-  occur <- test 
-  occur <- pivot_wider(occur, names_from = bin_assignment, values_from = occur)
-  occur <- occur[order(occur$siteID),]
-  
-  column_index <- c("teyeq", "teyep", "teyeo", "teyen")
-  occur <- as.data.frame(occur[, column_index])
-  if(is.na(bin) == F){
-    occur <- as.vector(occur[bin])
-    occur <- occur[[1]]
-    occur <- occur[!is.na(occur)]
-  }
+  ## Occs
+  #occur_red <- occ_data %>% # Get partial list
+  #  dplyr::filter(is.na(Target) == T) %>% # Remove target organisms to avoid circularity
+  #  dplyr::group_by(siteID, bin_assignment) %>%
+  #  dplyr::summarise(occur = n()) %>%
+  #  mutate(combID = paste(siteID, bin_assignment, sep = "_"))
+  #occur_ful <- occ_data %>% # Get full list of sites
+  #  dplyr::group_by(siteID, bin_assignment) %>%
+  #  dplyr::summarise(occur = n()) %>%
+  #  dplyr::select(siteID, bin_assignment) %>%
+  #  mutate(combID = paste(siteID, bin_assignment, sep = "_"))
+  #
+  ## Find IDs of sites removed through removing target organisms. (e.g. sites with only target organisms)
+  #IDs <- setdiff(occur_ful$combID, occur_red$combID)
+  #missing_sites <- subset(occur_ful, combID %in% IDs)
+  #missing_sites$occur <- 0 # Set occurrence to 0
+  ## Combine datasets and sort
+  #test <- rbind(occur_red, missing_sites)
+  #test <- test %>% dplyr::select(-combID)
+  #occur <- test 
+  #occur <- pivot_wider(occur, names_from = bin_assignment, values_from = occur)
+  #occur <- occur[order(occur$siteID),]
+  #
+  #column_index <- c("teyeq", "teyep", "teyeo", "teyen")
+  #occur <- as.data.frame(occur[, column_index])
+  #if(is.na(bin) == F){
+  #  occur <- as.vector(occur[bin])
+  #  occur <- occur[[1]]
+  #  occur <- occur[!is.na(occur)]
+  #}
   
   # Palaeo det
   sed <- data.frame(siteNo = rep(1:length(site_IDs)))
@@ -1516,8 +1520,7 @@ organise_det <- function(siteCoords, extracted_covs, occ_data, bin = NA){
                    MGVF = covs$MGVF, 
                    rain = covs$WC_Prec, 
                    temp = covs$WC_Temp, 
-                   coll = coll, 
-                   occur = occur)
+                   coll = coll)
 }
 
 #############################

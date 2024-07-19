@@ -3,8 +3,8 @@
 ################################################################################
 
 # Christopher D. Dean, Alfio Alessandro Chiarenza, Jeffrey W. Doser, Alexander
-# Farnsworth, Lewis A. Jones, Sinéad Lyster, Charlotte L. Outhwaite, Richard J. 
-# Butler, Philip D. Mannion.
+# Farnsworth, Lewis A. Jones, Sinéad Lyster, Charlotte L. Outhwaite, Paul J. 
+# Valdes, Richard J. Butler, Philip D. Mannion.
 # 2024
 # Script written by Nick Isaac, adapted by Christopher D. Dean.
 
@@ -27,13 +27,16 @@ library(dplyr)
 # Setup
 iter_update <- 100
 q <- c(0.025, 0.975)
-res <- 0.5
 dir.create("Results/Outhwaite/Posterior_checks")
+
+# Chosen model variables
+res <- 0.5
 bin.type <- "scotese"
+model.type <- "sp"
 
 # Read in data
 para_out <- readRDS(file = paste("Results/Outhwaite/Posterior_checks/", bin.type, 
-                                 "/", res, ".models.rds", sep = ""))
+                                 "/", res, ".", model.type, ".models.rds", sep = ""))
 
 ################################################################################
 # 2. RUNNING TESTS
@@ -183,3 +186,4 @@ b <- ggplot(data = sppVarSites_Summ) +
 
 # Check p values
 print(bayes.p.list)
+

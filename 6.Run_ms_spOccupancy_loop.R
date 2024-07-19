@@ -3,8 +3,8 @@
 ################################################################################
 
 # Christopher D. Dean, Alfio Alessandro Chiarenza, Jeffrey W. Doser, Alexander
-# Farnsworth, Lewis A. Jones, Sinéad Lyster, Charlotte L. Outhwaite, Richard J. 
-# Butler, Philip D. Mannion.
+# Farnsworth, Lewis A. Jones, Sinéad Lyster, Charlotte L. Outhwaite, Paul J. 
+# Valdes, Richard J. Butler, Philip D. Mannion.
 # 2024
 # Script written by Christopher D. Dean
 
@@ -37,7 +37,7 @@ e <- extent(-155, -72, 22.5, 73)
 # Set max limit value
 max_val_on <- TRUE
 bin.type <- "scotese"
-target1 <- c("Tyrannosauridae", "Hadrosauridae", "Ceratopsidae")
+target1 <- c("Ceratopsidae", "Hadrosauridae", "Tyrannosauridae")
 bins <- read.csv("Data/Occurrences/scotesebins.csv")
 bins$bin <- bins$code
 
@@ -52,6 +52,12 @@ for(r in res1){
     # Load occurrence dataset
     sp.data <- readRDS(file = paste("Prepped_data/spOccupancy/Multi_season/", res, "/", 
                                     target, "_multi_", res, ".rds", sep = ""))
+    occ.form.1 <- readRDS(file = paste("Prepped_data/spOccupancy/Multi_season/", res, "/", 
+                                     target, "_multi_", res, ".occ.form.rds", sep = ""))
+      
+    det.form.1 <- readRDS(file = paste("Prepped_data/spOccupancy/Multi_season/", res, "/", 
+                                     target, "_multi_", res, ".det.form.rds", sep = ""))
+    det.form.1 <- det.form.1[!(det.form.1 %in% c("scale(temp)", "factor(Year)"))]
     
     z.inits <- apply(sp.data$y, c(1, 2), function(a) as.numeric(sum(a, na.rm = TRUE) > 0))
     
@@ -80,14 +86,11 @@ for(r in res1){
     n.batch * batch.length
     
     # Set total potential covariates
-    occ.form <- c("scale(ann)", "scale(hot)", "scale(col)", "scale(wet)", "scale(dry)")
-    det.form <- c("scale(outcrop)", "scale(MGVF)", "scale(rain)", "factor(Year)", 
-                  "factor(land)", "scale(occur)", "scale(coll)", "scale(sedflux)", "scale(Distance)")
-    occ.form <- unlist(lapply(1:length(occ.form), 
-                              function(x) combn(occ.form, x, simplify = FALSE)), 
+    occ.form <- unlist(lapply(1:length(occ.form.1), 
+                              function(x) combn(occ.form.1, x, simplify = FALSE)), 
                        recursive = FALSE)
-    det.form <- unlist(lapply(1:length(det.form), 
-                              function(x) combn(det.form, x, simplify = FALSE)), 
+    det.form <- unlist(lapply(1:length(det.form.1), 
+                              function(x) combn(det.form.1, x, simplify = FALSE)), 
                        recursive = FALSE)
     occ.form <- append(occ.form, "1")
     det.form <- append(det.form, "1")
@@ -104,7 +107,7 @@ for(r in res1){
     det.wrapper <- function(det.form){
       tictoc::tic("Detection covariate loop")
       revi.sp.det.formula <- formula(paste("~", paste(det.form, collapse = " + ")))
-      revi.sp.occ.formula <- ~ scale(col) + scale(ann) + scale(wet) + scale(dry) + scale(hot)
+      revi.sp.occ.formula <- formula(paste("~", paste(occ.form.1, collapse = " + ")))
       print(paste("Running model ", det.form, " out of ", length(det.form), sep = ""))
       out.sp <- spOccupancy::stPGOcc(occ.formula = revi.sp.occ.formula, 
                                      det.formula = revi.sp.det.formula, 
@@ -143,6 +146,7 @@ for(r in res1){
     sfExport('batch.length')
     sfExport('n.burn')
     sfExport('n.thin')
+    sfExport('occ.form.1')
     
     # Run the model in parallel
     system.time({
@@ -261,53 +265,53 @@ for(r in res1){
     
     all.waic <- rbind(occ.waic, det.waic)
     
-    saveRDS(make.table(out.sp, target, res = res), file = paste("Results/spOccupancy/",
+    saveRDS(make_table(out.sp, target, res = res), file = paste("Results/spOccupancy/NEW/",
                                                      res, "/", target, ".cov.table.rds", 
                                                      sep = ""))
-    saveRDS(out.sp, file = paste("Results/spOccupancy/",
+    saveRDS(out.sp, file = paste("Results/spOccupancy/NEW/",
                                  res, "/", target, ".best.model.rds", 
                                  sep = ""))
-    saveRDS(GOFspace, file = paste("Results/spOccupancy/",
+    saveRDS(GOFspace, file = paste("Results/spOccupancy/NEW/",
                                    res, "/", target, ".gof.space.rds", 
                                    sep = ""))
-    saveRDS(GOFrep, file = paste("Results/spOccupancy/",
+    saveRDS(GOFrep, file = paste("Results/spOccupancy/NEW/",
                                  res, "/", target, ".gof.rep.rds", 
                                  sep = ""))
-    saveRDS(all.waic, file = paste("Results/spOccupancy/",
+    saveRDS(all.waic, file = paste("Results/spOccupancy/NEW/",
                                    res, "/", target, ".all.waic.rds", 
                                    sep = ""))
     
     ################################################################################
     # 5. PLOTTING SITE-LEVEL DETECTION PROBABILITY RANDOM EFFECTS
     ################################################################################
-    
-    # Find random effects sizes
-    alpha.star.means <- apply(out.sp$alpha.star.samples, 2, mean)
-    
-    # Create siteIDs (individual cell numbers used)
-    siteIDs <- as.numeric(rownames(sp.data$y[,1,]))
-    
-    # Find coordinates of each site
-    siteCoords <- siteCoordsFun(res = res, e = e, siteIDs)
-    
-    # Generate a raster using random effects
-    raster_for_values <- gen_raster(siteCoords$siteID, alpha.star.means, res = res, ext = e)
-    
-    # Find map to use as backdrop
-    countries <- maps::map("world", plot=FALSE, fill = TRUE) 
-    # Turn map into spatialpolygons
-    countries <<- maptools::map2SpatialPolygons(countries, 
-                                                IDs = countries$names, 
-                                                proj4string = CRS("+proj=longlat")) 
-    mapTheme <- rasterVis::rasterTheme(region=brewer.pal(8,"Reds"))
-    
-    (p2 <- rasterVis::levelplot(raster_for_values, margin=T, par.settings=mapTheme) + 
-        # Plots state lines
-        latticeExtra::layer(sp.polygons(states, col = "white", fill = NA), under = T)  + 
-        # Plots background colour
-        latticeExtra::layer(sp.polygons(countries, col = 0, fill = "light grey"), under = T))
-    
-    save_lattice(p2)
+    #
+    ## Find random effects sizes
+    #alpha.star.means <- apply(out.sp$alpha.star.samples, 2, mean)
+    #
+    ## Create siteIDs (individual cell numbers used)
+    #siteIDs <- as.numeric(rownames(sp.data$y[,1,]))
+    #
+    ## Find coordinates of each site
+    #siteCoords <- siteCoordsFun(res = res, e = e, siteIDs)
+    #
+    ## Generate a raster using random effects
+    #raster_for_values <- gen_raster(siteCoords$siteID, alpha.star.means, res = res, ext = e)
+    #
+    ## Find map to use as backdrop
+    #countries <- maps::map("world", plot=FALSE, fill = TRUE) 
+    ## Turn map into spatialpolygons
+    #countries <<- maptools::map2SpatialPolygons(countries, 
+    #                                            IDs = countries$names, 
+    #                                            proj4string = CRS("+proj=longlat")) 
+    #mapTheme <- rasterVis::rasterTheme(region=brewer.pal(8,"Reds"))
+    #
+    #(p2 <- rasterVis::levelplot(raster_for_values, margin=T, par.settings=mapTheme) + 
+    #    # Plots state lines
+    #    latticeExtra::layer(sp.polygons(states, col = "white", fill = NA), under = T)  + 
+    #    # Plots background colour
+    #    latticeExtra::layer(sp.polygons(countries, col = 0, fill = "light grey"), under = T))
+    #
+    #save_lattice(p2)
   }
 }
 

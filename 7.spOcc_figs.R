@@ -3,13 +3,13 @@
 ################################################################################
 
 # Christopher D. Dean, Alfio Alessandro Chiarenza, Jeffrey W. Doser, Alexander
-# Farnsworth, Lewis A. Jones, Sinéad Lyster, Charlotte L. Outhwaite, Richard J. 
-# Butler, Philip D. Mannion.
+# Farnsworth, Lewis A. Jones, Sinéad Lyster, Charlotte L. Outhwaite, Paul J. 
+# Valdes, Richard J. Butler, Philip D. Mannion.
 # 2024
 # Script written by Christopher D. Dean
 
 ################################################################################
-#                    FILE 10: MULTI-SEASON OCCUPANCY FIGURES                   #
+#                    FILE 7: MULTI-SEASON OCCUPANCY FIGURES                   #
 ################################################################################
 
 ################################################################################
@@ -19,13 +19,16 @@
 library(ggforestplot)
 library(ggforce)
 library(ggh4x)
+library(rnaturalearthdata)
+library(rnaturalearth)
+library(sf)
 
 ##### Load in Functions #####
 source("0.Functions.R") # Import functions from other R file (must be in same working directory)
 
 # Setup phylopic
 c.uuid <- get_uuid(name = "Ceratopsidae", n = 4)[[4]]
-t.uuid <- get_uuid(name = "Tyrannosauridae", n = 4)[[4]]
+t.uuid <- get_uuid(name = "Tyrannosauridae", n = 5)[[5]]
 h.uuid <- get_uuid(name = "Edmontosaurus", n = 3)[[3]]
 
 ################################################################################
@@ -37,17 +40,20 @@ h.uuid <- get_uuid(name = "Edmontosaurus", n = 3)[[3]]
 #################
 
 # Set resolution and time bin scheme
-res <- 0.5
-bin.type <- "scotese"
+res <- 1
+bin.type <- "formation"
 
 # Set target
 target <- c("Ceratopsidae", 
             "Hadrosauridae",
             "Tyrannosauridae")
 
+# Choose type of model
+type <- "hc.rw"
+
 # Load data
 all.results <- read.csv(paste("Results/Outhwaite/", bin.type,
-                              "/results.", res, ".csv", sep = ""))
+                              "/results.", res, ".", type,".csv", sep = ""))
 
 # Plotting occupancy (naive and modelled)
 cera <- all.results %>%
@@ -58,7 +64,7 @@ hadro <- all.results %>%
   filter(Target == "Hadrosauridae")
 
 c.uuid <- get_uuid(name = "Ceratopsidae", n = 4)[[4]]
-t.uuid <- get_uuid(name = "Tyrannosauridae", n = 4)[[4]]
+t.uuid <- get_uuid(name = "Tyrannosauridae", n = 5)[[5]]
 h.uuid <- get_uuid(name = "Edmontosaurus", n = 3)[[3]]
 
 # Plot modelled results
@@ -86,8 +92,6 @@ f <- plot_naive(cera, c.uuid)
 #}
 #dev.off()
 
-# Choose type of model
-type <- "sp"
 
 # Save figure
 ggsave(paste("Figures/2.Sparta.", bin.type, ".", res, ".", type, ".png", sep = ""), plot = p, 
@@ -136,7 +140,7 @@ all.p.vals[all.p.vals == "teyeo"] <- 69
 all.p.vals[all.p.vals == "teyen"] <- 66.7
 
 c.uuid <- get_uuid(name = "Ceratopsidae", n = 4)[[4]]
-t.uuid <- get_uuid(name = "Tyrannosauridae", n = 4)[[4]]
+t.uuid <- get_uuid(name = "Tyrannosauridae", n = 5)[[5]]
 h.uuid <- get_uuid(name = "Edmontosaurus", n = 3)[[3]]
 
 # Setup phylopic
@@ -171,7 +175,7 @@ all.p.vals$Resolution <- as.factor(all.p.vals$Resolution)
         strip.text.x = element_blank()) +
   geom_phylopic(data = silhouette_df, aes(x = x, y = y), 
                 uuid = c(c.uuid, h.uuid, t.uuid), 
-                size = c(0.15, 0.15, 0.15), 
+                size = c(0.15, 0.15, 0.17), 
                 alpha = 1, 
                 color = "grey") +
   facet_grid(c("Resolution", "Group"), 
@@ -236,12 +240,11 @@ test <- stack(test[[1]], test[[2]], test[[3]])
 raster.names <- c("Bin 1 (80.8 Ma)", "Bin 2 (75 Ma)", "Bin 3 (69 Ma)", "Bin 4 (66.7 Ma)", 
                   "", "", "", "", "", "", "", "")
 
-# find map to use as backdrop
-countries <- maps::map("world", plot=FALSE, fill = TRUE) 
 # Turn map into spatialpolygons
-countries <- maptools::map2SpatialPolygons(countries, 
-                                           IDs = countries$names, 
-                                           proj4string = CRS("+proj=longlat")) 
+us <- as_Spatial(ne_states(country = "united states of america", returnclass = "sf"))
+ca <- as_Spatial(ne_states(country = "canada", returnclass = "sf"))
+mx <- as_Spatial(ne_states(country = "mexico", returnclass = "sf"))
+
 test <- crop(test, e)
 
 teyen <- sf::st_read("Data/Covariate_Data/Outcrop/New_shapefiles",
@@ -268,16 +271,15 @@ p3 <- rasterVis::levelplot(test, layout = c(4, 3), margin=T, par.settings=my.the
   latticeExtra::layer(sp.polygons(teyeo, col = 0, fill = "dark grey"), packets = c(3,7,11), under = T) +
   latticeExtra::layer(sp.polygons(teyep, col = 0, fill = "dark grey"), packets = c(2,6,10), under = T) +
   latticeExtra::layer(sp.polygons(teyeq, col = 0, fill = "dark grey"), packets = c(1,5,9), under = T) +
-  latticeExtra::layer(sp.polygons(states, col = "white", lwd = 0.5, fill = NA), under = T)  + 
-  # Plots background colour
-  latticeExtra::layer(sp.polygons(countries, col = 0, fill = "#dcdcdc"), under = T)
-
+  latticeExtra::layer(sp.polygons(us, col = "white", fill = "#dcdcdc", lwd = 0.5), under = T) +
+  latticeExtra::layer(sp.polygons(mx, col = "white", fill = "#dcdcdc", lwd = 0.5), under = T) +
+  latticeExtra::layer(sp.polygons(ca, col = "white", fill = "#dcdcdc", lwd = 0.5), under = T)
 
 # Make ggplot
 p3 <- ggplotify::as.ggplot(p3)
 
 # Set phylopic requirements
-silhouette_df <- data.frame(x = c(0.144,0.148,0.151), y = c(0.715,0.42,0.125), 
+silhouette_df <- data.frame(x = c(0.155,0.159,0.164), y = c(0.715,0.42,0.118), 
                             Group = c("Ceratopsidae", "Hadrosauridae", 
                                       "Tyrannosauridae"),
                             Submodel = c("Detection", "Detection", "Detection"),
@@ -309,7 +311,7 @@ ggsave(paste("Figures/4.5.spOcc.detection.space.", res, ".pdf", sep = ""), plot 
 cov.table <- dplyr::bind_rows(lapply(target, function(target){
   res <- c(0.5, 1)
     all.covs <- lapply(res, function(res){
-      a <- readRDS(paste("Results/spOccupancy/", res, "/", target, 
+      a <- readRDS(paste("Results/spOccupancy/NEW/", res, "/", target, 
                          ".best.model.rds", sep = ""))
       b <- make_table(out.sp = a, res = res, target = target)
     })
@@ -334,9 +336,8 @@ cov.table <- as.data.frame(cov.table)
 
 cov.table <- cov.table[order(factor(cov.table$Covariate, levels = reference)),]
 
-
 # Set up phylopic
-silhouette_df <- data.frame(x = c(4, 4, 4), y = c(10.7, 9, 6.3), 
+silhouette_df <- data.frame(x = c(3.8, 3.8, 3.8), y = c(10.7, 6.5, 7.3), 
                             Group = c("Ceratopsidae", "Hadrosauridae", 
                                       "Tyrannosauridae"),
                             Submodel = c("Detection", "Detection", "Detection"),
@@ -357,7 +358,7 @@ silhouette_df <- data.frame(x = c(4, 4, 4), y = c(10.7, 9, 6.3),
 ) +
   geom_phylopic(data = silhouette_df, aes(x = x, y = y), 
                 uuid = c(c.uuid, h.uuid, t.uuid), 
-                size = c(2.6, 2, 1.6), 
+                size = c(2.6, 1.5, 1.8), 
                 alpha = 1, 
                 color = "dark grey") +
   ggplot2::facet_wrap(
@@ -378,6 +379,52 @@ theme(strip.text.x = element_blank(),
 ggsave(paste("Figures/5.Cov.plot.png", sep = ""), plot = p4, 
        device = "png")
 ggsave(paste("Figures/5.Cov.plot.pdf", sep = ""), plot = p4, 
+       device = "pdf")
+
+
+# Set up phylopic
+silhouette_df <- data.frame(x = c(4.2, 4.2, 4.2), y = c(7.2, 3, 7.3), 
+                            Group = c("Ceratopsidae", "Hadrosauridae", 
+                                      "Tyrannosauridae"),
+                            Submodel = c("Detection", "Detection", "Detection"),
+                            name = c("Ceratopsidae", "Hadrosauridae", 
+                                     "Tyrannosauridae"))
+# Make figure
+(p4 <- forestplot2(
+  df = cov.table,
+  name = Covariate,
+  estimate = Mean,
+  pvalue = Sig, 
+  colour = Resolution,
+  CI.max = `97.5%`, 
+  CI.min = `2.5%`,
+  xlab = "Beta estimates",
+  title = "",
+  psignif = 0.05
+) +
+    geom_phylopic(data = silhouette_df, aes(x = x, y = y), 
+                  uuid = c(c.uuid, h.uuid, t.uuid), 
+                  size = c(2, 0.75, 2), 
+                  alpha = 1, 
+                  color = "dark grey") +
+    ggplot2::facet_wrap(
+      facets = ~Group + Submodel,
+      nrow = 3, 
+      ncol = 2,
+      scales = "free_y"
+    ) + facetted_pos_scales(
+      y = list(Submodel == "Occupancy" ~ scale_y_discrete(position = "right"))
+    )  +
+    theme(strip.text.x = element_blank(), 
+          legend.position = "bottom", 
+          panel.border = element_rect(colour = "black", fill=NA, linewidth=0.5), 
+          axis.text.y.right = element_text(hjust = 0)) + 
+    scale_colour_manual(values = wesanderson::wes_palette("Darjeeling1", type = 'discrete')))
+
+# Save plot
+ggsave(paste("Figures/5.Cov.plot.Year.removed.png", sep = ""), plot = p4, 
+       device = "png")
+ggsave(paste("Figures/5.Cov.plot.Year.removed.pdf", sep = ""), plot = p4, 
        device = "pdf")
 
 #######################
@@ -545,19 +592,23 @@ cov.table <- cov.table %>%
   dplyr::arrange(Covariate) %>%
   rbind(dplyr::filter(cov.table, Covariate == "Intercept"), .)
 
+cov.table.0.5 <- cov.table %>%
+  dplyr::filter(Resolution == 0.5)
+
+cov.table.1 <- cov.table %>%
+  dplyr::filter(Resolution == 1)
+
 # Setup phylopic
-silhouette_df <- data.frame(x = c(5.3, 5.5, 5.5), y = c(9.8, 10.6, 10.4), 
+silhouette_df <- data.frame(x = c(5.1, 5.3, 5.3), y = c(9, 7.3, 9), 
                             Group = c("Ceratopsidae", "Hadrosauridae", 
                                       "Tyrannosauridae"),
                             Submodel = c("Detection", "Detection", "Detection"),
                             name = c("Ceratopsidae", "Hadrosauridae", 
                                      "Tyrannosauridae"))
-
 (p5 <- forestplot2(
-  df = cov.table,
+  df = cov.table.0.5,
   name = Covariate,
   estimate = Mean,
-  shape = Resolution,
   CI.max = `97.5%`, 
   CI.min = `2.5%`,
   xlab = "Beta estimates",
@@ -568,7 +619,7 @@ silhouette_df <- data.frame(x = c(5.3, 5.5, 5.5), y = c(9.8, 10.6, 10.4),
 ) +
   geom_phylopic(data = silhouette_df, aes(x = x, y = y), 
                 uuid = c(c.uuid, h.uuid, t.uuid), 
-                size = c(2.4, 2.4, 2.8), 
+                size = c(2, 1.7, 2.2), 
                 alpha = 1, 
                 color = "dark grey") +
     ggplot2::facet_wrap(
@@ -585,9 +636,53 @@ silhouette_df <- data.frame(x = c(5.3, 5.5, 5.5), y = c(9.8, 10.6, 10.4),
   scale_colour_manual(values = wesanderson::wes_palette("Zissou1", type = 'discrete')[c(1:2, 4:5)]))
 
 # Save plot
-ggsave(paste("Figures/6.Cov.plot.single.png", sep = ""), plot = p5, 
+ggsave(paste("Figures/6.Cov.plot.single.0.5.png", sep = ""), plot = p5, 
        device = "png")
-ggsave(paste("Figures/6.Cov.plot.single.pdf", sep = ""), plot = p5, 
+ggsave(paste("Figures/6.Cov.plot.single.0.5.pdf", sep = ""), plot = p5, 
+       device = "pdf")
+
+silhouette_df <- data.frame(x = c(11, 11.1, 11.1), y = c(9, 7.3, 9), 
+                            Group = c("Ceratopsidae", "Hadrosauridae", 
+                                      "Tyrannosauridae"),
+                            Submodel = c("Detection", "Detection", "Detection"),
+                            name = c("Ceratopsidae", "Hadrosauridae", 
+                                     "Tyrannosauridae"))
+
+(p6 <- forestplot2(
+  df = cov.table.1,
+  name = Covariate,
+  estimate = Mean,
+  CI.max = `97.5%`, 
+  CI.min = `2.5%`,
+  xlab = "Beta estimates",
+  pvalue = Sig, 
+  title = "",
+  colour = Bin,
+  psignif = 0.05
+) +
+    geom_phylopic(data = silhouette_df, aes(x = x, y = y), 
+                  uuid = c(c.uuid, h.uuid, t.uuid), 
+                  size = c(2.1, 1.7, 2.2), 
+                  alpha = 1, 
+                  color = "dark grey") +
+    ggplot2::facet_wrap(
+      facets = ~Group + Submodel,
+      nrow = 3, 
+      ncol = 2,
+      scales = "free_y"
+    ) + facetted_pos_scales(
+      y = list(Submodel == "Occupancy" ~ scale_y_discrete(position = "right"))
+    ) + theme(strip.text.x = element_blank(), 
+              legend.position = "bottom", 
+              panel.border = element_rect(colour = "black", fill=NA, linewidth=0.5), 
+              axis.text.y.right = element_text(hjust = 0)) + 
+    scale_colour_manual(values = wesanderson::wes_palette("Zissou1", type = 'discrete')[c(1:2, 4:5)]))
+
+
+# Save plot
+ggsave(paste("Figures/7.Cov.plot.single.1.png", sep = ""), plot = p6, 
+       device = "png")
+ggsave(paste("Figures/7.Cov.plot.single.1.pdf", sep = ""), plot = p6, 
        device = "pdf")
 
 ###########################
@@ -684,9 +779,9 @@ plot.combine <- function(all.results){
   hadro <- all.results %>%
     filter(Target == "Hadrosauridae")
   # Plot modelled results
-  a <- plot_occ(cera)
-  b <- plot_occ(hadro)
-  c <- plot_occ(tyran)
+  a <- plot_occ(cera, x = F)
+  b <- plot_occ(hadro, x = F)
+  c <- plot_occ(tyran, x = F)
   test <- list(a, b, c)
   return(test)
 }
@@ -719,7 +814,10 @@ ggsave(paste("Figures/A1.Sparta.compare.", type, ".pdf", sep = ""), plot = p,
 # A2. LIST LENGTH DIFFERENCES
 ################################################################################
 
-test <- read.csv(paste("Results/Outhwaite/scotese/All/results", res, ".csv", sep = ""))
+res <- 0.5
+type <- "sp"
+
+test <- read.csv(paste("Results/Outhwaite/scotese/results.", res, ".", type, ".csv", sep = ""))
 
 test <- test %>%
   dplyr::filter(Data != "Mean occupancy") %>%
@@ -749,7 +847,7 @@ silhouette_df <- data.frame(x = c(69.2, 69, 69), y = c(0.86, 0.86, 0.86),
                             name = c("Ceratopsidae", "Hadrosauridae", 
                                      "Tyrannosauridae"))
 
-(p6 <- ggplot2::ggplot(data = test2, aes(x = new_bins, y = Value)) +
+(p7 <- ggplot2::ggplot(data = test2, aes(x = new_bins, y = Value)) +
   ylab("Detection probability difference") + 
   xlab("Time (Ma)") +
   scale_x_reverse() +
@@ -767,9 +865,9 @@ silhouette_df <- data.frame(x = c(69.2, 69, 69), y = c(0.86, 0.86, 0.86),
              scales = "free") +
   scale_color_manual(values=c("#BDD7E7", "#6BAED6", "#3182BD")))
 
-ggsave(paste("Figures/A1.LL.plot.png", sep = ""), plot = p6, 
+ggsave(paste("Figures/A1.LL.", res, ".", type, ".plot.png", sep = ""), plot = p7, 
        device = "png")
-ggsave(paste("Figures/A1.LL.plot.pdf", sep = ""), plot = p6, 
+ggsave(paste("Figures/A1.LL.", res, ".", type, ".plot.pdf", sep = ""), plot = p7, 
        device = "pdf")
 
 ################################################################################
@@ -804,98 +902,106 @@ raster_for_values <- stack(lapply(target, function(x){
   return(raster_for_values)
 }))
 
-# Find map to use as backdrop
-countries <- maps::map("world", plot=FALSE, fill = TRUE) 
-# Turn map into spatialpolygons
-countries <<- maptools::map2SpatialPolygons(countries, 
-                                            IDs = countries$names, 
-                                            proj4string = CRS("+proj=longlat")) 
 mapTheme <- rasterVis::rasterTheme(region=brewer.pal(8,"Reds"))
+us <- as_Spatial(ne_states(country = "united states of america", returnclass = "sf"))
+ca <- as_Spatial(ne_states(country = "canada", returnclass = "sf"))
+mx <- as_Spatial(ne_states(country = "mexico", returnclass = "sf"))
 
 (p2 <- rasterVis::levelplot(raster_for_values,
                             margin=list(draw = T, 
                                         scales = list(y=c(0,0))), 
                             par.settings=mapTheme, 
                             at = seq(-1.5, 2, length.out=35)) + 
-    # Plots state lines
-    latticeExtra::layer(sp.polygons(states, col = "white", fill = NA), under = T)  + 
-    # Plots background colour
-    latticeExtra::layer(sp.polygons(countries, col = 0, fill = "light grey"), under = T))
+    latticeExtra::layer(sp.polygons(us, col = "white", fill = "#dcdcdc", lwd = 0.5), under = T) +
+    latticeExtra::layer(sp.polygons(mx, col = "white", fill = "#dcdcdc", lwd = 0.5), under = T) +
+    latticeExtra::layer(sp.polygons(ca, col = "white", fill = "#dcdcdc", lwd = 0.5), under = T))
+
+# Make ggplot
+p2 <- ggplotify::as.ggplot(p2)
+
+# Set phylopic requirements
+silhouette_df <- data.frame(x = c(0.3,0.58,0.85), y = c(0.67,0.67,0.67), 
+                            Group = c("Ceratopsidae", "Hadrosauridae", 
+                                      "Tyrannosauridae"),
+                            name = c("Ceratopsidae", "Hadrosauridae", 
+                                     "Tyrannosauridae"))
+# Combine with phylopic
+(p2.5 <- p2 + geom_phylopic(data = silhouette_df, aes(x = x, y = y), 
+                           uuid = c(c.uuid, h.uuid, t.uuid), 
+                           size = c(0.034, 0.034, 0.038), 
+                           alpha = 1, 
+                           color = "dark grey"))
+
+ggsave(paste("Figures/A4.unmodelled.png", sep = ""), plot = p2.5, 
+       device = "png")
+ggsave(paste("Figures/A4.unmodelled.pdf", sep = ""), plot = p2.5, 
+       device = "pdf")
 
 
-raster_for_values[[1]]
-raster_for_values[[2]]
-raster_for_values[[3]]
-
-################################################################################
-# TABLE S3-4. TOP MODEL RESULTS
-################################################################################
-
-
-
-
+levelplot(raster_for_values[[3]], margin= T)
 
 ################################################################################
 # A4. OCCUPANCY PREDICTION
 ################################################################################
-
-# Load palaeoclimatic rasters
-wc <- list.files(paste("Prepped_data/Covariate_Data/All_data/", 
-                       res, "deg/Palaeo/", sep = ""), 
-                 pattern=paste0("^", "teyen", ".*", sep = ""))
-stacked <- raster::stack(paste("Prepped_data/Covariate_Data/All_data/", 
-                               res, "deg/Palaeo/", wc, 
-                               sep =""))
-stacked <- dropLayer(stacked, c(1,2, 3,4, 5, 7, 9, 10))
-names(stacked) <- gsub(".[[:digit:]]", "", names(stacked))
-stacked <- crop(stacked, e)
-
-covariates <- as.data.frame(stacked)
-full.coords <- as.data.frame(xyFromCell(stacked, 1:16600))
-covs <- cbind(full.coords, covariates)
-
-# Number of prediction sites.
-J.pred <- nrow(covs)
-
-# Number of prediction years.
-n.years.pred <- 1
-# Number of predictors (including intercept)
-p.occ <- ncol(out.ar1$beta.samples)
-# Get covariates and standardize them using values used to fit the model
-hot <- (covs$hot_mean - mean(revi.data$occ.covs$hot$teyen)) / sd(revi.data$occ.covs$hot$teyen)
-wet <- (covs$wet_mean - mean(revi.data$occ.covs$wet$teyen)) / sd(revi.data$occ.covs$wet$teyen)
-dry <- (covs$dry_mean - mean(revi.data$occ.covs$dry$teyen)) / sd(revi.data$occ.covs$dry$teyen)
-
-# Create three-dimensional array
-X.0 <- array(1, dim = c(J.pred, n.years.pred, p.occ))
-# Fill in the array
-# Years
-X.0[, , 2] <- hot
-# Elevation
-X.0[, , 3] <- wet
-# Elevation^2
-X.0[, , 4] <- dry
-# Check out the structure
-str(X.0)
-
-# Indicate which primary time periods (years) we are predicting for
-t.cols <- c(4)
-# Approx. run time: < 30 sec
-out.pred <- predict(out.ar1, X.0, coords.0 = full.coords, t.cols = t.cols, ignore.RE = TRUE, type = 'occupancy')
-
-# Plotting
-plot.dat <- data.frame(x = full.coords$x, 
-                       y = full.coords$y, 
-                       mean.psi = apply(out.pred$psi.0.samples[, , 1], 2, mean), 
-                       sd.psi = apply(out.pred$psi.0.samples[, , 1], 2, sd), 
-                       stringsAsFactors = FALSE)
-# Make a species distribution map showing the point estimates,
-# or predictions (posterior means)
-dat.stars <- st_as_stars(plot.dat, dims = c('x', 'y'))
-# 2009
-ggplot() + 
-  geom_stars(data = dat.stars, aes(x = x, y = y, fill = mean.psi)) +
-  scale_fill_viridis_c(na.value = 'transparent') +
-  labs(x = 'Easting', y = 'Northing', fill = '', 
-       title = 'Mean REVI occurrence probability 2009') +
-  theme_bw()
+#
+## Load palaeoclimatic rasters
+#wc <- list.files(paste("Prepped_data/Covariate_Data/All_data/", 
+#                       res, "deg/Palaeo/", sep = ""), 
+#                 pattern=paste0("^", "teyen", ".*", sep = ""))
+#stacked <- raster::stack(paste("Prepped_data/Covariate_Data/All_data/", 
+#                               res, "deg/Palaeo/", wc, 
+#                               sep =""))
+#stacked <- dropLayer(stacked, c(1,2, 3,4, 5, 7, 9, 10))
+#names(stacked) <- gsub(".[[:digit:]]", "", names(stacked))
+#stacked <- crop(stacked, e)
+#
+#covariates <- as.data.frame(stacked)
+#full.coords <- as.data.frame(xyFromCell(stacked, 1:16600))
+#covs <- cbind(full.coords, covariates)
+#
+## Number of prediction sites.
+#J.pred <- nrow(covs)
+#
+## Number of prediction years.
+#n.years.pred <- 1
+## Number of predictors (including intercept)
+#p.occ <- ncol(out.ar1$beta.samples)
+## Get covariates and standardize them using values used to fit the model
+#hot <- (covs$hot_mean - mean(revi.data$occ.covs$hot$teyen)) / sd(revi.data$occ.covs$hot$teyen)
+#wet <- (covs$wet_mean - mean(revi.data$occ.covs$wet$teyen)) / sd(revi.data$occ.covs$wet$teyen)
+#dry <- (covs$dry_mean - mean(revi.data$occ.covs$dry$teyen)) / sd(revi.data$occ.covs$dry$teyen)
+#
+## Create three-dimensional array
+#X.0 <- array(1, dim = c(J.pred, n.years.pred, p.occ))
+## Fill in the array
+## Years
+#X.0[, , 2] <- hot
+## Elevation
+#X.0[, , 3] <- wet
+## Elevation^2
+#X.0[, , 4] <- dry
+## Check out the structure
+#str(X.0)
+#
+## Indicate which primary time periods (years) we are predicting for
+#t.cols <- c(4)
+## Approx. run time: < 30 sec
+#out.pred <- predict(out.ar1, X.0, coords.0 = full.coords, t.cols = t.cols, ignore.RE = TRUE, type = 'occupancy')
+#
+## Plotting
+#plot.dat <- data.frame(x = full.coords$x, 
+#                       y = full.coords$y, 
+#                       mean.psi = apply(out.pred$psi.0.samples[, , 1], 2, mean), 
+#                       sd.psi = apply(out.pred$psi.0.samples[, , 1], 2, sd), 
+#                       stringsAsFactors = FALSE)
+## Make a species distribution map showing the point estimates,
+## or predictions (posterior means)
+#dat.stars <- st_as_stars(plot.dat, dims = c('x', 'y'))
+## 2009
+#ggplot() + 
+#  geom_stars(data = dat.stars, aes(x = x, y = y, fill = mean.psi)) +
+#  scale_fill_viridis_c(na.value = 'transparent') +
+#  labs(x = 'Easting', y = 'Northing', fill = '', 
+#       title = 'Mean REVI occurrence probability 2009') +
+#  theme_bw()
+#

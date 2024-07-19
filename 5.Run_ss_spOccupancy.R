@@ -3,8 +3,8 @@
 ################################################################################
 
 # Christopher D. Dean, Alfio Alessandro Chiarenza, Jeffrey W. Doser, Alexander
-# Farnsworth, Lewis A. Jones, Sinéad Lyster, Charlotte L. Outhwaite, Richard J. 
-# Butler, Philip D. Mannion.
+# Farnsworth, Lewis A. Jones, Sinéad Lyster, Charlotte L. Outhwaite, Paul J. 
+# Valdes, Richard J. Butler, Philip D. Mannion.
 # 2024
 # Script written by Christopher D. Dean
 
@@ -37,7 +37,6 @@ bin.type <- "scotese"
 target1 <- c("Hadrosauridae", "Ceratopsidae", "Tyrannosauridae")
 bins <- read.csv("Data/Occurrences/scotesebins.csv")
 bins$bin <- bins$code
-bin1 <- c("teyen") # Change this if you want a single season model
 form_cells <- "N"
 bin1 <- c("teyen", "teyeo", "teyep", "teyeq")
 
@@ -60,6 +59,13 @@ for(b in bin1){
         # Load occurrence dataset
         sp.data <- readRDS(file = paste("Prepped_data/spOccupancy/Single_season/", res, "/", 
                                         bin, "/", target, "_single_", res, ".rds", sep = ""))
+        # Load occ. covariates adjusted for multicollinearity
+        occ.form.1 <- readRDS(file = paste("Prepped_data/spOccupancy/Single_season/", res, "/", 
+                                        bin, "/", target, "_single_", res, ".occ.form.rds", sep = ""))
+        # Load det. covariates adjusted for multicollinearity
+        det.form.1 <- readRDS(file = paste("Prepped_data/spOccupancy/Single_season/", res, "/", 
+                                        bin, "/", target, "_single_", res, ".det.form.rds", sep = ""))
+        det.form.1 <- det.form.1[!(det.form.1 %in% c("factor(Year)", "scale(temp)"))]
       }
       
       # Adjustments to saved data (whoops...)
@@ -103,21 +109,18 @@ for(b in bin1){
       ################################
       
       # Set total potential covariates
-      occ.form <- c("scale(ann)", "scale(hot)", "scale(col)", "scale(wet)", "scale(dry)")
-      det.form <- c("scale(outcrop)", "scale(MGVF)", "scale(rain)", "factor(land)", 
-                    "scale(occur)", "scale(coll)", "scale(sedflux)", "scale(Distance)")
-      occ.form <- unlist(lapply(1:length(occ.form), 
-                                function(x) combn(occ.form, x, simplify = FALSE)), 
+      occ.form <- unlist(lapply(1:length(occ.form.1), 
+                                function(x) combn(occ.form.1, x, simplify = FALSE)), 
                          recursive = FALSE)
-      det.form <- unlist(lapply(1:length(det.form), 
-                                function(x) combn(det.form, x, simplify = FALSE)), 
+      det.form <- unlist(lapply(1:length(det.form.1), 
+                                function(x) combn(det.form.1, x, simplify = FALSE)), 
                          recursive = FALSE)
       occ.form <- append(occ.form, "1")
       det.form <- append(det.form, "1")
       
       det.wrapper <- function(det.form){
         revi.sp.det.formula <- formula(paste("~", paste(det.form, collapse = " + ")))
-        revi.sp.occ.formula <- ~ scale(col) + scale(ann) + scale(wet) + scale(dry) + scale(hot)
+        revi.sp.occ.formula <- formula(paste("~", paste(occ.form.1, collapse = " + ")))
         print(paste("Running model ", det.form, " out of ", length(det.form), sep = ""))
         out.sp <- spOccupancy::spPGOcc(occ.formula = revi.sp.occ.formula, 
                                        det.formula = revi.sp.det.formula, 
@@ -144,6 +147,7 @@ for(b in bin1){
       
       # Export data to the cluster
       sfExport('sp.data')
+      sfExport('occ.form.1')
       sfExport('oven.inits')
       sfExport('n.batch')
       sfExport('batch.length')
@@ -285,35 +289,35 @@ for(b in bin1){
       ################################################################################
       # 5. PLOTTING SITE-LEVEL DETECTION PROBABILITY RANDOM EFFECTS
       ################################################################################
-      if(is.null(out.sp$alpha.star.samples) == T){
-        next
-      }
-      # Find random effects sizes
-      alpha.star.means <- apply(out.sp$alpha.star.samples, 2, mean)
-      
-      # Create siteIDs (individual cell numbers used)
-      siteIDs <- as.numeric(rownames(sp.data$y))
-      
-      # Find coordinates of each site
-      siteCoords <- siteCoordsFun(res = res, e = e, siteIDs)
-      
-      # Generate a raster using random effects
-      raster_for_values <- gen_raster(siteCoords$siteID, alpha.star.means, res = res, ext = e)
-      
-      # Find map to use as backdrop
-      countries <- maps::map("world", plot=FALSE, fill = TRUE) 
-      # Turn map into spatialpolygons
-      countries <<- maptools::map2SpatialPolygons(countries, 
-                                                  IDs = countries$names, 
-                                                  proj4string = CRS("+proj=longlat")) 
-      mapTheme <- rasterVis::rasterTheme(region=brewer.pal(8,"Reds"))
-      
-      (p1 <- rasterVis::levelplot(raster_for_values, margin=T, par.settings=mapTheme) + 
-          # Plots state lines
-          latticeExtra::layer(sp.polygons(states, col = "white", fill = NA), under = T)  + 
-          # Plots background colour
-          latticeExtra::layer(sp.polygons(countries, col = 0, fill = "light grey"), under = T))
-      #save_lattice(p1, ss = T)
+      #if(is.null(out.sp$alpha.star.samples) == T){
+      #  next
+      #}
+      ## Find random effects sizes
+      #alpha.star.means <- apply(out.sp$alpha.star.samples, 2, mean)
+      #
+      ## Create siteIDs (individual cell numbers used)
+      #siteIDs <- as.numeric(rownames(sp.data$y))
+      #
+      ## Find coordinates of each site
+      #siteCoords <- siteCoordsFun(res = res, e = e, siteIDs)
+      #
+      ## Generate a raster using random effects
+      #raster_for_values <- gen_raster(siteCoords$siteID, alpha.star.means, res = res, ext = e)
+      #
+      ## Find map to use as backdrop
+      #countries <- maps::map("world", plot=FALSE, fill = TRUE) 
+      ## Turn map into spatialpolygons
+      #countries <<- maptools::map2SpatialPolygons(countries, 
+      #                                            IDs = countries$names, 
+      #                                            proj4string = CRS("+proj=longlat")) 
+      #mapTheme <- rasterVis::rasterTheme(region=brewer.pal(8,"Reds"))
+      #
+      #(p1 <- rasterVis::levelplot(raster_for_values, margin=T, par.settings=mapTheme) + 
+      #    # Plots state lines
+      #    latticeExtra::layer(sp.polygons(states, col = "white", fill = NA), under = T)  + 
+      #    # Plots background colour
+      #    latticeExtra::layer(sp.polygons(countries, col = 0, fill = "light grey"), under = T))
+      ##save_lattice(p1, ss = T)
     }
   }
 }

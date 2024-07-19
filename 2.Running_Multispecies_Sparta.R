@@ -3,8 +3,8 @@
 ################################################################################
 
 # Christopher D. Dean, Alfio Alessandro Chiarenza, Jeffrey W. Doser, Alexander
-# Farnsworth, Lewis A. Jones, Sinéad Lyster, Charlotte L. Outhwaite, Richard J. 
-# Butler, Philip D. Mannion.
+# Farnsworth, Lewis A. Jones, Sinéad Lyster, Charlotte L. Outhwaite, Paul J. 
+# Valdes, Richard J. Butler, Philip D. Mannion.
 # 2024
 # Script written by Christopher D. Dean
 
@@ -135,7 +135,7 @@ hadro <- all.results[[1]] %>%
   filter(Target == "Hadrosauridae")
 
 c.uuid <- get_uuid(name = "Ceratopsidae", n = 4)[[4]]
-t.uuid <- get_uuid(name = "Tyrannosauridae", n = 4)[[4]]
+t.uuid <- get_uuid(name = "Tyrannosauridae", n = 5)[[5]]
 h.uuid <- get_uuid(name = "Edmontosaurus", n = 3)[[3]]
 
 # Plot modelled results
@@ -170,8 +170,6 @@ if(type == 1){
 if(type == 2){
   type <- "hc.rw"
 }
-
-
 
 # Save figure
 ggsave(paste("Figures/2.Sparta.", bin.type, ".", res, ".", type, ".png", sep = ""), plot = p, 
