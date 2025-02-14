@@ -5,7 +5,7 @@
 # Christopher D. Dean, Alfio Alessandro Chiarenza, Jeffrey W. Doser, Alexander
 # Farnsworth, Lewis A. Jones, Sinéad Lyster, Charlotte L. Outhwaite, Paul J. 
 # Valdes, Richard J. Butler, Philip D. Mannion.
-# 2024
+# 2025
 # Script written by Christopher D. Dean
 
 ################################################################################
@@ -66,12 +66,13 @@ colnames(formations)[1] <- "formation" # Change to allow for further analysis
 
 ##### Set values #####
 # Set resolution
-res <- 1
+res <- 0.5
 # Set extent
 e <- extent(-155, -72, 22.5, 73)
 # Set max limit value
 max_val <- "None"
 max_val_on <- F
+nomam <- T
 
 ##### Remove occurrences outside bounds #####
 master.occs <- master.occs %>%
@@ -121,15 +122,20 @@ master.occs <- master.occs[,1:140] # Remove extra columns from final dataset.
 master.occs <- master.occs %>% 
   filter(is.na(max_ma) == F)# %>% # Remove occurrences without a max age (occurrences which can't be matched to a formation)
 master.occs$max_ma[master.occs$max_ma > 83.59] <- 83.59
-master.occs$min_ma[master.occs$min_m < 66] <- 66.001 # If using majority method, all occurrences with minimum age of <66 Ma must be capped to 66 Ma, otherwise bin_time() breaks.
+master.occs$min_ma[master.occs$min_ma < 66] <- 66.001 # If using majority method, all occurrences with minimum age of <66 Ma must be capped to 66 Ma, otherwise bin_time() breaks.
 
+##### FILTERING #####
+#master.occs <- master.occs %>%
+#  dplyr::filter(class == "Ornithischia" | class == "Reptilia")
+  
 ###################
 ##### SCOTESE #####
 ###################
 
 bins <- read.csv("Data/Occurrences/scotesebins.csv")
 bins$bin <- bins$code
-master.occs.binned <- bin_time(occdf = master.occs, bins = bins, method = "majority")
+master.occs.binned <- palaeoverse::bin_time(occdf = master.occs, bins = bins, method = "majority")
+#master.occs.binned <- bin_time(occdf = master.occs, bins = bins, method = "all")
 bin.type <- "scotese"
 
 #####################
@@ -148,6 +154,14 @@ bins <- bins[-7, ]
 
 master.occs.binned <- bin_time(occdf = master.occs, bins = bins, method = "majority")
 bin.type <- "formation"
+
+##### Checking list length #####
+master.occs.binned %>%
+  #dplyr::filter(identified_rank == "genus" | identified_rank == "species") %>%
+  group_by(collection_no, bin_midpoint) %>%
+  summarise(count = n()) %>%
+  group_by(bin_midpoint) %>%
+  summarise(mean = mean(count))
 
 ################################################################################
 # 3. VISUALISATION AND TESTING
@@ -202,13 +216,100 @@ values <- base::rep(1,length(cells))
 # Generate raster to compare against original dataset.
 gen_raster(cells, values, res, ext = e)
 
+################################################################################
+# 3. FILTERING TEMPORALLY UNCERTAIN OCCURRENCES
+################################################################################
+
+# Setup new formations dataframe
+formations2 <- formations
+names(formations2)[names(formations2) == "max_age"] <- "max_ma"
+names(formations2)[names(formations2) == "min_age"] <- "min_ma"
+
+# Filter to only include formations within temporal bounds
+formations2 <- formations2 %>%
+  filter(min_ma < 85) %>%
+  filter(max_ma > 65)
+
+# Make a grid of all possible time bin/formation combos
+if(bin.type == "scotese"){
+  comp_df <- expand.grid(A = sort(unique(formations2$formation)), 
+                         B = sort(unique(bins$code)))
+}
+if(bin.type == "formation"){
+  comp_df <- expand.grid(A = sort(unique(formations2$formation)), 
+                         B = sort(unique(bins$bin)))
+}
+
+# Function to calculate percentage overlap between time bins and formations
+perc_overlap = function(x.start, x.end, y.start, y.end){
+  #  if(x.start == y.start & x.end == y.end){
+  #    return(100)
+  #  }
+  x.len = abs(x.end - x.start)
+  # largest start
+  max.start = max(c(x.start, y.start))
+  min.end = min(c(x.end, y.end))
+  overlap = min.end - max.start
+  overlap = ifelse(overlap <= 0, 0, overlap)
+  perc_overlap = overlap / x.len * 100
+  return(perc_overlap)
+}
+
+# Function to apply percentage overlap down a list
+comp_func <- function(a, b) {
+  min_a <- formations2$min_ma[formations2$formation == a]
+  max_a <- formations2$max_ma[formations2$formation == a]
+  if(bin.type == "scotese"){
+    min_b <- bins$min_ma[bins$code == b]
+    max_b <- bins$max_ma[bins$code == b]
+  }
+  if(bin.type == "formation"){
+    min_b <- bins$min_ma[bins$bin == b]
+    max_b <- bins$max_ma[bins$bin == b]
+  }
+  return(perc_overlap(min_a, max_a, min_b, max_b))
+}
+
+# Apply percentage overlap to dataframe of formations, using time bins
+comp_df$overlap <- unlist(Map(comp_func, a = comp_df$A, b = comp_df$B))
+
+# Calculate formations appearance in bins
+overlap_in_bins <- comp_df %>%
+  arrange(A) %>%
+  filter(overlap != 0) %>%
+  dplyr::group_by(A) %>%
+  dplyr::summarize(sum = sum(overlap), 
+                   n_bins = sum(overlap > 0))
+
+# Make a vector of formations appearing in multiple bins
+formations_to_remove <- overlap_in_bins %>%
+  filter(n_bins > 2)  %>%
+  dplyr::pull(A)
+
+# Remove listed formations from master.occs
+master.occs.binned <- master.occs.binned %>%
+  dplyr::filter(!(formation %in% formations_to_remove))
 
 ################################################################################
-# 3. OCCUPANCY SETUP AND PREPPED DATA
+# 4. TEST: FILTERING MAMMALS AND SQUAMATA
+################################################################################
+
+# Optional: remove mammals, squamates and amphibians from analysis to test whether
+#           changes in the frequency of small-bodied collections through time is
+#           impacting results.
+if(nomam == T){
+  master.occs.binned <- master.occs.binned %>%
+    dplyr::filter(class != "Mammalia") %>%
+    dplyr::filter(class != "Amphibia") %>%
+    dplyr::filter(order != "Squamata")
+}
+
+################################################################################
+# 5. OCCUPANCY SETUP AND PREPPED DATA
 ################################################################################
 
 # Set Target taxa
-target = c("Ceratopsidae", "Tyrannosauridae", "Hadrosauridae") # set Targets
+target = c("Ceratopsidae", "Tyrannosauridae", "Hadrosauridae", "Ankylosauridae") # set Targets
 target_maker(data = master.occs.binned, level = "family", target = target) # run target_maker
 master.occs.binned.targeted <- master.occs.binned.targeted %>%
   dplyr::mutate(Rot_age = case_when(bin_midpoint == 66.75 ~ 65, 
@@ -218,7 +319,7 @@ master.occs.binned.targeted <- master.occs.binned.targeted %>%
 
 # Palaeo-rotate to get accurate palaeolat/long
 if(bin.type == "scotese"){
-  master.occs.binned.targeted <- palaeorotate(occdf = master.occs.binned.targeted,
+  master.occs.binned.targeted <- palaeoverse::palaeorotate(occdf = master.occs.binned.targeted,
                                               lat = "lat",
                                               lng = "lng",
                                               age = "Rot_age",
@@ -237,8 +338,14 @@ if(bin.type == "formation"){
 }
 
 ##### Save prepped occurrence data for other approaches #####
-write.csv(master.occs.binned.targeted, file.path(paste("Prepped_data/Occurrence_Data/", bin.type, 
-                                                       "/", res, "_", bin.type, "_occurrence_dataset.csv", sep = "")))
+if(nomam == F){
+  write.csv(master.occs.binned.targeted, file.path(paste("Prepped_data/Occurrence_Data/", bin.type, 
+                                                         "/", bin.type, "_occurrence_dataset.csv", sep = "")))
+}else{
+  write.csv(master.occs.binned.targeted, file.path(paste("Prepped_data/Occurrence_Data/", bin.type, 
+                                                         "/", bin.type, "_no_mammal_occurrence_dataset.csv", sep = "")))
+}
+
 # Record resolution target data
 vect <- c(0.5, 1)
 
@@ -251,6 +358,11 @@ for(t in 1:length(bins$bin)){
     filter(bin_assignment == bin.name)
   res_data(bin.occs, target, vect = vect, single = TRUE) 
   Res_results <- do.call(rbind.data.frame, Res_results_list)
-  write.csv(Res_results, file.path(paste("Prepped_data/Occurrence_data/", bin.type, "/", 
-                                         "/Targeted_res_stats.", bin.name,".csv", sep="")))
+  if(nomam == F){
+    write.csv(Res_results, file.path(paste("Prepped_data/Occurrence_data/", bin.type, "/", 
+                                           "/Targeted_res_stats.", bin.name,".csv", sep="")))
+  }else{
+    write.csv(Res_results, file.path(paste("Prepped_data/Occurrence_data/", bin.type, "/", 
+                                           "/Targeted_res_stats.", bin.name,"_no_mammal.csv", sep="")))
+  }
 }

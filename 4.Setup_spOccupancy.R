@@ -5,7 +5,7 @@
 # Christopher D. Dean, Alfio Alessandro Chiarenza, Jeffrey W. Doser, Alexander
 # Farnsworth, Lewis A. Jones, Sinéad Lyster, Charlotte L. Outhwaite, Paul J. 
 # Valdes, Richard J. Butler, Philip D. Mannion.
-# 2024
+# 2025
 # Script written by Christopher D. Dean
 
 ################################################################################
@@ -40,20 +40,23 @@ res <-  1
 # Set extent
 e <- extent(-155, -72, 22.5, 73)
 # Set max limit value
-max_val <- 40
+max_val <- 10
 max_val_on <- TRUE
-bin.type <- "scotese"
 target <- "Tyrannosauridae"
 bins <- read.csv("Data/Occurrences/scotesebins.csv")
 bins$bin <- bins$code
-bin <- "teyeq" # Change this if you want a single season model
+nomam <- F
+bin <- NA # Change this if you want a single season model
 form_cells <- "N" # Change this to "Y" for single season models with cells grouped 
                   # by formations
 
 # Load occurrence dataset
-master.occs.binned.targeted <- read.csv(paste("Prepped_data/Occurrence_Data/", 
-                                              bin.type, "/", res, "_", bin.type, 
-                                              "_occurrence_dataset.csv", sep = ""))
+if(nomam == F){
+  master.occs.binned.targeted <- read.csv(paste("Prepped_data/Occurrence_Data/scotese/scotese_occurrence_dataset.csv", sep = ""))
+}else{
+  master.occs.binned.targeted <- read.csv(paste("Prepped_data/Occurrence_Data/scotese/scotese_no_mammal_occurrence_dataset.csv", sep = ""))
+}
+
 # Set random number for seed
 rand <- round(runif(1, min = 0, max = 999)) 
 
@@ -238,30 +241,42 @@ if(is.na(bin) == T){
 
 # Save data
 if(is.na(bin) == T){
-  saveRDS(sp.data,
-          file = paste("Prepped_data/spOccupancy/Multi_season/", res, "/", target, 
-                       "_multi_", res, ".rds", sep = ""))
-  saveRDS(occ.form, 
-          file = paste("Prepped_data/spOccupancy/Multi_season/", res, "/", target, 
-                       "_multi_", res, ".occ.form.rds", sep = ""))
-  saveRDS(det.form, 
-          file = paste("Prepped_data/spOccupancy/Multi_season/", res, "/", target, 
-                       "_multi_", res, ".det.form.rds", sep = ""))
+  if(nomam == F){
+    saveRDS(sp.data,
+            file = paste("Prepped_data/spOccupancy/Updated/Multi_season/", res, "/", target, 
+                         "_multi_", res, "_", max_val, ".2.rds", sep = ""))
+    saveRDS(occ.form, 
+            file = paste("Prepped_data/spOccupancy/Updated/Multi_season/", res, "/", target, 
+                         "_multi_", res, "_", max_val, ".2.occ.form.rds", sep = ""))
+    saveRDS(det.form, 
+            file = paste("Prepped_data/spOccupancy/Updated/Multi_season/", res, "/", target, 
+                         "_multi_", res, "_", max_val, ".2.det.form.rds", sep = ""))
+  }else{
+    saveRDS(sp.data,
+            file = paste("Prepped_data/spOccupancy/Updated/Multi_season/", res, "/", target, 
+                         "_multi_", res, "_", max_val, "_no_mammal.rds", sep = ""))
+    saveRDS(occ.form, 
+            file = paste("Prepped_data/spOccupancy/Updated/Multi_season/", res, "/", target, 
+                         "_multi_", res, "_", max_val, "_no_mammal.occ.form.rds", sep = ""))
+    saveRDS(det.form, 
+            file = paste("Prepped_data/spOccupancy/Updated/Multi_season/", res, "/", target, 
+                         "_multi_", res, "_", max_val, "_no_mammal.det.form.rds", sep = ""))
+  }
 }else{
   if(form_cells == "Y"){
     saveRDS(sp.data, 
             file = paste("Prepped_data/spOccupancy/Single_season/", res, "/", 
-                         bin, "/", target, "_single_", res, ".formcells.rds", sep = ""))
+                         bin, "/", target, "_single_", res, "_", max_val, ".formcells.rds", sep = ""))
   }else{
     saveRDS(sp.data, 
             file = paste("Prepped_data/spOccupancy/Single_season/", res, "/", 
-                         bin, "/", target, "_single_", res, ".rds", sep = ""))
+                         bin, "/", target, "_single_", res, "_", max_val, ".rds", sep = ""))
     saveRDS(occ.form, 
             file = paste("Prepped_data/spOccupancy/Single_season/", res, "/", 
-                         bin, "/", target, "_single_", res, ".occ.form.rds", sep = ""))
+                         bin, "/", target, "_single_", res, "_", max_val, ".occ.form.rds", sep = ""))
     saveRDS(det.form, 
             file = paste("Prepped_data/spOccupancy/Single_season/", res, "/", 
-                         bin, "/", target, "_single_", res, ".det.form.rds", sep = ""))
+                         bin, "/", target, "_single_", res, "_", max_val, ".det.form.rds", sep = ""))
   }
 }
 
