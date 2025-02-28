@@ -1626,7 +1626,7 @@ Array_prep <- function(data_suffix, sp = FALSE) {
 
 distance_fun <- function(eh_list){
   # Requires the detection history list
-  road <- read.csv("Data/Covariate_Data/Distance_roads.csv")
+  road <- read.csv("Data/Occurrences/Distance_roads.csv")
   road <- road %>%
     dplyr::distinct()
   final.list <- list()

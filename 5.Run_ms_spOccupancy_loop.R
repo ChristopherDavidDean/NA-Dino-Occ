@@ -9,7 +9,7 @@
 # Script written by Christopher D. Dean
 
 ################################################################################
-#                 FILE 6: RUNNING MULTI-SEASON OCCUPANCY LOOP                 #
+#                 FILE 5: RUNNING MULTI-SEASON OCCUPANCY LOOP                  #
 ################################################################################
 
 ################################################################################
@@ -59,7 +59,7 @@ for(m in max_val1){
       if(nomam == F){
         sp.data <- readRDS(file = paste("Prepped_data/spOccupancy/Updated/Multi_season/", res, "/", 
                                         target, "_multi_", res, "_", max_val, ".rds", sep = ""))
-        occ.form.1 <- readRDS(file = paste("Prepped_data/spOccupancy/Updated/Multi_season/", res, "/", 
+         <- readRDS(file = paste("Prepped_data/spOccupancy/Updated/Multi_season/", res, "/", 
                                            target, "_multi_", res, "_", max_val, ".occ.form.rds", sep = ""))
         
         det.form.1 <- readRDS(file = paste("Prepped_data/spOccupancy/Updated/Multi_season/", res, "/", 

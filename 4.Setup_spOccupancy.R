@@ -20,7 +20,6 @@
 library(spOccupancy)
 library(stars)
 library(ggplot2)
-library(abind)
 library(stringr)
 library(MCMCvis)
 library(purrr)
@@ -42,7 +41,7 @@ e <- extent(-155, -72, 22.5, 73)
 # Set max limit value
 max_val <- 10
 max_val_on <- TRUE
-target <- "Tyrannosauridae"
+target <- "Hadrosauridae"
 bins <- read.csv("Data/Occurrences/scotesebins.csv")
 bins$bin <- bins$code
 nomam <- F

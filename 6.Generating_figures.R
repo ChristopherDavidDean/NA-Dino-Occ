@@ -9,7 +9,7 @@
 # Script written by Christopher D. Dean
 
 ################################################################################
-#                    FILE 7: MULTI-SEASON OCCUPANCY FIGURES                   #
+#                         FILE 6: GENERATING FIGURES                           #
 ################################################################################
 
 ################################################################################
@@ -804,50 +804,6 @@ ggsave(paste("Figures/5.5.Cov.plot.non.spatial.png", sep = ""), plot = p4.5,
 ggsave(paste("Figures/5.5.Cov.plot.non.spatial.pdf", sep = ""), plot = p4.5, 
        device = "pdf")
 
-#######################
-##### COMPARISONS #####
-#######################
-
-# Compare WAIC for resolution
-spOccupancy::waicOcc(readRDS("Results/spOccupancy/0.5/Tyrannosauridae.best.model.rds"))
-spOccupancy::waicOcc(readRDS("Results/spOccupancy/1/Tyrannosauridae.best.model.rds"))
-
-spOccupancy::waicOcc(readRDS("Results/spOccupancy/0.5/Hadrosauridae.best.model.rds"))
-spOccupancy::waicOcc(readRDS("Results/spOccupancy/1/Hadrosauridae.best.model.rds"))
-
-spOccupancy::waicOcc(readRDS("Results/spOccupancy/0.5/Ceratopsidae.best.model.rds"))
-spOccupancy::waicOcc(readRDS("Results/spOccupancy/1/Ceratopsidae.best.model.rds"))
-
-# Compare WAIC for resolution, non-spatial
-spOccupancy::waicOcc(readRDS("Results/spOccupancy/Non.spatial/0.5/Tyrannosauridae.best.model.rds"))
-spOccupancy::waicOcc(readRDS("Results/spOccupancy/Non.spatial/1/Tyrannosauridae.best.model.rds"))
-
-spOccupancy::waicOcc(readRDS("Results/spOccupancy/Non.spatial/0.5/Hadrosauridae.best.model.rds"))
-spOccupancy::waicOcc(readRDS("Results/spOccupancy/Non.spatial/1/Hadrosauridae.best.model.rds"))
-
-spOccupancy::waicOcc(readRDS("Results/spOccupancy/Non.spatial/0.5/Ceratopsidae.best.model.rds"))
-spOccupancy::waicOcc(readRDS("Results/spOccupancy/Non.spatial/1/Ceratopsidae.best.model.rds"))
-
-# Compare WAIC, spatial vs. non-spatial, 0.5
-spOccupancy::waicOcc(readRDS("Results/spOccupancy/Non.spatial/0.5/Tyrannosauridae.best.model.rds"))
-spOccupancy::waicOcc(readRDS("Results/spOccupancy/0.5/Tyrannosauridae.best.model.rds"))
-
-spOccupancy::waicOcc(readRDS("Results/spOccupancy/Non.spatial/0.5/Hadrosauridae.best.model.rds"))
-spOccupancy::waicOcc(readRDS("Results/spOccupancy/0.5/Hadrosauridae.best.model.rds"))
-
-spOccupancy::waicOcc(readRDS("Results/spOccupancy/Non.spatial/0.5/Ceratopsidae.best.model.rds"))
-spOccupancy::waicOcc(readRDS("Results/spOccupancy/0.5/Ceratopsidae.best.model.rds"))
-
-# Compare WAIC, spatial vs. non-spatial, 1
-spOccupancy::waicOcc(readRDS("Results/spOccupancy/Non.spatial/1/Tyrannosauridae.best.model.rds"))
-spOccupancy::waicOcc(readRDS("Results/spOccupancy/1/Tyrannosauridae.best.model.rds"))
-
-spOccupancy::waicOcc(readRDS("Results/spOccupancy/Non.spatial/1/Hadrosauridae.best.model.rds"))
-spOccupancy::waicOcc(readRDS("Results/spOccupancy/1/Hadrosauridae.best.model.rds"))
-
-spOccupancy::waicOcc(readRDS("Results/spOccupancy/Non.spatial/1/Ceratopsidae.best.model.rds"))
-spOccupancy::waicOcc(readRDS("Results/spOccupancy/1/Ceratopsidae.best.model.rds"))
-
 ################################################################################
 # A1. VARIATIONS IN SPARTA COMBINED FIGURE
 ################################################################################
@@ -1039,69 +995,3 @@ ggsave(paste("Figures/NEW/A4.unmodelled.pdf", sep = ""), plot = p2.5,
        device = "pdf")
 
 levelplot(raster_for_values[[3]], margin= T)
-
-################################################################################
-# A4. OCCUPANCY PREDICTION
-################################################################################
-#
-## Load palaeoclimatic rasters
-#wc <- list.files(paste("Prepped_data/Covariate_Data/All_data/", 
-#                       res, "deg/Palaeo/", sep = ""), 
-#                 pattern=paste0("^", "teyen", ".*", sep = ""))
-#stacked <- raster::stack(paste("Prepped_data/Covariate_Data/All_data/", 
-#                               res, "deg/Palaeo/", wc, 
-#                               sep =""))
-#stacked <- dropLayer(stacked, c(1,2, 3,4, 5, 7, 9, 10))
-#names(stacked) <- gsub(".[[:digit:]]", "", names(stacked))
-#stacked <- crop(stacked, e)
-#
-#covariates <- as.data.frame(stacked)
-#full.coords <- as.data.frame(xyFromCell(stacked, 1:16600))
-#covs <- cbind(full.coords, covariates)
-#
-## Number of prediction sites.
-#J.pred <- nrow(covs)
-#
-## Number of prediction years.
-#n.years.pred <- 1
-## Number of predictors (including intercept)
-#p.occ <- ncol(out.ar1$beta.samples)
-## Get covariates and standardize them using values used to fit the model
-#hot <- (covs$hot_mean - mean(revi.data$occ.covs$hot$teyen)) / sd(revi.data$occ.covs$hot$teyen)
-#wet <- (covs$wet_mean - mean(revi.data$occ.covs$wet$teyen)) / sd(revi.data$occ.covs$wet$teyen)
-#dry <- (covs$dry_mean - mean(revi.data$occ.covs$dry$teyen)) / sd(revi.data$occ.covs$dry$teyen)
-#
-## Create three-dimensional array
-#X.0 <- array(1, dim = c(J.pred, n.years.pred, p.occ))
-## Fill in the array
-## Years
-#X.0[, , 2] <- hot
-## Elevation
-#X.0[, , 3] <- wet
-## Elevation^2
-#X.0[, , 4] <- dry
-## Check out the structure
-#str(X.0)
-#
-## Indicate which primary time periods (years) we are predicting for
-#t.cols <- c(4)
-## Approx. run time: < 30 sec
-#out.pred <- predict(out.ar1, X.0, coords.0 = full.coords, t.cols = t.cols, ignore.RE = TRUE, type = 'occupancy')
-#
-## Plotting
-#plot.dat <- data.frame(x = full.coords$x, 
-#                       y = full.coords$y, 
-#                       mean.psi = apply(out.pred$psi.0.samples[, , 1], 2, mean), 
-#                       sd.psi = apply(out.pred$psi.0.samples[, , 1], 2, sd), 
-#                       stringsAsFactors = FALSE)
-## Make a species distribution map showing the point estimates,
-## or predictions (posterior means)
-#dat.stars <- st_as_stars(plot.dat, dims = c('x', 'y'))
-## 2009
-#ggplot() + 
-#  geom_stars(data = dat.stars, aes(x = x, y = y, fill = mean.psi)) +
-#  scale_fill_viridis_c(na.value = 'transparent') +
-#  labs(x = 'Easting', y = 'Northing', fill = '', 
-#       title = 'Mean REVI occurrence probability 2009') +
-#  theme_bw()
-#

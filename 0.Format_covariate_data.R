@@ -5,7 +5,7 @@
 # Christopher D. Dean, Alfio Alessandro Chiarenza, Jeffrey W. Doser, Alexander
 # Farnsworth, Lewis A. Jones, Sinéad Lyster, Charlotte L. Outhwaite, Paul J. 
 # Valdes, Richard J. Butler, Philip D. Mannion.
-# 2024
+# 2025
 # Script written by Christopher D. Dean and Lewis A. Jones
 
 ################################################################################
@@ -28,7 +28,7 @@ library(dplyr)
 library(beepr)
 
 # Load in Functions
-source("0.Functions.R")
+source("Scripts/0.Functions.R")
 
 # Set values
 res <- 0.5
